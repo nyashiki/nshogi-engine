@@ -1,0 +1,661 @@
+<html lang="ja">
+    <header>
+        <meta charset="utf-8" />
+
+        <title>nshogi CSA client viewer</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap" rel="stylesheet">
+
+        <link rel="stylesheet" href="/static/css/style.css">
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
+        <!--
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-streaming/1.7.0/chartjs-plugin-streaming.js"></script>
+        -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@3.3.2"></script>
+        <script src="https://cdn.jsdelivr.net/npm/luxon@1.27.0"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+
+        <script>
+            var evaluationHistoryChart = null;
+            var npsHistoryChart = null;
+            var npsMax = 10000;
+            var lastNPS = 0;
+
+            document.addEventListener("DOMContentLoaded", (event) => {
+                var socket = io.connect("http://localhost:8000/");
+
+                socket.on("update", function (data) {
+                    if ("usi_log" in data) {
+                        var usiLog = document.getElementById("usi-log");
+
+                        var newElement = document.createElement("p");
+                        newElement.className = "terminal-line";
+
+                        if (data["usi_log"]["type"] === "out") {
+                            newElement.textContent = "> " + data["usi_log"]["message"].trim();
+                        } else {
+                            newElement.textContent = "< " + data["usi_log"]["message"].trim();
+                        }
+                        usiLog.append(newElement);
+                        usiLog.scrollTop = usiLog.scrollHeight;
+
+                        if (data["usi_log"]["message"].includes("score")) {
+                            const split = data["usi_log"]["message"].split(" ");
+                            const index = split.indexOf("score");
+
+                            var blackRate = 0;
+                            var drawRate = 0;
+                            if (split[index + 1] === "windraw") {
+                                blackRate = parseFloat(split[index + 2]);
+                                drawRate = parseFloat(split[index + 3]);
+                            } else if (split[index + 1] === "cp") {
+                                const score = parseInt(split[index + 2]);
+                                blackRate = 1 / (1 + Math.exp(-score / 500));
+
+                            } else if (split[index + 1] === "mate") {
+                                if (split[index + 2][0] === "-") {
+                                    blackRate = 0;
+                                } else {
+                                    blackRate = 1;
+                                }
+                            }
+
+                            if (data["usi_log"]["my_turn"] === "WHITE") {
+                                blackRate = 1 - blackRate - drawRate;
+                            }
+
+                            drawEvaluation(blackRate, drawRate);
+                        }
+
+                        if (data["usi_log"]["message"].includes("nps")) {
+                            const split = data["usi_log"]["message"].split(" ");
+                            const index = split.indexOf("nps");
+
+                            lastNPS = parseInt(split[index + 1]);
+                        }
+                    }
+
+                    if ("csa_log" in data) {
+                        var csaLog = document.getElementById("csa-log");
+
+                        var newElement = document.createElement("p");
+                        newElement.className = "terminal-line";
+
+                        if (data["csa_log"]["type"] === "out") {
+                            newElement.textContent = "< " + data["csa_log"]["message"].trim();
+                            if (data["csa_log"]["message"].includes("LOGOUT")) {
+                                lastNPS = 0
+                            }
+                        } else {
+                            newElement.textContent = "> " + data["csa_log"]["message"].trim();
+                        }
+                        csaLog.append(newElement);
+                        csaLog.scrollTop = csaLog.scrollHeight;
+                    }
+
+                    if ("pv" in data) {
+                        drawPV(data["pv"]);
+                    }
+
+                    if ("evaluation_history" in data) {
+                        updateEvalutionHistoryChart(data["evaluation_history"]);
+                    }
+
+                    var lastMovePos = ("last_move_position" in data) ? data["last_move_position"] : null;
+
+                    if (lastMovePos !== null) {
+                        const y = 8 - lastMovePos % 9;
+                        const x = 8 - Math.floor(lastMovePos / 9);
+                        lastMovePos = y * 9 + x;
+                    }
+
+                    if ("remaining_time" in data) {
+                        const blackTime = document.getElementById("black-time");
+                        const whiteTime = document.getElementById("white-time");
+
+                        data["remaining_time"][0] = Math.floor(data["remaining_time"][0] / 1000);
+                        data["remaining_time"][1] = Math.floor(data["remaining_time"][1] / 1000);
+
+                        var blackMinutes = Math.floor(data["remaining_time"][0] / 60);
+                        var blackSeconds = data["remaining_time"][0] % 60;
+                        var whiteMinutes = Math.floor(data["remaining_time"][1] / 60);
+                        var whiteSeconds = data["remaining_time"][1] % 60;
+
+                        blackTime.innerText = blackMinutes.toString().padStart(2, "0") + ":" +
+                            blackSeconds.toString().padStart(2, "0");
+                        whiteTime.innerText = whiteMinutes.toString().padStart(2, "0") + ":" +
+                            whiteSeconds.toString().padStart(2, "0");
+                    }
+
+                    if ("current_state" in data && data["current_state"] !== null) {
+                        const csaLines = data["current_state"].split("\n");
+                        var onBoard = csaLines.slice(0, 9).map(line => line.slice(2)).join("");
+
+                        var standMap = new Map();
+                        csaLines.slice(9).forEach(line => {
+                            if (line.substr(0, 2) === "P+") {
+                                for (var i = 4; i < line.length; i += 4) {
+                                    var piece = "+" + line.substr(i, 2);
+                                    standMap.set(piece, (standMap.get(piece) ?? 0) + 1);
+                                }
+                            } else if (line.substr(0, 2) === "P-") {
+                                for (var i = 4; i < line.length; i += 4) {
+                                    var piece = "-" + line.substr(i, 2);
+                                    standMap.set(piece, (standMap.get(piece) ?? 0) + 1);
+                                }
+                            }
+                        });
+
+                        drawPosition(onBoard.match(/.{1,3}/g), Array.from(standMap.entries()), lastMovePos);
+                    }
+
+                    if ("game_info" in data) {
+                        const blackName = document.getElementById("black-name");
+                        const whiteName = document.getElementById("white-name");
+
+                        blackName.innerText = data["game_info"]["Name+"];
+                        whiteName.innerText = data["game_info"]["Name-"];
+                    }
+                });
+
+                drawPosition([
+                    "-KY", "-KE", "-GI", "-KI", "-OU", "-KI", "-GI", "-KE", "-KY",
+                    " * ", "-HI", " * ", " * ", " * ", " * ", " * ", "-KA", " * ",
+                    "-FU", "-FU", "-FU", "-FU", "-FU", "-FU", "-FU", "-FU", "-FU",
+                    " * ", " * ", " * ", " * ", " * ", " * ", " * ", " * ", " * ",
+                    " * ", " * ", " * ", " * ", " * ", " * ", " * ", " * ", " * ",
+                    " * ", " * ", " * ", " * ", " * ", " * ", " * ", " * ", " * ",
+                    "+FU", "+FU", "+FU", "+FU", "+FU", "+FU", "+FU", "+FU", "+FU",
+                    " * ", "+KA", " * ", " * ", " * ", " * ", " * ", "+HI", " * ",
+                    "+KY", "+KE", "+GI", "+KI", "+OU", "+KI", "+GI", "+KE", "+KY",
+                ], [], null);
+                drawEvaluation(0.49, 0.02);
+                drawEvaluationHistory();
+                drawNPSHistory();
+            });
+
+            function drawEvaluation(blackWinRate, drawRate) {
+                const whiteWinRate = 1 - blackWinRate - drawRate;
+
+                var blackRateElement = document.getElementById("black-rate");
+                var drawRateElement = document.getElementById("draw-rate");
+                var whiteRateElement = document.getElementById("white-rate");
+
+                const blackWinRateWidth = Math.floor(blackWinRate * 100);
+                const drawRateWidth = Math.floor(drawRate * 100);
+                const whiteWinRateWidth = 100 - blackWinRateWidth - drawRateWidth;
+
+                // To do nothing with forceReflow but this invokes transition effects.
+                // var forceReflow = blackRateElement.offsetWidth;
+
+                blackRateElement.style.width = (blackWinRate * 100) + "%";
+                drawRateElement.style.width = (drawRate * 100) + "%";
+                whiteRateElement.style.width = (whiteWinRate * 100) + "%";
+
+                if (blackWinRate >= drawRate && blackWinRate >= whiteWinRate) {
+                    blackRateElement.innerText = blackWinRateWidth + "%";
+                    drawRateElement.innerText = "";
+                    whiteRateElement.innerText = "";
+                } else if (drawRate >= blackWinRate && drawRate >= whiteWinRate) {
+                    blackRateElement.innerText = "";
+                    drawRateElement.innerText = drawRateWidth + "%";
+                    whiteRateElement.innerText = "";
+                } else {
+                    blackRateElement.innerText = "";
+                    drawRateElement.innerText = "";
+                    whiteRateElement.innerText = whiteWinRateWidth + "%";
+                }
+            }
+
+            function csaPieceToHuman(csaPiece) {
+                if (csaPiece === "FU") {
+                    return "歩";
+                } else if (csaPiece === "KY") {
+                    return "香";
+                } else if (csaPiece === "KE") {
+                    return "桂";
+                } else if (csaPiece === "GI") {
+                    return "銀";
+                } else if (csaPiece === "KI") {
+                    return "金";
+                } else if (csaPiece === "KA") {
+                    return "角";
+                } else if (csaPiece === "HI") {
+                    return "飛";
+                } else if (csaPiece === "OU") {
+                    return "玉";
+                } else if (csaPiece === "TO") {
+                    return "と";
+                } else if (csaPiece === "NY") {
+                    return "成香";
+                } else if (csaPiece === "NK") {
+                    return "成桂";
+                } else if (csaPiece === "NG") {
+                    return "成銀";
+                } else if (csaPiece === "UM") {
+                    return "馬";
+                } else if (csaPiece === "RY") {
+                    return "龍";
+                }
+            }
+
+            function drawPV(pv) {
+                const zenkakus =
+                    ["１", "２", "３", "４", "５", "６", "７", "８", "９"];
+                const kansujis =
+                    ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
+
+                pv = pv.slice(0, 30);
+                pv = pv.map(item => {
+                    if (item.trim() === "TORYO") {
+                        return "TORYO";
+                    }
+
+                    let result = "";
+
+                    if (item[0] == "+") {
+                        result += "☗";
+                    } else {
+                        result += "☖";
+                    }
+
+                    result += zenkakus[parseInt(item[3]) - 1];
+                    result += kansujis[parseInt(item[4]) - 1];
+                    result += csaPieceToHuman(item.slice(5));
+                    result += "（";
+                    result += item.slice(1, 3);
+                    result += "）";
+
+                    return result;
+                });
+
+                var pvElement = document.getElementById("pv");
+                pvElement.innerText = pv.join(" ");
+            }
+
+            function drawEvaluationHistory() {
+                var ctx = document.getElementById("evaluation-history-chart").getContext("2d");
+
+                evaluationHistoryChart = new Chart(ctx, {
+                    type: "bar",
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                data: [],
+                                backgroundColor: "#41a6b5"
+                            },
+                            {
+                                data: [],
+                                backgroundColor: "#a9b1d6"
+                            },
+                            {
+                                data: [],
+                                backgroundColor: "#ff007c"
+                            }
+                        ]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                stacked: true,
+                                max: 1,
+                                min: 0,
+                                ticks: {
+                                    color: "#a9b1d6"
+                                },
+                                grid: {
+                                    color: "#a9b1d6",
+                                },
+                                border: {
+                                    color: "#a9b1d6"
+                                }
+                            },
+                            x: {
+                                stacked: true,
+                                ticks: {
+                                    color: "#a9b1d6",
+                                    callback: function(value, index, values) {
+                                        return value % 5 === 0 ? value : null;
+                                    }
+                                },
+                                grid: {
+                                    display: false
+                                },
+                                border: {
+                                    color: "#a9b1d6"
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateEvalutionHistoryChart(history) {
+                evaluationHistoryChart.data.datasets[0].data = history.map(row => (row)? row[0] : null);
+                evaluationHistoryChart.data.datasets[1].data = history.map(row => (row)? row[1] : null);
+                evaluationHistoryChart.data.datasets[2].data = history.map(row => (row)? 1.0 - row[0] - row[1] : null);
+
+                const generateRangeArray = historySize =>
+                    Array.from({ length: Math.ceil(historySize / 10) * 10 }, (_, i) => i + 1);
+
+                const labels = generateRangeArray(history.length);
+
+                evaluationHistoryChart.data.labels = labels;
+
+                evaluationHistoryChart.update();
+            }
+
+            function drawPosition(pieces, stands, lastMovePos) {
+                var board = document.getElementById("shogi-board");
+                board.innerHTML = "";
+
+                pieces.forEach((piece, i) => {
+                    var newElement = document.createElement("div");
+                    newElement.className = "shogi-cell";
+
+                    if (i === lastMovePos) {
+                        newElement.className += " shogi-last-move";
+                    }
+
+                    piece = piece.trim();
+
+                    if (piece === "-KY") {
+                        newElement.className += " shogi-piece shogi-lance-white";
+                    } else if (piece === "-KE") {
+                        newElement.className += " shogi-piece shogi-knight-white";
+                    } else if (piece === "-GI") {
+                        newElement.className += " shogi-piece shogi-silver-white";
+                    } else if (piece === "-KI") {
+                        newElement.className += " shogi-piece shogi-gold-white";
+                    } else if (piece === "-OU") {
+                        newElement.className += " shogi-piece shogi-king-white";
+                    } else if (piece === "-KA") {
+                        newElement.className += " shogi-piece shogi-bishop-white";
+                    } else if (piece === "-HI") {
+                        newElement.className += " shogi-piece shogi-rook-white";
+                    } else if (piece === "-FU") {
+                        newElement.className += " shogi-piece shogi-pawn-white";
+                    } else if (piece === "-NY") {
+                        newElement.className += " shogi-piece shogi-lance-pro-white";
+                    } else if (piece === "-NK") {
+                        newElement.className += " shogi-piece shogi-knight-pro-white";
+                    } else if (piece === "-NG") {
+                        newElement.className += " shogi-piece shogi-silver-pro-white";
+                    } else if (piece === "-UM") {
+                        newElement.className += " shogi-piece shogi-bishop-pro-white";
+                    } else if (piece === "-RY") {
+                        newElement.className += " shogi-piece shogi-rook-pro-white";
+                    } else if (piece === "-TO") {
+                        newElement.className += " shogi-piece shogi-pawn-pro-white";
+                    } else if (piece === "+KY") {
+                        newElement.className += " shogi-piece shogi-lance-black";
+                    } else if (piece === "+KE") {
+                        newElement.className += " shogi-piece shogi-knight-black";
+                    } else if (piece === "+GI") {
+                        newElement.className += " shogi-piece shogi-silver-black";
+                    } else if (piece === "+KI") {
+                        newElement.className += " shogi-piece shogi-gold-black";
+                    } else if (piece === "+OU") {
+                        newElement.className += " shogi-piece shogi-king-black";
+                    } else if (piece === "+KA") {
+                        newElement.className += " shogi-piece shogi-bishop-black";
+                    } else if (piece === "+HI") {
+                        newElement.className += " shogi-piece shogi-rook-black";
+                    } else if (piece === "+FU") {
+                        newElement.className += " shogi-piece shogi-pawn-black";
+                    } else if (piece === "+NY") {
+                        newElement.className += " shogi-piece shogi-lance-pro-black";
+                    } else if (piece === "+NK") {
+                        newElement.className += " shogi-piece shogi-knight-pro-black";
+                    } else if (piece === "+NG") {
+                        newElement.className += " shogi-piece shogi-silver-pro-black";
+                    } else if (piece === "+UM") {
+                        newElement.className += " shogi-piece shogi-bishop-pro-black";
+                    } else if (piece === "+RY") {
+                        newElement.className += " shogi-piece shogi-rook-pro-black";
+                    } else if (piece === "+TO") {
+                        newElement.className += " shogi-piece shogi-pawn-pro-black";
+                    }
+
+                    board.append(newElement)
+                });
+
+                var blackStand = document.getElementById("shogi-black-stand");
+                var whiteStand = document.getElementById("shogi-white-stand");
+                blackStand.innerHTML = "";
+                whiteStand.innerHTML = "";
+
+                stands.forEach((stand) => {
+                    piece = stand[0];
+                    count = stand[1];
+                    var newElement = document.createElement("div");
+                    newElement.className = "shogi-piece";
+
+                    if (piece === "+FU") {
+                        newElement.className += " shogi-stand-piece-black shogi-pawn-black";
+                    } else if (piece == "+KY") {
+                        newElement.className += " shogi-stand-piece-black shogi-lance-black";
+                    } else if (piece == "+KE") {
+                        newElement.className += " shogi-stand-piece-black shogi-knight-black";
+                    } else if (piece == "+GI") {
+                        newElement.className += " shogi-stand-piece-black shogi-silver-black";
+                    } else if (piece == "+KI") {
+                        newElement.className += " shogi-stand-piece-black shogi-gold-black";
+                    } else if (piece == "+KA") {
+                        newElement.className += " shogi-stand-piece-black shogi-bishop-black";
+                    } else if (piece == "+HI") {
+                        newElement.className += " shogi-stand-piece-black shogi-rook-black";
+                    } else if (piece === "-FU") {
+                        newElement.className += " shogi-stand-piece-white shogi-pawn-white";
+                    } else if (piece == "-KY") {
+                        newElement.className += " shogi-stand-piece-white shogi-lance-white";
+                    } else if (piece == "-KE") {
+                        newElement.className += " shogi-stand-piece-white shogi-knight-white";
+                    } else if (piece == "-GI") {
+                        newElement.className += " shogi-stand-piece-white shogi-silver-white";
+                    } else if (piece == "-KI") {
+                        newElement.className += " shogi-stand-piece-white shogi-gold-white";
+                    } else if (piece == "-KA") {
+                        newElement.className += " shogi-stand-piece-white shogi-bishop-white";
+                    } else if (piece == "-HI") {
+                        newElement.className += " shogi-stand-piece-white shogi-rook-white";
+                    }
+
+                    if (count > 1) {
+                        var childElement = document.createElement("span");
+                        if (piece[0] === "+") {
+                            childElement.className = "shogi-black-stand-count";
+                        } else {
+                            childElement.className = "shogi-white-stand-count";
+                        }
+                        childElement.innerText = count;
+                        newElement.append(childElement);
+                    }
+
+                    if (piece[0] === "+") {
+                        blackStand.append(newElement);
+                    } else {
+                        whiteStand.append(newElement);
+                    }
+                });
+            }
+
+            function drawNPSHistory() {
+                var ctx = document.getElementById("nps-history-chart").getContext("2d");
+
+                npsHistoryChart = new Chart(ctx, {
+                    type: "line",
+                    data: {
+                        // labels: new Array(100).fill(0),
+                        labels: [],
+                        datasets: [{
+                            label: "NPS",
+                            backgroundColor: 'rgba(255, 199, 119, 0.2)',
+                            borderColor: 'rgb(255, 199, 119)',
+                            fill: true,
+                            data: [],
+                            // data: new Array(100).fill(null),
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                max: 10000,
+                                min: 0,
+                                ticks: {
+                                    color: "#a9b1d6"
+                                },
+                                grid: {
+                                    color: "#a9b1d6",
+                                },
+                                border: {
+                                    color: "#a9b1d6"
+                                }
+                            },
+                            x: {
+                                type: "realtime",
+                                time: {
+                                    unit: "second"
+                                },
+                                realtime: {
+                                    duration: 60000,
+                                    refresh: 1000,
+                                    pause: false,
+                                    onRefresh: (chart) => {
+                                        const now = Date.now();
+                                        npsHistoryChart.data.datasets.forEach((dataset) => {
+                                            dataset.data.push({
+                                                x: now,
+                                                y: lastNPS,
+                                            });
+                                        });
+
+                                        npsMax = Math.max(npsMax, lastNPS);
+                                        npsHistoryChart.options.scales.y.max =
+                                            Math.ceil(npsMax * 1.5 / 20000) * 20000;
+                                    }
+                                },
+                                ticks: {
+                                    display: false
+                                },
+                                grid: {
+                                    display: false
+                                },
+                                border: {
+                                    color: "#a9b1d6"
+                                }
+                            }
+                        },
+                        elements: {
+                            point: {
+                                radius: 0
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                enabled: false
+                            },
+                            legend: {
+                                display: false
+                                // labels: {
+                                //     color: "#a9b1d6"
+                                // }
+                            },
+                        }
+                    }
+                });
+            }
+        </script>
+    </header>
+    <body>
+        <h1>nshogi CSA client viewer</h1>
+
+        <div id="contents">
+            <div class="game-and-dashboard">
+                <div id="game">
+                    <div class="player-info" id="white-info">
+                        <span class="name-info" id="white-name">GOTE</span>
+                        <span class="time-info" id="white-time">00:00</span>
+                    </div>
+                    <div id="position">
+                        <div class="shogi-stand" id="shogi-white-stand">
+                            <div class="shogi-piece shogi-stand-piece-white shogi-pawn-white">
+                                <span class="shogi-white-stand-count">2</span>
+                            </div>
+                        </div>
+                        <div class="shogi-board" id="shogi-board">
+                        </div>
+                        <div class="shogi-stand" id="shogi-black-stand">
+                            <div class="shogi-piece shogi-stand-piece-black shogi-pawn-black">
+                                <span class="shogi-black-stand-count">2</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="player-info" id="black-info">
+                        <span class="name-info" id="black-name">SENTE</span>
+                        <span class="time-info" id="black-time">00:00</span>
+                    </div>
+                </div>
+                <div class="dashboard">
+                    <span class="dashboard-title">Dashboard</span>
+
+                    <div class="evaluation">
+                        <div class="dashboard-item">Evaluation</div>
+                        <div class="evaluation-bars">
+                            <span class="evaluation-bar" id="black-rate">50%</span>
+                            <span class="evaluation-bar" id="draw-rate"></span>
+                            <span class="evaluation-bar" id="white-rate"></span>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-history">
+                        <div class="dashboard-item">Evaluation History</div>
+                        <div>
+                            <canvas id="evaluation-history-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class=nps-history">
+                        <div class="dashboard-item">NPS</div>
+                        <div>
+                            <canvas id="nps-history-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="pv">
+                        <div class="dashboard-item">Principal Variation</div>
+                        <div id="pv"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="log">
+                <div>
+                    <span class="terminal-title">USI Log</span>
+                    <div class="terminal" id="usi-log">
+                    </div>
+                </div>
+                <div>
+                    <span class="terminal-title">CSA Log</span>
+                    <div class="terminal" id="csa-log">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,26 @@
+[server]
+host = "127.0.0.1"
+port = 4081
+keepalive = 10
+
+[client]
+id = ""
+password = ""
+loop = false
+send_pv = false
+
+[engine]
+wd = ""
+command = ""
+[engine.usioptions]
+USI_Hash = 1024
+USI_Ponder = false
+
+[log]
+save_log = true
+dir = "./log/"
+
+[viewer]
+enabled = false
+host = "127.0.0.1"
+port = 8000

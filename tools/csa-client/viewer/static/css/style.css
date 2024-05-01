@@ -1,0 +1,435 @@
+body {
+    background-color: #1f2335;
+    color: #a9b1d6;
+    font-family: "Ubuntu", sans-serif;
+}
+
+h1 {
+    color: #9d7cd8;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-bottom: 2px solid #9d7cd8;
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+}
+
+#contents {
+    display: flex;
+    flex-direction: column;
+    height: 92vh;
+}
+
+.game-and-dashboard {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 1em;
+    flex: 6;
+}
+
+#game {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.player-info {
+    color: #eee;
+    background: #000;
+    flex: 1;
+    width: 512px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.name-info {
+    margin-left: 1em;
+}
+
+.time-info {
+    margin-right: 1em;
+}
+
+#black-info {
+    background: #41a6b5;
+}
+
+#white-info {
+    background: #ff007c;
+}
+
+#position {
+    height: 100%;
+    flex: 14;
+    width: 600px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+@keyframes glowing-border {
+    0% {
+        box-shadow: 0 0 3px #fff, 0 0 6px #ff007c, 0 0 9px #41a6b5, 0 0 12px #ff007c, 0 0 15px #41a6b5;
+    }
+    50% {
+        box-shadow: 0 0 3px #fff, 0 0 6px #41a6b5, 0 0 9px #ff007c, 0 0 12px #41a6b5, 0 0 15px #ff007c;
+    }
+    100% {
+        box-shadow: 0 0 3px #fff, 0 0 6px #ff007c, 0 0 9px #41a6b5, 0 0 12px #ff007c, 0 0 15px #41a6b5;
+    }
+}
+
+.shogi-board {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    gap: 0;
+    width: 486px;
+    height: 486px;
+    border: 2px solid #545c7e;
+    animation: glowing-border 3s infinite alternate;
+}
+
+.shogi-stand {
+    width: 54px;
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+#shogi-white-stand {
+    display: flex;
+    flex-direction: column-reverse;
+    align-self: flex-end;
+    margin-bottom: 20px;
+}
+
+#shogi-black-stand {
+    display: flex;
+    margin-left: 4px;
+    margin-top: 16px;
+}
+
+.shogi-stand-piece-black {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+}
+
+.shogi-white-stand-count {
+    display: inline-block;
+    position: relative;
+    color: #ff757f;
+    font-size: 16px;
+    transform: rotate(180deg);
+    transform-origin: center;
+    right: 8px;
+}
+
+.shogi-black-stand-count {
+    display: inline-block;
+    position: relative;
+    color: #ff757f;
+    font-size: 16px;
+    right: -5px;
+}
+
+.shogi-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #292e42;
+    border: 1px dashed #545c7e;
+    box-sizing: border-box;
+}
+
+.shogi-piece {
+    width: 54px;
+    height: 54px;
+    background-image: url("/static/res/piece.svg");
+    background-repeat: no-repeat;
+}
+
+.shogi-pawn-white {
+    background-position: -364px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-pawn-pro-white {
+    background-position: -364px -236px;
+    background-size: 416px 364px;
+}
+
+.shogi-lance-white {
+    background-position: -312px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-lance-pro-white {
+    background-position: -311px -237px;
+    background-size: 416px 364px;
+}
+
+.shogi-knight-white {
+    background-position: -259px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-knight-pro-white {
+    background-position: -259px -237px;
+    background-size: 416px 364px;
+}
+
+.shogi-silver-white {
+    background-position: -207px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-silver-pro-white {
+    background-position: -207px -237px;
+    background-size: 416px 364px;
+}
+
+.shogi-gold-white {
+    background-position: -155px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-bishop-white {
+    background-position: -103px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-bishop-pro-white {
+    background-position: -103px -237px;
+    background-size: 416px 364px;
+}
+
+.shogi-rook-white {
+    background-position: -51px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-rook-pro-white {
+    background-position: -51px -237px;
+    background-size: 416px 364px;
+}
+
+.shogi-king-white {
+    background-position: 1px -182px;
+    background-size: 416px 364px;
+}
+
+.shogi-pawn-black {
+    background-position: -364px -74px;
+    background-size: 416px 364px;
+}
+
+.shogi-pawn-pro-black {
+    background-position: -364px -128px;
+    background-size: 416px 364px;
+}
+
+.shogi-lance-black {
+    background-position: -312px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-lance-pro-black {
+    background-position: -311px -128px;
+    background-size: 416px 364px;
+}
+
+.shogi-knight-black {
+    background-position: -259px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-knight-pro-black {
+    background-position: -259px -128px;
+    background-size: 416px 364px;
+}
+
+.shogi-silver-black {
+    background-position: -207px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-silver-pro-black {
+    background-position: -207px -128px;
+    background-size: 416px 364px;
+}
+
+.shogi-gold-black {
+    background-position: -155px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-bishop-black {
+    background-position: -103px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-bishop-pro-black {
+    background-position: -103px -128px;
+    background-size: 416px 364px;
+}
+
+.shogi-rook-black {
+    background-position: -51px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-rook-pro-black {
+    background-position: -51px -128px;
+    background-size: 416px 364px;
+}
+
+.shogi-king-black {
+    background-position: 1px -73px;
+    background-size: 416px 364px;
+}
+
+.shogi-last-move {
+    background-color: #ffc777;
+}
+
+.terminal {
+    background-color: #0a0a0a;
+    color: #c3e88d;
+    font-family: 'Courier New', monospace;
+    border-radius: 8px;
+    overflow: auto;
+    flex-grow: 1;
+    padding: 16px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.terminal::-webkit-scrollbar {
+    display: none;
+}
+
+.terminal-title {
+    color: #a9b1d6;
+    margin-bottom: 4px;
+    font-weight: bold;
+}
+
+.terminal-line {
+    white-space: pre; /* 空白文字をそのまま表示 */
+    margin-left: 8px;
+    margin-top: 1px;
+    margin-bottom: 6px;
+    white-space: pre-wrap;
+    word-wrap: break-all;
+    word-break: break-all;
+}
+
+.dashboard {
+    position: relative;
+    margin: 0 1em;
+    padding: 0 1em;
+    border: solid 3px #7aa2f7;
+    border-radius: 8px;
+    flex: 1;
+    height: 100%;
+}
+
+.dashboard-title {
+    position: absolute;
+    display: inline-block;
+    top: -13px;
+    left: 10px;
+    padding: 0 9px;
+    line-height: 1;
+    font-size: 19px;
+    background: #1f2335;
+    color: #7aa2f7;
+    font-weight: bold;
+}
+
+.dashboard-item {
+    color: #ff757f;
+    font-weight: bold;
+    margin-top: 0.5em;
+}
+
+.evaluation-bars {
+    display: flex;
+}
+
+.evaluation-bar {
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    align-items: center;
+    height: 22px;
+    color: #fff;
+    transition: width 1s ease-out;
+}
+
+#black-rate {
+    width: 49%;
+    background: #41a6b5;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+#draw-rate {
+    width: 2%;
+    background: #a9b1d6;
+}
+
+#white-rate {
+    width: 49%;
+    background: #ff007c;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+#evaluation-history-chart {
+    width: 100%;
+    height: 160px;
+}
+
+#nps-history-chart {
+    width: 100%;
+    height: 160px;
+}
+
+#pv {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+    height: 100%;
+    overflow: hidden;
+}
+
+#log {
+    display: flex;
+    justify-content: flex-start;
+    align-items: stretch;
+    width: 100%;
+    flex: 4;
+    margin: 0.5em;
+    gap: 30px;
+    overflow: auto;
+}
+
+#log > div {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 calc(50% - 20px);
+    max-width: calc(50% - 20px);
+    box-sizing: border-box;
+}

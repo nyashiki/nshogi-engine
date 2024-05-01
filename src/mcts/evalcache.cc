@@ -1,0 +1,151 @@
+#include "evalcache.h"
+
+namespace nshogi {
+namespace engine {
+namespace mcts {
+
+EvalCache::EvalCache(std::size_t MemorySize)
+    : NumBundle(MemorySize * 1024LL * 1024LL / (sizeof(CacheData) * CACHE_BUNDLE_SIZE))
+    , Memory(std::make_unique<CacheData[]>(NumBundle * CACHE_BUNDLE_SIZE)) {
+
+    CacheStorage = std::make_unique<CacheBundle[]>(NumBundle);
+
+    CacheData* P = Memory.get();
+    for (std::size_t I = 0; I < NumBundle; ++I) {
+        CacheStorage[I].Head = P;
+        CacheData* CacheElem = CacheStorage[I].Head;
+        for (std::size_t J = 0; J < CACHE_BUNDLE_SIZE; ++J) {
+            CacheElem->IsUsed = false;
+
+            if (J == 0) {
+                CacheElem->Prev = nullptr;
+            } else {
+                CacheElem->Prev = P - 1;
+                CacheElem->Prev->Next = CacheElem;
+            }
+
+            if (J + 1 < CACHE_BUNDLE_SIZE) {
+                CacheElem->Next = P + 1;
+            } else {
+                CacheElem->Next = nullptr;
+            }
+
+            CacheElem = CacheElem->Next;
+            ++P;
+        }
+    }
+}
+
+void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, float WR, float D) {
+    const uint64_t Hash = St.getHash();
+    const core::HuffmanCode HC = core::HuffmanCode::encode(St.getPosition());
+
+    CacheBundle* Bundle = &CacheStorage[Hash % NumBundle];
+    std::lock_guard<std::mutex> Lk(Bundle->Mtx);
+
+    CacheData* CacheElem = Bundle->Head;
+
+    while (true) {
+        if (!CacheElem->IsUsed) {
+            break;
+        }
+
+        if (CacheElem->Hash64 == Hash && CacheElem->HC == HC) {
+            // The entry already exists.
+
+            // Reorder.
+            if (CacheElem->Prev != nullptr) {
+                CacheElem->Prev->Next = CacheElem->Next;
+
+                if (CacheElem->Next != nullptr) {
+                    CacheElem->Next->Prev = CacheElem->Prev;
+                }
+
+                CacheElem->Next = Bundle->Head;
+                CacheElem->Prev = nullptr;
+                Bundle->Head = CacheElem;
+            }
+
+            return;
+        }
+
+        if (CacheElem->Next == nullptr) {
+            break;
+        }
+
+        CacheElem = CacheElem->Next;
+    }
+
+    // Reorder.
+    if (CacheElem->Prev != nullptr) {
+        CacheElem->Prev->Next = CacheElem->Next;
+
+        if (CacheElem->Next != nullptr) {
+            CacheElem->Next->Prev = CacheElem->Prev;
+        }
+
+        CacheElem->Next = Bundle->Head;
+        CacheElem->Prev = nullptr;
+        Bundle->Head = CacheElem;
+    }
+
+    CacheElem->IsUsed = true;
+    CacheElem->Hash64 = Hash;
+    CacheElem->HC = HC;
+
+    std::memcpy(CacheElem->EInfo.Policy, P, sizeof(float) * NumM);
+    CacheElem->EInfo.WinRate = WR;
+    CacheElem->EInfo.DrawRate = D;
+};
+
+bool EvalCache::load(const core::State& St, EvalInfo* EI) {
+    const uint64_t Hash = St.getHash();
+
+    bool IsHuffmanCodeComputed = false;
+    core::HuffmanCode HC = core::HuffmanCode::zero();
+
+    CacheBundle* Bundle = &CacheStorage[Hash % NumBundle];
+    std::lock_guard<std::mutex> Lk(Bundle->Mtx);
+
+    CacheData* CacheElem = Bundle->Head;
+
+    while (CacheElem != nullptr) {
+        if (!CacheElem->IsUsed) {
+            break;
+        }
+
+        if (CacheElem->Hash64 == Hash) {
+            if (!IsHuffmanCodeComputed) {
+                HC = core::HuffmanCode::encode(St.getPosition());
+                IsHuffmanCodeComputed = true;
+            }
+
+            if (CacheElem->HC == HC) {
+                *EI = CacheElem->EInfo;
+
+                // Reorder.
+                if (CacheElem->Prev != nullptr) {
+                    CacheElem->Prev->Next = CacheElem->Next;
+
+                    if (CacheElem->Next != nullptr) {
+                        CacheElem->Next->Prev = CacheElem->Prev;
+                    }
+
+                    CacheElem->Next = Bundle->Head;
+                    CacheElem->Prev = nullptr;
+                    Bundle->Head = CacheElem;
+                }
+
+                return true;
+            }
+        }
+
+        CacheElem = CacheElem->Next;
+    }
+
+    return false;
+}
+
+} // namespace mcts
+} // namescape engine
+} // namespace nshogi
