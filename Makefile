@@ -55,11 +55,6 @@ TEST_SOURCES :=                      \
 	src/test/test_math.cc        \
 	src/test/test_allocator.cc
 
-ifeq ($(EXECUTOR), random)
-	CXX_FLAGS += -DEXECUTOR_RANDOM
-	SOURCES += src/infer/random.cc
-endif
-
 ifeq ($(CUDA_ENABLED), 1)
 	INCLUDES += -I$(CUDA_DIR)/include/
 	LINK_DIRS += -L$(CUDA_DIR)/lib64/
@@ -67,6 +62,16 @@ ifeq ($(CUDA_ENABLED), 1)
 	SOURCES += src/infer/trt.cc
 	CUDA_SOURCES := src/cuda/extractbit.cu src/cuda/math.cu
 	TEST_SOURCES += src/test/test_extractbit.cc src/test/test_cuda_math.cc
+endif
+
+ifeq ($(EXECUTOR), zero)
+	CXX_FLAGS += -DEXECUTOR_ZERO
+	SOURCES += src/infer/zero.cc
+endif
+
+ifeq ($(EXECUTOR), random)
+	CXX_FLAGS += -DEXECUTOR_RANDOM
+	SOURCES += src/infer/random.cc
 endif
 
 ifeq ($(EXECUTOR), tensorrt)
