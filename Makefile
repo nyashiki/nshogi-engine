@@ -30,20 +30,22 @@ else
 	# OPTIM = -Ofast -g
 endif
 
-SOURCES :=                            \
-	src/allocator/allocator.cc    \
-	src/allocator/default.cc      \
-	src/bench/bench.cc            \
-	src/bench/batchsize.cc        \
-	src/mcts/checkmatesearcher.cc \
-	src/mcts/garbagecollector.cc  \
-	src/mcts/manager.cc           \
-	src/mcts/searchworker.cc      \
-	src/mcts/tree.cc              \
-	src/mcts/mutexpool.cc         \
-	src/mcts/evalcache.cc         \
-	src/evaluate/batch.cc         \
-	src/protocol/usi.cc           \
+SOURCES :=                              \
+	src/allocator/allocator.cc      \
+	src/allocator/default.cc        \
+	src/bench/bench.cc              \
+	src/bench/batchsize.cc          \
+	src/bench/mcts.cc               \
+	src/mcts/checkmatesearcher.cc   \
+	src/mcts/garbagecollector.cc    \
+	src/mcts/manager.cc             \
+	src/mcts/searchworker.cc        \
+	src/mcts/searchworkerbuilder.cc \
+	src/mcts/tree.cc                \
+	src/mcts/mutexpool.cc           \
+	src/mcts/evalcache.cc           \
+	src/evaluate/batch.cc           \
+	src/protocol/usi.cc             \
 	src/protocol/usilogger.cc
 
 CUDA_SOURCES :=

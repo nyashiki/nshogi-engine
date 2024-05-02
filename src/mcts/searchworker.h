@@ -25,7 +25,6 @@ namespace mcts {
 class SearchWorker {
  public:
     SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_ = nullptr, MutexPool* = nullptr, EvalCache* = nullptr);
-
     ~SearchWorker();
 
     void start(Node* Root, const core::State& St, const core::StateConfig& Config);

@@ -3,6 +3,7 @@
 #include "garbagecollector.h"
 #include "node.h"
 #include "mutexpool.h"
+#include "searchworkerbuilder.h"
 #include "tree.h"
 #include "../allocator/allocator.h"
 #include "../globalconfig.h"
@@ -64,7 +65,15 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
 #endif
 
             Evaluators.emplace_back(std::make_unique<evaluate::Evaluator>(BatchSize, Infers.back().get()));
-            SearchWorkers.emplace_back(std::make_unique<SearchWorker>(BatchSize, Evaluators.back().get(), CSearcher.get(), MtxPool.get(), ECache.get()));
+            // SearchWorkers.emplace_back(std::make_unique<SearchWorker>(BatchSize, Evaluators.back().get(), CSearcher.get(), MtxPool.get(), ECache.get()));
+            SearchWorkers.emplace_back(
+                SearchWorkerBuilder()
+                    .setBatchSize(BatchSize)
+                    .setEvaluator(Evaluators.back().get())
+                    .setCheckmateSearcher(CSearcher.get())
+                    .setMutexPool(MtxPool.get())
+                    .setEvalCache(ECache.get())
+                    .build());
         }
     }
 
