@@ -116,8 +116,10 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
                 // The position is solved.
                 if (SearchTree.getRoot()->getPlyToTerminalSolved() != 0) {
                     if (WatchDogEnabled) {
-                        dumpLog(StartingNumNodes, Elapsed);
-                        Logger->printLog("Solved.");
+                        if (Logger != nullptr) {
+                            dumpLog(StartingNumNodes, Elapsed);
+                            Logger->printLog("Solved.");
+                        }
                         stop(false);
                     }
                     break;
@@ -126,8 +128,10 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
                 // Time limit.
                 if (isThinkingTimeOver(Elapsed)) {
                     if (WatchDogEnabled) {
-                        dumpLog(StartingNumNodes, Elapsed);
-                        Logger->printLog("Time limit.");
+                        if (Logger != nullptr) {
+                            dumpLog(StartingNumNodes, Elapsed);
+                            Logger->printLog("Time limit.");
+                        }
                         stop(false);
                     }
                     break;
@@ -141,8 +145,10 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
                     if (NodeAllocator.getTotal() > 0 &&
                             (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * Factor) {
                         if (WatchDogEnabled) {
-                            dumpLog(StartingNumNodes, Elapsed);
-                            Logger->printLog("Memory limit (Node).");
+                            if (Logger != nullptr) {
+                                dumpLog(StartingNumNodes, Elapsed);
+                                Logger->printLog("Memory limit (Node).");
+                            }
                             stop(false);
                         }
                         break;
@@ -152,8 +158,10 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
                     if (EdgeAllocator.getTotal() > 0 &&
                             (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * Factor) {
                         if (WatchDogEnabled) {
-                            dumpLog(StartingNumNodes, Elapsed);
-                            Logger->printLog("Memory limit (Edge).");
+                            if (Logger != nullptr) {
+                                dumpLog(StartingNumNodes, Elapsed);
+                                Logger->printLog("Memory limit (Edge).");
+                            }
                             stop(false);
                         }
                         break;
@@ -164,8 +172,10 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
                 bool DidMakeUpMind = didMakeUpMind(Elapsed);
                 if (DidMakeUpMind) {
                     if (WatchDogEnabled) {
-                        dumpLog(StartingNumNodes, Elapsed);
-                        Logger->printLog("Made up mind.");
+                        if (Logger != nullptr) {
+                            dumpLog(StartingNumNodes, Elapsed);
+                            Logger->printLog("Made up mind.");
+                        }
                         stop(false);
                     }
                     break;
@@ -243,7 +253,9 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
             std::stringstream ss;
             ss << "[Root] Visit: " << Visits << ", VirtualLoss: " << VirtualLoss
                     << ", WinRate: " << WinRate << ", DrawRate: " << DrawRate;
-            PLogger->printLog(ss.str().c_str());
+            if (PLogger != nullptr) {
+                PLogger->printLog(ss.str().c_str());
+            }
         }
 
         if (CallBackFunctionPtr != nullptr) {

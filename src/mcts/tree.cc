@@ -82,10 +82,14 @@ const core::State* Tree::getRootState() const {
 }
 
 Node* Tree::createNewRoot(const nshogi::core::State& State) {
-    PLogger->printLog("Creating a new root.");
+    if (PLogger != nullptr) {
+        PLogger->printLog("Creating a new root.");
+    }
 
     GC->addGarbage(std::move(Root));
-    PLogger->printLog("Throwed the previous root away.");
+    if (PLogger != nullptr) {
+        PLogger->printLog("Throwed the previous root away.");
+    }
 
     Root = std::make_unique<Node>(nullptr);
 
@@ -93,7 +97,9 @@ Node* Tree::createNewRoot(const nshogi::core::State& State) {
         throw std::runtime_error("Failed to allocate a root node.");
     }
 
-    PLogger->printLog("New root is now allocated.");
+    if (PLogger != nullptr) {
+        PLogger->printLog("New root is now allocated.");
+    }
 
     RootState = std::make_unique<core::State>(State.clone());
 
@@ -101,7 +107,9 @@ Node* Tree::createNewRoot(const nshogi::core::State& State) {
         throw std::runtime_error("Failed to allocate a root state.");
     }
 
-    PLogger->printLog("RootState is set.");
+    if (PLogger != nullptr) {
+        PLogger->printLog("RootState is set.");
+    }
 
     return Root.get();
 }
