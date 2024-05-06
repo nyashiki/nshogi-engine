@@ -8,6 +8,12 @@
 #include "../allocator/allocator.h"
 #include "../globalconfig.h"
 
+#ifdef EXECUTOR_ZERO
+
+#include "../infer/zero.h"
+
+#endif
+
 #ifdef EXECUTOR_RANDOM
 
 #include "../infer/random.h"
@@ -56,7 +62,9 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
 
     for (std::size_t GPUId = 0; GPUId < NumGPUs; ++GPUId) {
         for (std::size_t I = 0; I < NumSearchersPerGPU; ++I) {
-#if defined(EXECUTOR_RANDOM)
+#if defined(EXECUTOR_ZERO)
+            Infers.emplace_back(std::make_unique<infer::Zero>());
+#elif defined(EXECUTOR_RANDOM)
             Infers.emplace_back(std::make_unique<infer::Random>(0));
 #elif defined(EXECUTOR_TRT)
             auto TRT = std::make_unique<infer::TensorRT>(GPUId, BatchSize, GlobalConfig::FeatureType::size());

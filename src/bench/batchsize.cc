@@ -22,7 +22,7 @@ namespace nshogi {
 namespace engine {
 namespace bench {
 
-void benchBatchSize(const char* WeightPath, std::size_t Repeat = 1000) {
+void benchBatchSize([[maybe_unused]] const char* WeightPath, [[maybe_unused]] std::size_t Repeat = 1000) {
 #if defined(EXECUTOR_TRT)
     std::cout << "Bench batch size for the weight file " << WeightPath << " with " << Repeat << " repeats." << std::endl;
     for (uint16_t BatchSize = 60; BatchSize < 160; ++BatchSize) {

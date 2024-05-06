@@ -1,26 +1,27 @@
-#include "bench.h"
-
 #include "batchsize.h"
 #include "mcts.h"
 
 #include <nshogi/core/utils.h>
 
 #include <iostream>
+#include <string>
+#include <vector>
 
-namespace nshogi {
-namespace engine {
-namespace bench {
+int main(int Argc, char* Argv[]) {
+    using namespace nshogi::engine;
+    using namespace nshogi::engine::bench;
 
-void mainLoop() {
     std::cout << "Entering bench mode." << std::endl;
 
     std::string Line;
-    while (std::getline(std::cin, Line)) {
-        if (Line.size() == 0) {
+    while (Argc >= 2 || std::getline(std::cin, Line)) {
+        if (Argc == 1 && Line.size() == 0) {
             continue;
         }
 
-        const auto Splitted = nshogi::core::utils::split(Line, ' ');
+        const auto Splitted = (Argc >= 2)
+            ? std::vector<std::string>(Argv + 1, Argv + Argc)
+            : nshogi::core::utils::split(Line, ' ');
 
         if (Splitted[0] == "BatchSize") {
             std::string WeightPath = "./res/model.onnx";
@@ -49,9 +50,11 @@ void mainLoop() {
         } else {
             std::cout << "Unknown command `" << Splitted[0] << "`." << std::endl;
         }
-    }
-}
 
-} // namespace bench
-} // namespace engine
-} // namespace nshogi
+        if (Argc >= 2) {
+            break;
+        }
+    }
+
+    return 0;
+}

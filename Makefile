@@ -12,6 +12,7 @@ NVCC_ARCH := sm_86
 OBJDIR = build/$(BUILD)_$(CXX)
 TARGET := $(OBJDIR)/nshogi-engine
 TEST_TARGET := $(OBJDIR)/nshogi-test
+BENCH_TARGET := $(OBJDIR)/nshogi-bench
 
 INCLUDES := -I$(HOME)/.local/include/
 LINK_DIRS := -Wl,-rpath,$(HOME)/.local/lib -L$(HOME)/.local/lib/
@@ -33,9 +34,6 @@ endif
 SOURCES :=                              \
 	src/allocator/allocator.cc      \
 	src/allocator/default.cc        \
-	src/bench/bench.cc              \
-	src/bench/batchsize.cc          \
-	src/bench/mcts.cc               \
 	src/mcts/checkmatesearcher.cc   \
 	src/mcts/garbagecollector.cc    \
 	src/mcts/manager.cc             \
@@ -54,6 +52,11 @@ TEST_SOURCES :=                      \
 	src/test/test_main.cc        \
 	src/test/test_math.cc        \
 	src/test/test_allocator.cc
+
+BENCH_SOURCES :=               \
+	src/bench/bench.cc     \
+	src/bench/batchsize.cc \
+	src/bench/mcts.cc
 
 ifeq ($(CUDA_ENABLED), 1)
 	INCLUDES += -I$(CUDA_DIR)/include/
@@ -84,6 +87,7 @@ endif
 OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
 CUDA_OBJECTS = $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
 TEST_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(TEST_SOURCES))
+BENCH_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(BENCH_SOURCES))
 
 ARCH_FLAGS :=
 
@@ -120,6 +124,10 @@ $(TEST_OBJECTS): $(OBJDIR)/%.o: %.cc Makefile
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -c -o $@ $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(INCLUDES) $<
 
+$(BENCH_OBJECTS): $(OBJDIR)/%.o: %.cc Makefile
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	$(CXX) -c -o $@ $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(INCLUDES) $<
+
 $(CUDA_OBJECTS): $(OBJDIR)/%.o: %.cu Makefile
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(NVCC) -c -o $@ $(NVCC_FLAGS) $<
@@ -133,13 +141,23 @@ $(TEST_TARGET): $(OBJECTS) $(CUDA_OBJECTS) $(TEST_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -o $@ $(OBJECTS) $(CUDA_OBJECTS) $(TEST_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) $(INCLUDES) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
 
+$(BENCH_TARGET): $(OBJECTS) $(CUDA_OBJECTS) $(BENCH_OBJECTS)
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	$(CXX) -o $@ $(OBJECTS) $(CUDA_OBJECTS) $(BENCH_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) $(INCLUDES) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
+
 else
 $(TARGET): $(OBJECTS) src/main.cc
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -o $@ src/main.cc $(OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(INCLUDES) $(LINK_DIRS) $(LINKS)
+
 $(TEST_TARGET): $(OBJECTS) $(TEST_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -o $@ $(OBJECTS) $(TEST_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
+
+$(BENCH_TARGET): $(OBJECTS) $(BENCH_OBJECTS)
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	$(CXX) -o $@ $(OBJECTS) $(BENCH_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
+
 endif
 
 .PHONY: engine
@@ -155,6 +173,13 @@ test: $(TEST_TARGET)
 .PHONY: runtest
 runtest: test
 	./$(TEST_TARGET)
+
+.PHONY: bench
+bench: $(BENCH_TARGET)
+
+.PHONY: runbench
+runbench: bench
+	./$(BENCH_TARGET)
 
 .PHONY: clean
 clean:

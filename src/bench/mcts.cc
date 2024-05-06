@@ -20,9 +20,11 @@ namespace bench {
 
 void benchMCTS(uint64_t DurationSeconds, std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumThreadsPerGPU, std::size_t NumCheckmateSearchers, std::size_t EvalCacheMB) {
     // Setup peripherals.
-    const std::size_t AvailableMemory = 1UL * 1024 * 1024 * 1024;
-    allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AvailableMemory));
-    allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AvailableMemory));
+    const std::size_t AvailableMemoryGB = 8UL;
+    std::cout << "Warning: this method consumes " << AvailableMemoryGB << " GB memory." << std::endl;
+
+    allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AvailableMemoryGB * 1024 * 1024 * 1024));
+    allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AvailableMemoryGB * 1024 * 1024 * 1024));
     GlobalConfig::getConfig().setEvalCacheMemoryMB(EvalCacheMB);
     protocol::usi::USILogger Logger;
 
