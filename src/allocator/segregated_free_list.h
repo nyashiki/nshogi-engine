@@ -2,7 +2,7 @@
 #define NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 
 #include "allocator.h"
-#include "../lock/spin_lock.h"
+#include "../lock/spinlock.h"
 
 #include <atomic>
 #include <mutex>
