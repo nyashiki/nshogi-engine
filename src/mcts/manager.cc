@@ -14,6 +14,12 @@
 
 #endif
 
+#ifdef EXECUTOR_NOTHING
+
+#include "../infer/nothing.h"
+
+#endif
+
 #ifdef EXECUTOR_RANDOM
 
 #include "../infer/random.h"
@@ -64,6 +70,8 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
         for (std::size_t I = 0; I < NumSearchersPerGPU; ++I) {
 #if defined(EXECUTOR_ZERO)
             Infers.emplace_back(std::make_unique<infer::Zero>());
+#elif defined(EXECUTOR_NOTHING)
+            Infers.emplace_back(std::make_unique<infer::Nothing>());
 #elif defined(EXECUTOR_RANDOM)
             Infers.emplace_back(std::make_unique<infer::Random>(0));
 #elif defined(EXECUTOR_TRT)

@@ -72,6 +72,11 @@ ifeq ($(EXECUTOR), zero)
 	SOURCES += src/infer/zero.cc
 endif
 
+ifeq ($(EXECUTOR), nothing)
+	CXX_FLAGS += -DEXECUTOR_NOTHING
+	SOURCES += src/infer/nothing.cc
+endif
+
 ifeq ($(EXECUTOR), random)
 	CXX_FLAGS += -DEXECUTOR_RANDOM
 	SOURCES += src/infer/random.cc
