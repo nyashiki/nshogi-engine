@@ -22,14 +22,14 @@ class SearchWorkerBuilder {
     SearchWorkerBuilder& setBatchSize(std::size_t Size);
     SearchWorkerBuilder& setEvaluator(evaluate::Evaluator* Evaluator);
     SearchWorkerBuilder& setCheckmateSearcher(CheckmateSearcher* Searcher);
-    SearchWorkerBuilder& setMutexPool(MutexPool* MtxPool);
+    SearchWorkerBuilder& setMutexPool(MutexPool<lock::SpinLock>* MtxPool);
     SearchWorkerBuilder& setEvalCache(EvalCache* ECache);
 
  private:
     std::size_t BatchSize;
     evaluate::Evaluator* PEvaluator;
     CheckmateSearcher* PCheckmateSearcher;
-    MutexPool* PMutexPool;
+    MutexPool<lock::SpinLock>* PMutexPool;
     EvalCache* PEvalCache;
 };
 

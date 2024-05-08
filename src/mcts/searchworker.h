@@ -9,6 +9,7 @@
 #include "../evaluate/evaluator.h"
 #include "../evaluate/preset.h"
 #include "../globalconfig.h"
+#include "../lock/spinlock.h"
 #include <atomic>
 #include <condition_variable>
 #include <memory>
@@ -24,7 +25,7 @@ namespace mcts {
 
 class SearchWorker {
  public:
-    SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_ = nullptr, MutexPool* = nullptr, EvalCache* = nullptr);
+    SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_ = nullptr, MutexPool<lock::SpinLock>* = nullptr, EvalCache* = nullptr);
     ~SearchWorker();
 
     void start(Node* Root, const core::State& St, const core::StateConfig& Config);
@@ -51,7 +52,7 @@ class SearchWorker {
     CheckmateSearcher* CSearcher;
 
     Node* RootNode;
-    MutexPool* MtxPool;
+    MutexPool<lock::SpinLock>* MtxPool;
     EvalCache* ECache;
     EvalCache::EvalInfo EInfo;
 

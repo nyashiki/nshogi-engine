@@ -57,7 +57,7 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
         std::exit(1);
     }
 
-    MtxPool = std::make_unique<MutexPool>(1000000);
+    MtxPool = std::make_unique<MutexPool<lock::SpinLock>>(1000000);
     if (GlobalConfig::getConfig().getEvalCacheMemoryMB() > 0) {
         ECache = std::make_unique<EvalCache>(GlobalConfig::getConfig().getEvalCacheMemoryMB());
     }

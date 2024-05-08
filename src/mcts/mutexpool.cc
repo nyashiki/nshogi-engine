@@ -1,4 +1,6 @@
 #include "mutexpool.h"
+#include "../lock/spinlock.h"
+
 #include <cstddef>
 #include <mutex>
 
@@ -7,18 +9,23 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-MutexPool::MutexPool(std::size_t PoolSize): Size(PoolSize) {
-    Pool = std::make_unique<std::mutex[]>(PoolSize);
+template <typename LockType>
+MutexPool<LockType>::MutexPool(std::size_t PoolSize): Size(PoolSize) {
+    Pool = std::make_unique<LockType[]>(PoolSize);
 }
 
-std::mutex* MutexPool::get(void* Ptr) {
+template <typename LockType>
+LockType* MutexPool<LockType>::get(void* Ptr) {
     return Pool.get() + (std::size_t)Ptr % Size;
 }
 
-std::mutex* MutexPool::getRootMtx() {
+template <typename LockType>
+LockType* MutexPool<LockType>::getRootMtx() {
     return &RootMtx;
 }
 
+template class MutexPool<std::mutex>;
+template class MutexPool<lock::SpinLock>;
 
 } // namespace mcts
 } // namespace engine

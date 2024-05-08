@@ -19,7 +19,7 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-SearchWorker::SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_, MutexPool* MPool, EvalCache* ECache_)
+SearchWorker::SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_, MutexPool<lock::SpinLock>* MPool, EvalCache* ECache_)
     : BatchSizeMax(BatchSize), Batch(BatchSize, Ev), IsRunning(false), IsFinnishing(false), CSearcher(CSearcher_), MtxPool(MPool), ECache(ECache_) {
 
     WorkerThread = std::thread(&SearchWorker::mainLoop, this);
@@ -412,7 +412,7 @@ Node* SearchWorker::selectLeafNode(core::State* S) const {
         Node* Target = E->getTarget();
 
         if (Target == nullptr) {
-            std::mutex* EdgeMtx = nullptr;
+            lock::SpinLock* EdgeMtx = nullptr;
             if (MtxPool != nullptr) {
                 EdgeMtx = MtxPool->get(reinterpret_cast<void*>(E));
                 EdgeMtx->lock();

@@ -10,7 +10,8 @@
 #include "../allocator/default.h"
 #include "../evaluate/evaluator.h"
 #include "../limit.h"
-#include "../logger//logger.h"
+#include "../logger/logger.h"
+#include "../lock/spinlock.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -60,7 +61,7 @@ class Manager {
     std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
     std::vector<std::unique_ptr<infer::Infer>> Infers;
     std::vector<std::unique_ptr<evaluate::Evaluator>> Evaluators;
-    std::unique_ptr<MutexPool> MtxPool;
+    std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
     std::unique_ptr<EvalCache> ECache;
     core::StateConfig ConfigInternal;
     core::Color CurrentColor;

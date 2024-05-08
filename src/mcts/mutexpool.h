@@ -10,17 +10,18 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
+template <typename LockType = std::mutex>
 class MutexPool {
  public:
     MutexPool(std::size_t PoolSize);
 
-    std::mutex* get(void* Ptr);
-    std::mutex* getRootMtx();
+    LockType* get(void* Ptr);
+    LockType* getRootMtx();
 
  private:
     const std::size_t Size;
-    std::unique_ptr<std::mutex[]> Pool;
-    std::mutex RootMtx;
+    std::unique_ptr<LockType[]> Pool;
+    LockType RootMtx;
 };
 
 } // namespace mcts

@@ -36,7 +36,7 @@ SearchWorkerBuilder& SearchWorkerBuilder::setCheckmateSearcher(CheckmateSearcher
     return *this;
 }
 
-SearchWorkerBuilder& SearchWorkerBuilder::setMutexPool(MutexPool* MtxPool) {
+SearchWorkerBuilder& SearchWorkerBuilder::setMutexPool(MutexPool<lock::SpinLock>* MtxPool) {
     PMutexPool = MtxPool;
     return *this;
 }
