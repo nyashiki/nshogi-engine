@@ -2,7 +2,7 @@
 #define NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 
 #include "allocator.h"
-#include "../lock/spin_lock.h"
+#include "../lock/spinlock.h"
 
 #include <algorithm>
 #include <atomic>

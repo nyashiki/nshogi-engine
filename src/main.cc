@@ -7,7 +7,6 @@
 #include "allocator/segregated_free_list.h"
 #include "mcts/node.h"
 #include "mcts/edge.h"
-#include "bench/bench.h"
 
 #include <cstdio>
 #include <cinttypes>
@@ -32,9 +31,6 @@ int main() {
     while (std::cin >> Command) {
         if (Command == "usi") {
             nshogi::engine::protocol::usi::mainLoop();
-            break;
-        } else if (Command == "bench") {
-            nshogi::engine::bench::mainLoop();
             break;
         } else if (Command == "quit" || Command == "exit") {
             break;
