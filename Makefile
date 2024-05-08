@@ -189,3 +189,9 @@ runbench: bench
 .PHONY: clean
 clean:
 	-rm -r build/
+
+# BENCHMARK SCRIPTS
+.PHONY: bench-mcts-with-zero-executor
+bench-mcts-with-zero-executor: bench
+	perf record -a --call-graph lbr -F 49 -- ./build/release_clang++/nshogi-bench MCTS 10 128 1 1 0
+	perf script report flamegraph
