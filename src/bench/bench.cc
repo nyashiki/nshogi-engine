@@ -2,6 +2,7 @@
 #include "mcts.h"
 
 #include <nshogi/core/utils.h>
+#include <nshogi/core/initializer.h>
 
 #include <iostream>
 #include <string>
@@ -10,6 +11,8 @@
 int main(int Argc, char* Argv[]) {
     using namespace nshogi::engine;
     using namespace nshogi::engine::bench;
+
+    nshogi::core::initializer::initializeAll();
 
     std::cout << "Entering bench mode." << std::endl;
 
