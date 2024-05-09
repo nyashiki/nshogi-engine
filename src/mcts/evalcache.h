@@ -7,7 +7,6 @@
 #include <cstring>
 
 #include <nshogi/core/state.h>
-#include <nshogi/core/huffman.h>
 
 namespace nshogi {
 namespace engine {
@@ -18,6 +17,7 @@ class EvalCache {
     static constexpr std::size_t MAX_CACHE_MOVES_COUNT = 164;
 
     struct EvalInfo {
+        uint16_t NumMoves;
         float Policy[MAX_CACHE_MOVES_COUNT];
         float WinRate;
         float DrawRate;
@@ -39,7 +39,6 @@ class EvalCache {
     struct CacheData {
         bool IsUsed;
         uint64_t Hash64 = 0;
-        core::HuffmanCode HC = core::HuffmanCode::zero();
         EvalInfo EInfo;
         CacheData* Next;
         CacheData* Prev;

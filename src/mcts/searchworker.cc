@@ -163,15 +163,17 @@ void SearchWorker::doOneIteration() {
             if (CacheExists) {
                 const auto MoveList = core::MoveGenerator::generateLegalMoves(LeafInfos[BatchIndex].State);
 
-                assert((LeafNode->getVisitsAndVirtualLoss() & Node::VisitMask) == 0);
-                assert(MoveList.size() > 0);
+                if (EInfo.NumMoves == MoveList.size()) {
+                    assert((LeafNode->getVisitsAndVirtualLoss() & Node::VisitMask) == 0);
+                    assert(MoveList.size() > 0);
 
-                LeafNode->expand(MoveList);
-                feedLeafNode<false>(LeafInfos[BatchIndex], EInfo.Policy, EInfo.WinRate, EInfo.DrawRate);
-                updateAncestors(LeafNode);
+                    LeafNode->expand(MoveList);
+                    feedLeafNode<false>(LeafInfos[BatchIndex], EInfo.Policy, EInfo.WinRate, EInfo.DrawRate);
+                    updateAncestors(LeafNode);
 
-                ++OutOfOrder;
-                continue;
+                    ++OutOfOrder;
+                    continue;
+                }
             }
         }
 
@@ -566,10 +568,10 @@ Edge* SearchWorker::computeUCBMaxEdge(const core::State& State, Node* N, bool Re
 }
 
 void SearchWorker::incrementVirtualLoss(Node* N) const {
-    while (N != nullptr) {
+    do {
         N->incrementVirtualLoss();
         N = N->getParent();
-    }
+    } while (N != nullptr);
 }
 
 double SearchWorker::computeWinRateOfChild(const core::State& State, Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits) const {
