@@ -168,7 +168,7 @@ struct GlobalConfigImpl {
     std::size_t NumSearchThreadsPerGPU = 2;
     std::size_t NumCheckmateSearchThreads = 2;
 
-    std::size_t BatchSize = 126;
+    std::size_t BatchSize = 128;
 
     uint32_t ThinkingTimeMargin = 500;
 
@@ -185,18 +185,10 @@ struct GlobalConfigImpl {
 
     bool IsRepetitionBookAllowed = true;
 
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/mid_1.onnx";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/efficient_net_v2_s.onnx";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/debug.onnx";
-    std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/debug2.onnx";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/small_v2.bin";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/mid_1.onnx";
-    // std::string WeightPath = "./res/small.bin";
+    std::string WeightPath = "./res/model.onnx";
 
     bool IsBookEnabled = false;
-
-    // std::string Bookpath = "/home/nyashiki/Projects/nshogi-engine/res/suisho_kakugawari_book.txt";
-    std::string Bookpath = "/home/nyashiki/Projects/nshogi-engine/res/furibisha_book.bin";
+    std::string Bookpath = "";
 
     book::Strategy BookSelectionStrategy = book::Strategy::MostVisited;
 
