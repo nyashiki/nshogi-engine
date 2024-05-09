@@ -30,7 +30,7 @@ class EvalCache {
 
     EvalCache(std::size_t MemorySize);
 
-    void store(const core::State&, uint16_t NumM, const float* P, float WR, float D);
+    bool store(const core::State&, uint16_t NumM, const float* P, float WR, float D);
     bool load(const core::State&, EvalInfo*);
 
  private:

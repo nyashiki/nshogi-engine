@@ -36,11 +36,16 @@ EvalCache::EvalCache(std::size_t MemorySize)
     }
 }
 
-void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, float WR, float D) {
+bool EvalCache::store(const core::State& St, uint16_t NumM, const float* P, float WR, float D) {
     const uint64_t Hash = St.getHash();
 
     CacheBundle* Bundle = &CacheStorage[Hash % NumBundle];
-    std::lock_guard<std::mutex> Lk(Bundle->Mtx);
+
+    bool LockAcquired = Bundle->Mtx.try_lock();
+
+    if (!LockAcquired) {
+        return false;
+    }
 
     CacheData* CacheElem = Bundle->Head;
 
@@ -65,7 +70,8 @@ void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, floa
                 Bundle->Head = CacheElem;
             }
 
-            return;
+            Bundle->Mtx.unlock();
+            return true;
         }
 
         if (CacheElem->Next == nullptr) {
@@ -95,6 +101,9 @@ void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, floa
     std::memcpy(CacheElem->EInfo.Policy, P, sizeof(float) * NumM);
     CacheElem->EInfo.WinRate = WR;
     CacheElem->EInfo.DrawRate = D;
+
+    Bundle->Mtx.unlock();
+    return true;
 };
 
 bool EvalCache::load(const core::State& St, EvalInfo* EI) {
