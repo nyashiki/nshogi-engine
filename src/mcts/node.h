@@ -135,6 +135,22 @@ struct Node {
                   });
     }
 
+    inline void updateAncestors(float WinRate, float DrawRate) {
+        const float FlipWinRate = 1.0f - WinRate;
+        bool Flip = false;
+
+        Node* N = this;
+
+        do {
+            N->addWinRate(Flip ? FlipWinRate : WinRate);
+            N->addDrawRate(DrawRate);
+
+            N->incrementVisitsAndDecrementVirtualLoss();
+
+            N = N->getParent();
+        } while (N != nullptr);
+    }
+
     inline void addWinRate(double WinRate) {
         addAtomicDouble(&WinRateAccumulated, WinRate);
     }
