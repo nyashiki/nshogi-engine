@@ -3,9 +3,10 @@
 
 #include "node.h"
 #include "evaluatequeue.h"
+#include "../evaluate/evaluator.h"
 
 #include <nshogi/ml/featurebitboard.h>
-
+#include <nshogi/ml/common.h>
 #include <atomic>
 #include <thread>
 #include <mutex>

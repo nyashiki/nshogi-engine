@@ -4,6 +4,8 @@
 #include <limits>
 #include <cmath>
 
+#include <nshogi/core/movegenerator.h>
+
 namespace nshogi {
 namespace engine {
 namespace mcts {
@@ -12,15 +14,56 @@ template <typename Features>
 LeafCollector<Features>::LeafCollector(EvaluationQueue<Features>* EQ, MutexPool<lock::SpinLock>* MP, CheckmateSearcher* CS)
     : EQueue(EQ)
     , MtxPool(MP)
-    , CSearcher(CS) {
+    , CSearcher(CS)
+    , IsRunnning(false)
+    , IsThreadWorking(false)
+    , IsExiting(false) {
+
+    Worker = std::thread(&LeafCollector<Features>::mainLoop, this);
+}
+
+template <typename Features>
+LeafCollector<Features>::~LeafCollector<Features>() {
+    IsRunnning.store(false);
+    IsExiting.store(true);
+    CV.notify_one();
+
+    Worker.join();
 }
 
 template <typename Features>
 void LeafCollector<Features>::start() {
+    IsRunnning.store(true, std::memory_order_release);
+    CV.notify_one();
 }
 
 template <typename Features>
 void LeafCollector<Features>::stop() {
+    IsRunnning.store(false, std::memory_order_release);
+
+    while (IsThreadWorking.load(std::memory_order_acquire)) {
+        // Busy loop until the thread stops.
+        std::this_thread::yield();
+    }
+}
+
+template <typename Features>
+void LeafCollector<Features>::await() {
+    std::unique_lock<std::mutex> Lock(AwaitMutex);
+
+    AwaitCV.wait(Lock, [this]() {
+        return !IsRunnning.load(std::memory_order_relaxed)
+                && !IsThreadWorking.load(std::memory_order_relaxed);
+    });
+}
+
+template <typename Features>
+void LeafCollector<Features>::updateRoot(const core::State& S, const core::StateConfig& StateConfig, Node* Root) {
+    State = std::make_unique<core::State>(S.clone());
+    Config = StateConfig;
+    RootNode = Root;
+
+    RootPly = State->getPly();
 }
 
 template <typename Features>
@@ -28,7 +71,10 @@ void LeafCollector<Features>::mainLoop() {
     while (true) {
         std::unique_lock<std::mutex> Lock(Mutex);
 
-        IsThreadWorking.store(false, std::memory_order_relaxed);
+        if (!IsRunnning.load(std::memory_order_relaxed)) {
+            IsThreadWorking.store(false, std::memory_order_relaxed);
+            AwaitCV.notify_all();
+        }
 
         CV.wait(Lock, [this]() {
             return IsRunnning.load(std::memory_order_relaxed)
@@ -36,7 +82,7 @@ void LeafCollector<Features>::mainLoop() {
         });
 
         if (IsExiting.load(std::memory_order_relaxed)) {
-            break;
+            return;
         }
 
         IsThreadWorking.store(true, std::memory_order_relaxed);
@@ -45,13 +91,46 @@ void LeafCollector<Features>::mainLoop() {
             Node* LeafNode = collectOneLeaf();
 
             if (LeafNode != nullptr) {
-                EQueue->add(State, Config, LeafNode);
+                const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
+                const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
+                const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
+
+                if (NumVisits == 0 && VirtualLoss == 1) {
+                    const auto RS = State->getRepetitionStatus();
+
+                    if (RS == core::RepetitionStatus::WinRepetition
+                            || RS == core::RepetitionStatus::SuperiorRepetition) {
+                        immediateUpdateByWin(LeafNode);
+                    } else if (RS == core::RepetitionStatus::LossRepetition
+                            || RS == core::RepetitionStatus::InferiorRepetition) {
+                        immediateUpdateByLoss(LeafNode);
+                    } else if (expandLeaf(LeafNode)) {
+                        EQueue->add(*State, Config, LeafNode);
+                    } else {
+                        bool IsCheckmatedByPawn = false;
+                        if (State->getPly() > 0) {
+                            const auto LastMove = State->getLastMove();
+                            if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                                immediateUpdateByWin(LeafNode);
+                                IsCheckmatedByPawn = true;
+                            }
+                        }
+
+                        if (!IsCheckmatedByPawn) {
+                            immediateUpdateByLoss(LeafNode);
+                        }
+                    }
+                } else {
+                    immediateUpdate(LeafNode);
+                }
             }
 
             // Go back to the root state.
-            while (State.getPly() != RootPly) {
-                State.undoMove();
+            while (State->getPly() != RootPly) {
+                State->undoMove();
             }
+
+            // std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     }
 }
@@ -67,7 +146,7 @@ Node* LeafCollector<Features>::collectOneLeaf() {
             // If checkmate searcher is enabled and the node has not been
             // tried to solve, feed the node into the checkmate searcher.
             if (CurrentNode->getSolverResult().isNone()) {
-                CSearcher->addTask(CurrentNode, State.getPosition());
+                CSearcher->addTask(CurrentNode, State->getPosition());
             }
         }
 
@@ -133,7 +212,7 @@ Node* LeafCollector<Features>::collectOneLeaf() {
             return nullptr;
         }
 
-        State.doMove(State.getMove32FromMove16(E->getMove()));
+        State->doMove(State->getMove32FromMove16(E->getMove()));
 
         Node* Target = E->getTarget();
         if (Target == nullptr) {
@@ -172,6 +251,49 @@ Node* LeafCollector<Features>::collectOneLeaf() {
 
     incrementVirtualLosses(CurrentNode);
     return CurrentNode;
+}
+
+template <typename Feature>
+bool LeafCollector<Feature>::expandLeaf(Node* LeafNode) {
+    const auto Moves = core::MoveGenerator::generateLegalMoves(*State);
+
+    if (Moves.size() == 0) {
+        return false;
+    }
+
+    LeafNode->expand(Moves);
+    return true;
+}
+
+template <typename Feature>
+void LeafCollector<Feature>::immediateUpdateByWin(Node* LeafNode) {
+    LeafNode->setEvaluation(nullptr, 1.0f, 0.0f);
+    LeafNode->setPlyToTerminalSolved(1);
+    LeafNode->updateAncestors(1.0f, 0.0f);
+}
+
+template <typename Feature>
+void LeafCollector<Feature>::immediateUpdateByLoss(Node* LeafNode) {
+    LeafNode->setEvaluation(nullptr, 0.0f, 0.0f);
+    LeafNode->setPlyToTerminalSolved(-1);
+    LeafNode->updateAncestors(0.0f, 0.0f);
+}
+
+template <typename Feature>
+void LeafCollector<Feature>::immediateUpdateByDraw(Node* LeafNode) {
+    LeafNode->setEvaluation(nullptr, 0.0f, 1.0f);
+    LeafNode->updateAncestors(0.0f, 1.0f);
+}
+
+template <typename Feature>
+void LeafCollector<Feature>::immediateUpdate(Node* LeafNode) {
+    const int16_t PlyToTerminal = LeafNode->getPlyToTerminalSolved();
+
+    const float WinRate = (PlyToTerminal > 0) ? 1.0 :
+                            (PlyToTerminal < 0) ? 0.0 : LeafNode->getWinRatePredicted();
+    const float DrawRate = (PlyToTerminal != 0) ? 0.0 : LeafNode->getDrawRatePredicted();
+
+    LeafNode->updateAncestors(WinRate, DrawRate);
 }
 
 template <typename Features>
@@ -284,7 +406,7 @@ Edge* LeafCollector<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren, 
         }
 
         const double ChildWinRate = computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
-        const double UCBValue = ChildWinRate + Const * Edge->getProbability() / ((double)(1 + ChildVirtualLoss));
+        const double UCBValue = ChildWinRate + Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
 
         if (UCBValue > UCBMaxValue) {
             UCBMaxValue = UCBValue;
@@ -313,7 +435,7 @@ double LeafCollector<Features>::computeWinRateOfChild(Node* Child, uint64_t Chil
     const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVirtualVisits;
     const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVirtualVisits;
 
-    const double DrawValue = (State.getSideToMove() == core::Black)
+    const double DrawValue = (State->getSideToMove() == core::Black)
                                 ? Config.BlackDrawValue
                                 : Config.WhiteDrawValue;
 

@@ -76,6 +76,11 @@ struct Node {
         VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
     }
 
+    inline void decrementVirtualLoss() {
+        constexpr uint64_t Value = 0xffffffffffffffffULL << VirtualLossShift;
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
+    }
+
     inline uint64_t getVisitsAndVirtualLoss() {
         return VisitsAndVirtualLoss.load(std::memory_order_relaxed);
     }
@@ -147,6 +152,7 @@ struct Node {
 
             N->incrementVisitsAndDecrementVirtualLoss();
 
+            Flip = !Flip;
             N = N->getParent();
         } while (N != nullptr);
     }

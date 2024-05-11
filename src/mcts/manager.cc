@@ -46,14 +46,13 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_t NumCheckmateSearchers, std::size_t BatchSize, logger::Logger* Logger)
+Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchers, std::size_t NumCheckmateSearchers, std::size_t BatchSize, logger::Logger* Logger)
     : GC(GlobalConfig::getConfig().getNumGarbageCollectorThreads()), SearchTree(&GC, Logger), WatchDogEnabled(false), WatchDogRunning(false), WatchDogFinishing(false), PLogger(Logger) {
-    if (NumGPUs <= 0) {
+    if (NumGPUs == 0) {
         std::cerr << "NumGPUs must be greater than or equal to 1." << std::endl;
         std::exit(1);
     }
-    if (NumSearchersPerGPU <= 0) {
-        std::cerr << "NumSearchersPerGPU must be greater than or equal to 1." << std::endl;
+    if (NumSearchers == 0) {
         std::exit(1);
     }
 
@@ -66,31 +65,38 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_
         CSearcher = std::make_unique<CheckmateSearcher>(5, NumCheckmateSearchers);
     }
 
-    for (std::size_t GPUId = 0; GPUId < NumGPUs; ++GPUId) {
-        for (std::size_t I = 0; I < NumSearchersPerGPU; ++I) {
-#if defined(EXECUTOR_ZERO)
-            Infers.emplace_back(std::make_unique<infer::Zero>());
-#elif defined(EXECUTOR_NOTHING)
-            Infers.emplace_back(std::make_unique<infer::Nothing>());
-#elif defined(EXECUTOR_RANDOM)
-            Infers.emplace_back(std::make_unique<infer::Random>(0));
-#elif defined(EXECUTOR_TRT)
-            auto TRT = std::make_unique<infer::TensorRT>(GPUId, BatchSize, GlobalConfig::FeatureType::size());
-            TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
-            Infers.emplace_back(std::move(TRT));
-#endif
+    EQueue = std::make_unique<EvaluationQueue<GlobalConfig::FeatureType>>(BatchSize * 2);
 
-            Evaluators.emplace_back(std::make_unique<evaluate::Evaluator>(BatchSize, Infers.back().get()));
-            // SearchWorkers.emplace_back(std::make_unique<SearchWorker>(BatchSize, Evaluators.back().get(), CSearcher.get(), MtxPool.get(), ECache.get()));
-            SearchWorkers.emplace_back(
-                SearchWorkerBuilder()
-                    .setBatchSize(BatchSize)
-                    .setEvaluator(Evaluators.back().get())
-                    .setCheckmateSearcher(CSearcher.get())
-                    .setMutexPool(MtxPool.get())
-                    .setEvalCache(ECache.get())
-                    .build());
-        }
+    // for (std::size_t I = 0; I < NumSearchers; ++I) {
+    for (std::size_t I = 0; I < 4; ++I) {
+        // Evaluators.emplace_back(std::make_unique<evaluate::Evaluator>(BatchSize, Infers.back().get()));
+        // SearchWorkers.emplace_back(std::make_unique<SearchWorker>(BatchSize, Evaluators.back().get(), CSearcher.get(), MtxPool.get(), ECache.get()));
+        // SearchWorkers.emplace_back(
+        //     SearchWorkerBuilder()
+        //         .setBatchSize(BatchSize)
+        //         .setEvaluator(Evaluators.back().get())
+        //         .setCheckmateSearcher(CSearcher.get())
+        //         .setMutexPool(MtxPool.get())
+        //         .setEvalCache(ECache.get())
+        //         .build());
+        LeafCollectors.emplace_back(std::make_unique<LeafCollector<GlobalConfig::FeatureType>>(EQueue.get(), MtxPool.get(), CSearcher.get()));
+    }
+
+    for (std::size_t I = 0; I < 2; ++I) {
+#if defined(EXECUTOR_ZERO)
+        Infers.emplace_back(std::make_unique<infer::Zero>());
+#elif defined(EXECUTOR_NOTHING)
+        Infers.emplace_back(std::make_unique<infer::Nothing>());
+#elif defined(EXECUTOR_RANDOM)
+        Infers.emplace_back(std::make_unique<infer::Random>(0));
+#elif defined(EXECUTOR_TRT)
+        // auto TRT = std::make_unique<infer::TensorRT>(GPUId, BatchSize, GlobalConfig::FeatureType::size());
+        auto TRT = std::make_unique<infer::TensorRT>(0, 128, GlobalConfig::FeatureType::size());
+        TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
+        Infers.emplace_back(std::move(TRT));
+#endif
+        Evaluators.emplace_back(std::make_unique<evaluate::Evaluator>(BatchSize, Infers.back().get()));
+        EvaluateWorkers.emplace_back(std::make_unique<EvaluateWorker<GlobalConfig::FeatureType>>(BatchSize, EQueue.get(), Evaluators.back().get()));
     }
 
     WatchDogThread = std::make_unique<std::thread>([Logger, this]() {
@@ -215,10 +221,11 @@ Manager::~Manager() {
     WatchDogCv.notify_one();
     WatchDogThread->join();
 
-    for (std::size_t I = 0; I < SearchWorkers.size(); ++I) {
-        SearchWorkers[I]->join();
-        Evaluators[I].reset(nullptr);
-        Infers[I].reset(nullptr);
+    for (const auto& LeafCollector : LeafCollectors) {
+        LeafCollector->stop();
+    }
+    for (const auto& EvaluateWorker : EvaluateWorkers) {
+        EvaluateWorker->stop();
     }
 }
 
@@ -243,14 +250,25 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
             CSearcher->start();
         }
 
-        for (auto& Worker : SearchWorkers) {
-            Worker->start(RootNode, State, ConfigInternal);
+        for (auto& LeafCollector : LeafCollectors) {
+            LeafCollector->updateRoot(State, ConfigInternal, RootNode);
+            LeafCollector->start();
+            // Worker->start(RootNode, State, ConfigInternal);
+        }
+        for (auto& EvaluateWorker : EvaluateWorkers) {
+            EvaluateWorker->start();
         }
 
         AllWorkerStarted.store(true);
 
-        for (auto& Worker : SearchWorkers) {
-            Worker->await();
+        // for (auto& Worker : SearchWorkers) {
+        //     Worker->await();
+        // }
+        for (auto& LeafCollector : LeafCollectors) {
+            LeafCollector->await();
+        }
+        for (auto& EvaluateWorker : EvaluateWorkers) {
+            EvaluateWorker->stop();
         }
 
         if (CSearcher != nullptr) {
@@ -366,8 +384,12 @@ void Manager::stop(bool WaitUntilWatchDogStops) {
         return;
     }
 
-    for (auto& Worker : SearchWorkers) {
-        Worker->stop();
+    for (const auto& LeafCollector : LeafCollectors) {
+        LeafCollector->stop();
+    }
+
+    for (const auto& EvaluateWorker : EvaluateWorkers) {
+        EvaluateWorker->stop();
     }
 
     if (CSearcher != nullptr) {

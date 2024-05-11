@@ -9,6 +9,17 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
+namespace {
+
+void cancelVirtualLoss(Node* N) {
+    do {
+        N->decrementVirtualLoss();
+        N = N->getParent();
+    } while (N != nullptr);
+}
+
+} // namespace
+
 template <typename Features>
 EvaluateWorker<Features>::EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>* EQ, evaluate::Evaluator* Ev)
     : BatchSizeMax(BatchSize)
@@ -33,7 +44,7 @@ EvaluateWorker<Features>::~EvaluateWorker() {
 
 template <typename Features>
 void EvaluateWorker<Features>::start() {
-    IsRunnning.store(true, std::memory_order_relaxed);
+    IsRunnning.store(true, std::memory_order_release);
     CV.notify_one();
 }
 
@@ -52,7 +63,9 @@ void EvaluateWorker<Features>::mainLoop() {
     while (true) {
         std::unique_lock<std::mutex> Lock(Mutex);
 
-        IsThreadWorking.store(false, std::memory_order_relaxed);
+        if (!IsRunnning.load(std::memory_order_relaxed)) {
+            IsThreadWorking.store(false, std::memory_order_relaxed);
+        }
 
         CV.wait(Lock, [this]() {
             return IsRunnning.load(std::memory_order_relaxed)
@@ -60,23 +73,44 @@ void EvaluateWorker<Features>::mainLoop() {
         });
 
         if (IsExiting.load(std::memory_order_relaxed)) {
-            break;
+            return;
         }
 
         IsThreadWorking.store(true, std::memory_order_relaxed);
 
-        while (IsRunnning.load(std::memory_order_relaxed)) {
-            const auto Elements = EQueue->get(BatchSizeMax);
-            const std::size_t BatchSize = std::get<0>(Elements).size();
+        while (true) {
+            auto Elements = std::move(EQueue->get(BatchSizeMax));
+
+            const auto SideToMoves = std::move(std::get<0>(Elements));
+            const auto Nodes = std::move(std::get<1>(Elements));
+
+            const std::size_t BatchSize = SideToMoves.size();
+
+            // if (!IsRunnning.load(std::memory_order_relaxed)) {
+            //     if (BatchSize == 0) {
+            //         break;
+            //     }
+
+            //     for (const auto& Node : Nodes) {
+            //         cancelVirtualLoss(Node);
+            //     }
+
+            //     continue;
+            // }
 
             if (BatchSize == 0) {
+                if (!IsRunnning.load(std::memory_order_relaxed)) {
+                    break;
+                }
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 continue;
             }
 
-            flattenFeatures(std::get<2>(Elements));
+            const auto FeatureStacks = std::move(std::get<2>(Elements));
+
+            flattenFeatures(FeatureStacks);
             doInference(BatchSize);
-            feedResults(std::get<0>(Elements), std::get<1>(Elements));
+            feedResults(SideToMoves, Nodes);
         }
     }
 }

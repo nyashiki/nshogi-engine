@@ -5,13 +5,18 @@
 #include "edge.h"
 #include "evalcache.h"
 #include "mutexpool.h"
-#include "searchworker.h"
+#include "tree.h"
+// #include "searchworker.h"
 #include "garbagecollector.h"
+#include "evaluatequeue.h"
+#include "leafcollector.h"
+#include "evaluateworker.h"
 #include "../allocator/default.h"
 #include "../evaluate/evaluator.h"
 #include "../limit.h"
 #include "../logger/logger.h"
 #include "../lock/spinlock.h"
+#include "../globalconfig.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -31,7 +36,7 @@ namespace mcts {
 
 class Manager {
  public:
-    Manager(std::size_t NumGPUs, std::size_t NumSearchersPerGPU, std::size_t NumCheckmateSearchers, std::size_t BatchSize, logger::Logger* Logger = nullptr);
+    Manager(std::size_t NumGPUs, std::size_t NumSearchers, std::size_t NumCheckmateSearchers, std::size_t BatchSize, logger::Logger* Logger = nullptr);
     ~Manager();
 
     void thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Limit, void (*CallBack)(const core::Move32& Move));
@@ -58,9 +63,12 @@ class Manager {
     std::mutex StopMtx;
     std::condition_variable WatchDogCv;
 
-    std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
+    // std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
+    std::unique_ptr<EvaluationQueue<GlobalConfig::FeatureType>> EQueue;
+    std::vector<std::unique_ptr<LeafCollector<GlobalConfig::FeatureType>>> LeafCollectors;
     std::vector<std::unique_ptr<infer::Infer>> Infers;
     std::vector<std::unique_ptr<evaluate::Evaluator>> Evaluators;
+    std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
     std::unique_ptr<EvalCache> ECache;
     core::StateConfig ConfigInternal;
