@@ -7,6 +7,7 @@
 #include "node.h"
 #include "mutexpool.h"
 #include "../lock/spinlock.h"
+#include "../worker/worker.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -16,14 +17,10 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-class LeafCollector {
+class LeafCollector : public worker::Worker {
  public:
     LeafCollector(EvaluationQueue<Features>*, MutexPool<lock::SpinLock>*, CheckmateSearcher*);
     ~LeafCollector();
-
-    void start();
-    void stop();
-    void await();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
     Node* collectOneLeaf();
@@ -40,7 +37,7 @@ class LeafCollector {
     static constexpr int32_t CBase = 19652;
     static constexpr double CInit = 1.25;
 
-    void mainLoop();
+    bool doTask();
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren, bool regardNotVisitedWin);
     double computeWinRateOfChild(Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits);
@@ -54,16 +51,6 @@ class LeafCollector {
     EvaluationQueue<Features>* EQueue;
     MutexPool<lock::SpinLock>* MtxPool;
     CheckmateSearcher* CSearcher;
-
-    std::mutex Mutex;
-    std::mutex AwaitMutex;
-    std::condition_variable CV;
-    std::condition_variable AwaitCV;
-    std::atomic<bool> IsRunnning;
-    std::atomic<bool> IsThreadWorking;
-    std::atomic<bool> IsExiting;
-
-    std::thread Worker;
 };
 
 } // namespace mcts

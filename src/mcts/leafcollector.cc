@@ -14,48 +14,39 @@ template <typename Features>
 LeafCollector<Features>::LeafCollector(EvaluationQueue<Features>* EQ, MutexPool<lock::SpinLock>* MP, CheckmateSearcher* CS)
     : EQueue(EQ)
     , MtxPool(MP)
-    , CSearcher(CS)
-    , IsRunnning(false)
-    , IsThreadWorking(false)
-    , IsExiting(false) {
-
-    Worker = std::thread(&LeafCollector<Features>::mainLoop, this);
+    , CSearcher(CS) {
+    // Worker = std::thread(&LeafCollector<Features>::mainLoop, this);
 }
 
 template <typename Features>
 LeafCollector<Features>::~LeafCollector<Features>() {
-    IsRunnning.store(false);
-    IsExiting.store(true);
-    CV.notify_one();
-
-    Worker.join();
 }
 
-template <typename Features>
-void LeafCollector<Features>::start() {
-    IsRunnning.store(true, std::memory_order_release);
-    CV.notify_one();
-}
-
-template <typename Features>
-void LeafCollector<Features>::stop() {
-    IsRunnning.store(false, std::memory_order_release);
-
-    while (IsThreadWorking.load(std::memory_order_acquire)) {
-        // Busy loop until the thread stops.
-        std::this_thread::yield();
-    }
-}
-
-template <typename Features>
-void LeafCollector<Features>::await() {
-    std::unique_lock<std::mutex> Lock(AwaitMutex);
-
-    AwaitCV.wait(Lock, [this]() {
-        return !IsRunnning.load(std::memory_order_relaxed)
-                && !IsThreadWorking.load(std::memory_order_relaxed);
-    });
-}
+// template <typename Features>
+// void LeafCollector<Features>::start() {
+//     IsRunnning.store(true, std::memory_order_release);
+//     CV.notify_one();
+// }
+//
+// template <typename Features>
+// void LeafCollector<Features>::stop() {
+//     IsRunnning.store(false, std::memory_order_release);
+//
+//     while (IsThreadWorking.load(std::memory_order_acquire)) {
+//         // Busy loop until the thread stops.
+//         std::this_thread::yield();
+//     }
+// }
+//
+// template <typename Features>
+// void LeafCollector<Features>::await() {
+//     std::unique_lock<std::mutex> Lock(AwaitMutex);
+//
+//     AwaitCV.wait(Lock, [this]() {
+//         return !IsRunnning.load(std::memory_order_relaxed)
+//                 && !IsThreadWorking.load(std::memory_order_relaxed);
+//     });
+// }
 
 template <typename Features>
 void LeafCollector<Features>::updateRoot(const core::State& S, const core::StateConfig& StateConfig, Node* Root) {
@@ -66,74 +57,33 @@ void LeafCollector<Features>::updateRoot(const core::State& S, const core::State
     RootPly = State->getPly();
 }
 
-template <typename Features>
-void LeafCollector<Features>::mainLoop() {
-    while (true) {
-        std::unique_lock<std::mutex> Lock(Mutex);
-
-        if (!IsRunnning.load(std::memory_order_relaxed)) {
-            IsThreadWorking.store(false, std::memory_order_relaxed);
-            AwaitCV.notify_all();
-        }
-
-        CV.wait(Lock, [this]() {
-            return IsRunnning.load(std::memory_order_relaxed)
-                    || IsExiting.load(std::memory_order_relaxed);
-        });
-
-        if (IsExiting.load(std::memory_order_relaxed)) {
-            return;
-        }
-
-        IsThreadWorking.store(true, std::memory_order_relaxed);
-
-        while (IsRunnning.load(std::memory_order_relaxed)) {
-            Node* LeafNode = collectOneLeaf();
-
-            if (LeafNode != nullptr) {
-                const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
-                const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
-                const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
-
-                if (NumVisits == 0 && VirtualLoss == 1) {
-                    const auto RS = State->getRepetitionStatus();
-
-                    if (RS == core::RepetitionStatus::WinRepetition
-                            || RS == core::RepetitionStatus::SuperiorRepetition) {
-                        immediateUpdateByWin(LeafNode);
-                    } else if (RS == core::RepetitionStatus::LossRepetition
-                            || RS == core::RepetitionStatus::InferiorRepetition) {
-                        immediateUpdateByLoss(LeafNode);
-                    } else if (expandLeaf(LeafNode)) {
-                        EQueue->add(*State, Config, LeafNode);
-                    } else {
-                        bool IsCheckmatedByPawn = false;
-                        if (State->getPly() > 0) {
-                            const auto LastMove = State->getLastMove();
-                            if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
-                                immediateUpdateByWin(LeafNode);
-                                IsCheckmatedByPawn = true;
-                            }
-                        }
-
-                        if (!IsCheckmatedByPawn) {
-                            immediateUpdateByLoss(LeafNode);
-                        }
-                    }
-                } else {
-                    immediateUpdate(LeafNode);
-                }
-            }
-
-            // Go back to the root state.
-            while (State->getPly() != RootPly) {
-                State->undoMove();
-            }
-
-            // std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
-    }
-}
+// template <typename Features>
+// void LeafCollector<Features>::mainLoop() {
+//     while (true) {
+//         std::unique_lock<std::mutex> Lock(Mutex);
+//
+//         if (!IsRunnning.load(std::memory_order_relaxed)) {
+//             IsThreadWorking.store(false, std::memory_order_relaxed);
+//             AwaitCV.notify_all();
+//         }
+//
+//         CV.wait(Lock, [this]() {
+//             return IsRunnning.load(std::memory_order_relaxed)
+//                     || IsExiting.load(std::memory_order_relaxed);
+//         });
+//
+//         if (IsExiting.load(std::memory_order_relaxed)) {
+//             return;
+//         }
+//
+//         IsThreadWorking.store(true, std::memory_order_relaxed);
+//
+//         while (IsRunnning.load(std::memory_order_relaxed)) {
+//
+//             // std::this_thread::sleep_for(std::chrono::milliseconds(2));
+//         }
+//     }
+// }
 
 template <typename Features>
 Node* LeafCollector<Features>::collectOneLeaf() {
@@ -448,6 +398,53 @@ void LeafCollector<Features>::incrementVirtualLosses(Node* N) {
         N->incrementVirtualLoss();
         N = N->getParent();
     } while (N != nullptr);
+}
+
+template <typename Features>
+bool LeafCollector<Features>::doTask() {
+    Node* LeafNode = collectOneLeaf();
+
+    if (LeafNode != nullptr) {
+        const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
+        const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
+        const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
+
+        if (NumVisits == 0 && VirtualLoss == 1) {
+            const auto RS = State->getRepetitionStatus();
+
+            if (RS == core::RepetitionStatus::WinRepetition
+                    || RS == core::RepetitionStatus::SuperiorRepetition) {
+                immediateUpdateByWin(LeafNode);
+            } else if (RS == core::RepetitionStatus::LossRepetition
+                    || RS == core::RepetitionStatus::InferiorRepetition) {
+                immediateUpdateByLoss(LeafNode);
+            } else if (expandLeaf(LeafNode)) {
+                EQueue->add(*State, Config, LeafNode);
+            } else {
+                bool IsCheckmatedByPawn = false;
+                if (State->getPly() > 0) {
+                    const auto LastMove = State->getLastMove();
+                    if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                        immediateUpdateByWin(LeafNode);
+                        IsCheckmatedByPawn = true;
+                    }
+                }
+
+                if (!IsCheckmatedByPawn) {
+                    immediateUpdateByLoss(LeafNode);
+                }
+            }
+        } else {
+            immediateUpdate(LeafNode);
+        }
+    }
+
+    // Go back to the root state.
+    while (State->getPly() != RootPly) {
+        State->undoMove();
+    }
+
+    return false;
 }
 
 template class LeafCollector<evaluate::preset::SimpleFeatures>;

@@ -4,6 +4,7 @@
 #include "node.h"
 #include "evaluatequeue.h"
 #include "../evaluate/evaluator.h"
+#include "../worker/worker.h"
 
 #include <nshogi/ml/featurebitboard.h>
 #include <nshogi/ml/common.h>
@@ -17,17 +18,20 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-class EvaluateWorker {
+class EvaluateWorker : public worker::Worker {
  public:
     EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>*, evaluate::Evaluator*);
     ~EvaluateWorker();
 
-    void start();
-    void stop();
+    // void start();
+    // void stop();
 
  private:
-    void mainLoop();
+    static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
 
+    // void mainLoop();
+    bool doTask();
+    void getBatch();
     void flattenFeatures(const std::vector<Features>&);
     void doInference(std::size_t BatchSize);
     void feedResults(const std::vector<core::Color>&, const std::vector<Node*>&);
@@ -40,13 +44,18 @@ class EvaluateWorker {
     std::vector<ml::FeatureBitboard> FeatureBitboards;
     float LegalPolicy[ml::MoveIndexMax];
 
-    std::mutex Mutex;
-    std::condition_variable CV;
-    std::atomic<bool> IsRunnning;
-    std::atomic<bool> IsThreadWorking;
-    std::atomic<bool> IsExiting;
+    std::vector<core::Color> PendingSideToMoves;
+    std::vector<Node*> PendingNodes;
+    std::vector<Features> PendingFeatures;
+    std::size_t SequentialSkip;
 
-    std::thread Worker;
+    // std::mutex Mutex;
+    // std::condition_variable CV;
+    // std::atomic<bool> IsRunnning;
+    // std::atomic<bool> IsThreadWorking;
+    // std::atomic<bool> IsExiting;
+
+    // std::thread Worker;
 };
 
 } // namespace mcts
