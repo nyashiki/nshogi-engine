@@ -37,7 +37,7 @@ class LeafCollector : public worker::Worker {
     static constexpr int32_t CBase = 19652;
     static constexpr double CInit = 1.25;
 
-    bool doTask();
+    bool doTask() override;
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren, bool regardNotVisitedWin);
     double computeWinRateOfChild(Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits);

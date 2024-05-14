@@ -20,6 +20,7 @@ class USILogger : public logger::Logger {
     };
 
     USILogger();
+    ~USILogger() = default;
 
     void printPVLog(const logger::PVLog& Log) const override;
     void printBestMove(const core::Move32& Move) const override;
@@ -37,7 +38,7 @@ class USILogger : public logger::Logger {
         (std::cout << ... << Args) << std::endl;
     }
 
-    void setIsInverse(bool Value);
+    void setIsInverse(bool Value) override;
     void setScoreFormatType(ScoreFormatType);
 
  public:

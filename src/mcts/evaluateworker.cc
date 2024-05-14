@@ -22,7 +22,8 @@ void cancelVirtualLoss(Node* N) {
 
 template <typename Features>
 EvaluateWorker<Features>::EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>* EQ, evaluate::Evaluator* Ev)
-    : BatchSizeMax(BatchSize)
+    : worker::Worker(true)
+    , BatchSizeMax(BatchSize)
     , EQueue(EQ)
     , Evaluator(Ev)
     , SequentialSkip(0) {

@@ -68,7 +68,7 @@ Manager::Manager(std::size_t NumGPUs, std::size_t NumSearchers, std::size_t NumC
     EQueue = std::make_unique<EvaluationQueue<GlobalConfig::FeatureType>>(BatchSize * 2);
 
     // for (std::size_t I = 0; I < NumSearchers; ++I) {
-    for (std::size_t I = 0; I < 4; ++I) {
+    for (std::size_t I = 0; I < 1; ++I) {
         // Evaluators.emplace_back(std::make_unique<evaluate::Evaluator>(BatchSize, Infers.back().get()));
         // SearchWorkers.emplace_back(std::make_unique<SearchWorker>(BatchSize, Evaluators.back().get(), CSearcher.get(), MtxPool.get(), ECache.get()));
         // SearchWorkers.emplace_back(
@@ -221,10 +221,10 @@ Manager::~Manager() {
     WatchDogCv.notify_one();
     WatchDogThread->join();
 
-    for (const auto& LeafCollector : LeafCollectors) {
+    for (auto& LeafCollector : LeafCollectors) {
         LeafCollector->stop();
     }
-    for (const auto& EvaluateWorker : EvaluateWorkers) {
+    for (auto& EvaluateWorker : EvaluateWorkers) {
         EvaluateWorker->stop();
     }
 }
@@ -261,19 +261,23 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
 
         AllWorkerStarted.store(true);
 
+        std::cerr << "===== A" << std::endl;
         // for (auto& Worker : SearchWorkers) {
         //     Worker->await();
         // }
         for (auto& LeafCollector : LeafCollectors) {
             LeafCollector->await();
         }
+        std::cerr << "===== B" << std::endl;
         for (auto& EvaluateWorker : EvaluateWorkers) {
-            EvaluateWorker->stop();
+            EvaluateWorker->await();
         }
+        std::cerr << "===== D" << std::endl;
 
         if (CSearcher != nullptr) {
             CSearcher->stop();
         }
+        std::cerr << "===== E" << std::endl;
 
         {
             const uint64_t VisitsAndVirtualLoss = RootNode->getVisitsAndVirtualLoss();
@@ -292,6 +296,8 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
             }
         }
 
+        std::cerr << "===== F" << std::endl;
+
         if (CallBackFunctionPtr != nullptr) {
             BestMove = [&]() {
                 if ((ConfigInternal.Rule & core::Declare27_ER) != 0) {
@@ -309,6 +315,7 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
                 }
             }();
         }
+        std::cerr << "===== G" << std::endl;
     });
 
     LimitInternal = Limit;
@@ -384,19 +391,37 @@ void Manager::stop(bool WaitUntilWatchDogStops) {
         return;
     }
 
+    PLogger->printLog("Stopping LeafCollectors.");
     for (const auto& LeafCollector : LeafCollectors) {
         LeafCollector->stop();
     }
+    PLogger->printLog("Stopping LeafCollectors ok.");
+    PLogger->printLog("Awaiting LeafCollectors.");
+    for (const auto& LeafCollector : LeafCollectors) {
+        LeafCollector->await();
+    }
+    PLogger->printLog("Awaiting LeafCollectors ok.");
 
+    PLogger->printLog("Stopping EvaluateWorkers.");
     for (const auto& EvaluateWorker : EvaluateWorkers) {
         EvaluateWorker->stop();
     }
+    PLogger->printLog("Stopping EvaluateWorkers ok.");
+    PLogger->printLog("Awaiting EvaluateWorkers.");
+    for (const auto& EvaluateWorker : EvaluateWorkers) {
+        EvaluateWorker->await();
+    }
+    PLogger->printLog("Awaiting EvaluateWorkers ok.");
 
+    PLogger->printLog("Stopping CheckmateSearchers.");
     if (CSearcher != nullptr) {
         CSearcher->stop();
     }
+    PLogger->printLog("Stopping CheckmateSearchers ok.");
 
+    PLogger->printLog("Joining search thread.");
     Thread->join();
+    PLogger->printLog("Joining search thread ok.");
     Thread.reset();
 
     if (CallBackFunctionPtr != nullptr) {

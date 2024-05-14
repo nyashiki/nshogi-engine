@@ -11,7 +11,7 @@ namespace worker {
 
 class Worker {
  public:
-    Worker();
+    Worker(bool LoopTask);
     virtual ~Worker();
 
     void start();
@@ -21,12 +21,16 @@ class Worker {
  protected:
     virtual bool doTask() = 0;
 
+    bool getIsRunning();
+
     bool IsRunning;
     bool IsWaiting;
     bool IsExiting;
 
  private:
     void mainLoop();
+
+    const bool LoopTaskFlag;
 
     std::thread Thread;
     std::mutex Mutex;

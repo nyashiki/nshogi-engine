@@ -9,7 +9,7 @@
 #include "../infer/random.h"
 // #include "../infer/trt.h"
 #include "../mcts/searchworker.h"
-#include "../mcts/manager.h"
+#include "../mcts/manager2.h"
 #include "usilogger.h"
 
 #include <chrono>
@@ -35,7 +35,8 @@ namespace usi {
 
 namespace {
 
-std::unique_ptr<mcts::Manager> Manager;
+// std::unique_ptr<mcts::Manager> Manager;
+std::unique_ptr<mcts::Manager2> Manager;
 std::unique_ptr<nshogi::core::State> State;
 std::unique_ptr<nshogi::core::State> StatePondering;
 std::unique_ptr<nshogi::core::StateConfig> StateConfig =
@@ -43,7 +44,7 @@ std::unique_ptr<nshogi::core::StateConfig> StateConfig =
 std::unique_ptr<nshogi::book::Book> Book = nullptr;
 
 USIOption Option;
-USILogger Logger;
+std::shared_ptr<USILogger> Logger = std::make_shared<USILogger>();
 
 std::mutex MutexPondering;
 bool StopCommandReceived = false;
@@ -93,19 +94,19 @@ void showOption() {
 void greet() {
     setupOption();
 
-    Logger.printRawMessage("id name ", USIName);
-    Logger.printRawMessage("id author ", USIAuthor);
+    Logger->printRawMessage("id name ", USIName);
+    Logger->printRawMessage("id author ", USIAuthor);
 
     showOption();
 
-    Logger.printRawMessage("usiok");
+    Logger->printRawMessage("usiok");
 }
 
 void isready() {
     static bool IsFirstCall = true;
 
     if (!IsFirstCall) {
-        Logger.printRawMessage("readyok");
+        Logger->printRawMessage("readyok");
         return;
     }
 
@@ -150,22 +151,24 @@ void isready() {
         Book = std::make_unique<nshogi::book::Book>(nshogi::book::Book::load(
                     GlobalConfig::getConfig().getBookPath().c_str()));
 
-        Logger.printLog("Book->size(): ", Book->size());
+        Logger->printLog("Book->size(): ", Book->size());
     }
 
-    Manager = std::make_unique<mcts::Manager>(
+    Manager = std::make_unique<mcts::Manager2>(
+            GlobalConfig::getConfig().getBatchSize(),
             GlobalConfig::getConfig().getNumGPUs(),
             GlobalConfig::getConfig().getNumSearchThreadsPerGPU(),
-            GlobalConfig::getConfig().getNumCheckmateSearchThreads(),
-            GlobalConfig::getConfig().getBatchSize(), &Logger);
+            1, Logger);
+
+    Manager->setIsPonderingEnabled(GlobalConfig::getConfig().getPonderingEnabled());
 
     StateConfig->Rule = core::Declare27_ER;
     StateConfig->MaxPly = (uint16_t)Option.getIntOption("USI_MaxPly");
     StateConfig->BlackDrawValue = GlobalConfig::getConfig().getBlackDrawValue();
     StateConfig->WhiteDrawValue = GlobalConfig::getConfig().getWhiteDrawValue();
 
-    Logger.setScoreFormatType(USILogger::ScoreFormatType::WinDraw);
-    Logger.printRawMessage("readyok");
+    // Logger.setScoreFormatType(USILogger::ScoreFormatType::WinDraw);
+    Logger->printRawMessage("readyok");
 }
 
 void stopPonderingIfNeeded() {
@@ -175,7 +178,7 @@ void stopPonderingIfNeeded() {
         return;
     }
 
-    Manager->stop();
+    // Manager->stop();
     IsPondering = false;
 }
 
@@ -189,7 +192,7 @@ void position(std::istringstream& Stream) {
         Sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 ";
     } else if (Token == "sfen") {
     } else {
-        Logger.printLog("Unkwown token`", Token, "`.");
+        Logger->printLog("Unkwown token`", Token, "`.");
         return;
     }
 
@@ -226,13 +229,13 @@ void go(std::istringstream& Stream, void (*CallBack)(const nshogi::core::Move32&
             Limits[nshogi::core::Black] = NoLimit;
             Limits[nshogi::core::White] = NoLimit;
         } else {
-            Logger.printLog("Unkwown token`", Token, "`.");
+            Logger->printLog("Unkwown token`", Token, "`.");
         }
     }
 
     stopPonderingIfNeeded();
     StopCommandReceived = false;
-    Logger.setIsInverse(false);
+    Logger->setIsInverse(false);
 
     if (Book != nullptr) {
         if (State->getRepetitionStatus() == nshogi::core::RepetitionStatus::NoRepetition ||
@@ -242,7 +245,7 @@ void go(std::istringstream& Stream, void (*CallBack)(const nshogi::core::Move32&
                 Book->findEntry(nshogi::io::sfen::positionToSfen(State->getPosition()).c_str());
 
             if (Entry != nullptr) {
-                Logger.printLog("info string Entry->getNumBookMoves(): ", (int)Entry->getNumBookMoves());
+                Logger->printLog("info string Entry->getNumBookMoves(): ", (int)Entry->getNumBookMoves());
 
                 const uint8_t NumBookMoves = Entry->getNumBookMoves();
                 static std::random_device SeedGen;
@@ -256,7 +259,7 @@ void go(std::istringstream& Stream, void (*CallBack)(const nshogi::core::Move32&
                         for (std::size_t I = 0; I < Entry->getNumBookMoves(); ++I) {
                             nshogi::book::BookMove* BookMove = Entry->getBookMove(I);
 
-                            Logger.printLog(nshogi::io::sfen::move32ToSfen(BookMove->getMove()),
+                            Logger->printLog(nshogi::io::sfen::move32ToSfen(BookMove->getMove()),
                                             ", ",
                                             BookMove->getMeta().getCount());
 
@@ -317,7 +320,7 @@ void stop() {
     StopCommandReceived = true;
 
     stopPonderingIfNeeded();
-    Manager->stop();
+    Manager->interrupt();
 }
 
 void quit() {
@@ -354,25 +357,7 @@ void debug() {
 }
 
 void bestMoveCallBackFunction(const nshogi::core::Move32& Move) {
-    Logger.printBestMove(Move);
-
-    // Start pondering.
-    if (!StopCommandReceived && GlobalConfig::getConfig().getPonderingEnabled()) {
-        if (Move.isNone() || Move == nshogi::core::Move32::MoveWin()) {
-            return;
-        }
-
-        std::lock_guard<std::mutex> Lock(MutexPondering);
-
-        // Prepare the next state.
-        StatePondering = std::make_unique<nshogi::core::State>(State->clone());
-        StatePondering->doMove(Move);
-
-        // Start pondering.
-        IsPondering = true;
-        Logger.setIsInverse(true);
-        Manager->thinkNextMove(*StatePondering, *StateConfig, NoLimit, nullptr);
-    }
+    Logger->printBestMove(Move);
 }
 
 } // namespace

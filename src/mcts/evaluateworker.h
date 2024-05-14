@@ -30,7 +30,7 @@ class EvaluateWorker : public worker::Worker {
     static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
 
     // void mainLoop();
-    bool doTask();
+    bool doTask() override;
     void getBatch();
     void flattenFeatures(const std::vector<Features>&);
     void doInference(std::size_t BatchSize);

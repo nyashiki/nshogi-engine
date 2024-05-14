@@ -12,7 +12,8 @@ namespace mcts {
 
 template <typename Features>
 LeafCollector<Features>::LeafCollector(EvaluationQueue<Features>* EQ, MutexPool<lock::SpinLock>* MP, CheckmateSearcher* CS)
-    : EQueue(EQ)
+    : worker::Worker(true)
+    , EQueue(EQ)
     , MtxPool(MP)
     , CSearcher(CS) {
     // Worker = std::thread(&LeafCollector<Features>::mainLoop, this);
@@ -402,6 +403,11 @@ void LeafCollector<Features>::incrementVirtualLosses(Node* N) {
 
 template <typename Features>
 bool LeafCollector<Features>::doTask() {
+    // Go back to the root state.
+    while (State->getPly() != RootPly) {
+        State->undoMove();
+    }
+
     Node* LeafNode = collectOneLeaf();
 
     if (LeafNode != nullptr) {
@@ -409,7 +415,9 @@ bool LeafCollector<Features>::doTask() {
         const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
         const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
-        if (NumVisits == 0 && VirtualLoss == 1) {
+        if (NumVisits > 0) {
+            immediateUpdate(LeafNode);
+        } else if (VirtualLoss == 1) {
             const auto RS = State->getRepetitionStatus();
 
             if (RS == core::RepetitionStatus::WinRepetition
@@ -434,14 +442,7 @@ bool LeafCollector<Features>::doTask() {
                     immediateUpdateByLoss(LeafNode);
                 }
             }
-        } else {
-            immediateUpdate(LeafNode);
         }
-    }
-
-    // Go back to the root state.
-    while (State->getPly() != RootPly) {
-        State->undoMove();
     }
 
     return false;
