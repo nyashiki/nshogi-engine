@@ -232,17 +232,38 @@ void LeafCollector<Feature>::immediateUpdateByLoss(Node* LeafNode) {
 
 template <typename Feature>
 void LeafCollector<Feature>::immediateUpdateByDraw(Node* LeafNode) {
-    LeafNode->setEvaluation(nullptr, 0.0f, 1.0f);
-    LeafNode->updateAncestors(0.0f, 1.0f);
+    LeafNode->setEvaluation(nullptr, 0.5f, 1.0f);
+    LeafNode->updateAncestors(0.5f, 1.0f);
 }
 
 template <typename Feature>
 void LeafCollector<Feature>::immediateUpdate(Node* LeafNode) {
-    const int16_t PlyToTerminal = LeafNode->getPlyToTerminalSolved();
+    float WinRate = LeafNode->getWinRatePredicted();
+    float DrawRate = LeafNode->getDrawRatePredicted();
 
-    const float WinRate = (PlyToTerminal > 0) ? 1.0 :
-                            (PlyToTerminal < 0) ? 0.0 : LeafNode->getWinRatePredicted();
-    const float DrawRate = (PlyToTerminal != 0) ? 0.0 : LeafNode->getDrawRatePredicted();
+    const auto RS = LeafNode->getRepetitionStatus();
+
+    if (RS == core::RepetitionStatus::WinRepetition
+            || RS == core::RepetitionStatus::SuperiorRepetition) {
+        WinRate = 1.0;
+        DrawRate = 0.0;
+    } else if (RS == core::RepetitionStatus::LossRepetition
+            || RS == core::RepetitionStatus::InferiorRepetition) {
+        WinRate = 0.0;
+        DrawRate = 0.0;
+    } else if (RS == core::RepetitionStatus::Repetition) {
+        WinRate = 0.5;
+        DrawRate = 1.0;
+    } else {
+        const auto PlyToTerminal = LeafNode->getPlyToTerminalSolved();
+        if (PlyToTerminal > 0) {
+            WinRate = 1.0;
+            DrawRate = 0.0;
+        } else if (PlyToTerminal < 0) {
+            WinRate = 0.0;
+            DrawRate = 0.0;
+        }
+    }
 
     LeafNode->updateAncestors(WinRate, DrawRate);
 }
@@ -418,15 +439,24 @@ bool LeafCollector<Features>::doTask() {
         if (NumVisits > 0) {
             immediateUpdate(LeafNode);
         } else if (VirtualLoss == 1) {
-            const auto RS = State->getRepetitionStatus();
+            if (LeafNode != RootNode) {
+                const auto RS = State->getRepetitionStatus();
+                LeafNode->setRepetitionStatus(RS);
+                if (RS == core::RepetitionStatus::WinRepetition
+                        || RS == core::RepetitionStatus::SuperiorRepetition) {
+                    immediateUpdateByWin(LeafNode);
+                    return false;
+                } else if (RS == core::RepetitionStatus::LossRepetition
+                        || RS == core::RepetitionStatus::InferiorRepetition) {
+                    immediateUpdateByLoss(LeafNode);
+                    return false;
+                } else if (RS == core::RepetitionStatus::Repetition) {
+                    immediateUpdateByDraw(LeafNode);
+                    return false;
+                }
+            }
 
-            if (RS == core::RepetitionStatus::WinRepetition
-                    || RS == core::RepetitionStatus::SuperiorRepetition) {
-                immediateUpdateByWin(LeafNode);
-            } else if (RS == core::RepetitionStatus::LossRepetition
-                    || RS == core::RepetitionStatus::InferiorRepetition) {
-                immediateUpdateByLoss(LeafNode);
-            } else if (expandLeaf(LeafNode)) {
+            if (expandLeaf(LeafNode)) {
                 EQueue->add(*State, Config, LeafNode);
             } else {
                 bool IsCheckmatedByPawn = false;
