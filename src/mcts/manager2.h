@@ -63,7 +63,7 @@ class Manager2 {
     bool WakeUpSupervisor;
     std::unique_ptr<std::thread> Supervisor;
     std::mutex MutexSupervisor;
-    std::condition_variable CVSuperVisor;
+    std::condition_variable CVSupervisor;
 
     std::unique_ptr<Watchdog> WatchdogWorker;
 

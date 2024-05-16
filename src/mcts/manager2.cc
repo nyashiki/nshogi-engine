@@ -60,7 +60,7 @@ Manager2::~Manager2() {
         std::lock_guard<std::mutex> LockS(MutexSupervisor);
         IsExiting = true;
     }
-    CVSuperVisor.notify_one();
+    CVSupervisor.notify_one();
 
     Supervisor->join();
 }
@@ -71,7 +71,6 @@ void Manager2::setIsPonderingEnabled(bool Value) {
 
 void Manager2::thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Lim, void (*CallBack)(const core::Move32&)) {
     WatchdogWorker->stop();
-    WatchdogWorker->await();
 
     std::cerr << "[thinkNextMove()] await ... " << std::endl;
     for (const auto& SearchWorker : LeafCollectors) {
@@ -81,6 +80,7 @@ void Manager2::thinkNextMove(const core::State& State, const core::StateConfig& 
         EvaluationWorker->await();
     }
     std::cerr << "[thinkNextMove()] await ... ok." << std::endl;
+    WatchdogWorker->await();
 
     // Update the current state.
     {
@@ -95,11 +95,17 @@ void Manager2::thinkNextMove(const core::State& State, const core::StateConfig& 
     std::cerr << "[thinkNextMove()] update the current state ... ok." << std::endl;
 
     // Wake up the supervisor and the watchdog.
-    CVSuperVisor.notify_one();
+    CVSupervisor.notify_one();
 }
 
 void Manager2::interrupt() {
     WatchdogWorker->stop();
+    for (const auto& SearchWorker : LeafCollectors) {
+        SearchWorker->await();
+    }
+    for (const auto& EvaluationWorker : EvaluateWorkers) {
+        EvaluationWorker->await();
+    }
     WatchdogWorker->await();
 }
 
@@ -159,7 +165,7 @@ void Manager2::setupSupervisor() {
             {
                 std::unique_lock<std::mutex> Lock(MutexSupervisor);
 
-                CVSuperVisor.wait(Lock, [this]() {
+                CVSupervisor.wait(Lock, [this]() {
                     return WakeUpSupervisor || IsExiting;
                 });
 
@@ -204,7 +210,12 @@ void Manager2::doSupervisorWork(bool CallCallback) {
 
     WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNode);
     WatchdogWorker->setLimit(*Limit);
+    std::cerr << "[doSupervisorWork()] start watchdog ..." << std::endl;
+    if (WatchdogWorker->getIsRunning()) {
+        std::cerr << "[doSupervisorWork()] ERROR !!!!!!!!!!!!!!! WATCHDOG IS RUNNING." << std::endl;
+    }
     WatchdogWorker->start();
+    std::cerr << "[doSupervisorWork()] start watchdog ... ok." << std::endl;
 
     // Await workers until the search stops.
     std::cerr << "[doSupervisorWork()] await workers ..." << std::endl;
@@ -216,6 +227,9 @@ void Manager2::doSupervisorWork(bool CallCallback) {
         EvaluateWorker->await();
     }
     std::cerr << "[doSupervisorWork()] await evaluation workers ... ok." << std::endl;
+    std::cerr << "[doSupervisorWork()] await watchdog ..." << std::endl;
+    WatchdogWorker->await();
+    std::cerr << "[doSupervisorWork()] await watchdog ... ok." << std::endl;
 
     if (CallCallback) {
         const auto Bestmove = getBestmove(RootNode);

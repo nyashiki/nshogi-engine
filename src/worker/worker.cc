@@ -1,5 +1,7 @@
 #include "worker.h"
 
+#include <iostream>
+
 namespace nshogi {
 namespace engine {
 namespace worker {
@@ -24,29 +26,31 @@ Worker::~Worker() {
 }
 
 void Worker::start() {
+    std::cerr << ">>>>> START HAS CALLED. <<<<<" << std::endl;
     {
         std::lock_guard<std::mutex> Lock(Mutex);
         IsRunning = true;
+        IsStartNotified = false;
     }
     CV.notify_one();
 
-    {
-        std::unique_lock<std::mutex> Lock(Mutex);
-        CV.wait(Lock, [this]() {
-            return !IsWaiting;
-        });
-    }
+    std::cerr << ">>>>> CONFIRM THREAD HAS STARTED. <<<<<" << std::endl;
+    // Ensure the thread has started.
+    std::unique_lock<std::mutex> Lock(Mutex);
+    WaitingCV.wait(Lock, [this]() {
+        return IsStartNotified;
+    });
+
+    std::cerr << ">>>>> CONFIRM THREAD HAS STARTED OK!. <<<<<" << std::endl;
 }
 
 void Worker::stop() {
-    {
-        std::lock_guard<std::mutex> Lock(Mutex);
-        IsRunning = false;
-    }
-    CV.notify_all();
+    std::lock_guard<std::mutex> Lock(Mutex);
+    IsRunning = false;
 }
 
 void Worker::await() {
+    // Wait until the thread has stopped.
     std::unique_lock<std::mutex> Lock(Mutex);
     WaitingCV.wait(Lock, [this] {
         return !IsRunning && IsWaiting;
@@ -61,28 +65,37 @@ bool Worker::getIsRunning() {
 void Worker::mainLoop() {
     while (true) {
         {
-            std::unique_lock<std::mutex> Lock(Mutex);
+            std::lock_guard<std::mutex> Lock(Mutex);
+            IsRunning = false;
             IsWaiting = true;
-            WaitingCV.notify_all();
+        }
+        WaitingCV.notify_all();
+
+        bool IsToExit = false;
+        {
+            std::unique_lock<std::mutex> Lock(Mutex);
 
             CV.wait(Lock, [this] {
                 return IsRunning || IsExiting;
             });
 
+            // Notify a waiting thread which is in start().
             IsWaiting = false;
-            CV.notify_one();
+            IsToExit = IsExiting;
+            IsStartNotified = true;
+        }
 
-            if (IsExiting) {
-                break;
-            }
+        WaitingCV.notify_all();
+        std::cerr << ">>>>> NOTIFY THREAD HAS STARTED OK!. <<<<<" << std::endl;
+
+        if (IsToExit) {
+            break;
         }
 
         while (true) {
             bool ToContinue = doTask();
 
             if (!LoopTaskFlag) {
-                std::lock_guard<std::mutex> Lock(Mutex);
-                IsRunning = false;
                 break;
             }
 
@@ -99,6 +112,7 @@ void Worker::mainLoop() {
 
     {
         std::lock_guard<std::mutex> Lock(Mutex);
+        IsRunning = false;
         IsWaiting = true;
     }
     WaitingCV.notify_all();
