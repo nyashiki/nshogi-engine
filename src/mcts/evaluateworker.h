@@ -2,6 +2,7 @@
 #define NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
 
 #include "node.h"
+#include "evalcache.h"
 #include "evaluatequeue.h"
 #include "../evaluate/evaluator.h"
 #include "../worker/worker.h"
@@ -20,11 +21,8 @@ namespace mcts {
 template <typename Features>
 class EvaluateWorker : public worker::Worker {
  public:
-    EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>*, evaluate::Evaluator*);
+    EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>*, evaluate::Evaluator*, EvalCache*);
     ~EvaluateWorker();
-
-    // void start();
-    // void stop();
 
  private:
     static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
@@ -32,14 +30,17 @@ class EvaluateWorker : public worker::Worker {
     // void mainLoop();
     bool doTask() override;
     void getBatch();
-    void flattenFeatures(const std::vector<Features>&);
+    void flattenFeatures(std::size_t BatchSize);
     void doInference(std::size_t BatchSize);
-    void feedResults(const std::vector<core::Color>&, const std::vector<Node*>&);
+    void feedResults(std::size_t BatchSize);
     void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate);
+    void cacheResults(std::size_t BatchSize);
+    void cacheResult(uint64_t, uint16_t, const float* Policy, float WinRate, float DrawRate);
 
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;
     evaluate::Evaluator* const Evaluator;
+    EvalCache* const ECache;
 
     std::vector<ml::FeatureBitboard> FeatureBitboards;
     float LegalPolicy[ml::MoveIndexMax];
@@ -47,15 +48,9 @@ class EvaluateWorker : public worker::Worker {
     std::vector<core::Color> PendingSideToMoves;
     std::vector<Node*> PendingNodes;
     std::vector<Features> PendingFeatures;
+    std::vector<uint64_t> PendingHashes;
+    std::vector<uint16_t> PendingNumMoves;
     std::size_t SequentialSkip;
-
-    // std::mutex Mutex;
-    // std::condition_variable CV;
-    // std::atomic<bool> IsRunnning;
-    // std::atomic<bool> IsThreadWorking;
-    // std::atomic<bool> IsExiting;
-
-    // std::thread Worker;
 };
 
 } // namespace mcts

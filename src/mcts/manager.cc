@@ -31,7 +31,7 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::shared_ptr<logger::Logger> Logger)
+Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::size_t EvalCacheMB, std::shared_ptr<logger::Logger> Logger)
     : PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
     , IsPonderingEnabled(false)
@@ -41,6 +41,7 @@ Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSear
     setupSearchTree();
     setupCheckmateQueue(NumCheckmateWorkers);
     setupCheckmateWorkers(NumCheckmateWorkers);
+    setupEvalCache(EvalCacheMB);
     setupEvaluationQueue(BatchSize, NumGPUs, NumEvaluationWorkersPerGPU);
     setupEvaluationWorkers(BatchSize, NumGPUs, NumEvaluationWorkersPerGPU);
     setupSearchWorkers(NumSearchWorkers);
@@ -158,7 +159,7 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 
             EvaluateWorkers.emplace_back(
                     std::make_unique<EvaluateWorker<GlobalConfig::FeatureType>>(
-                        BatchSize, EQueue.get(), Evaluators.back().get()));
+                        BatchSize, EQueue.get(), Evaluators.back().get(), ECache.get()));
         }
     }
 }
@@ -183,6 +184,10 @@ void Manager::setupCheckmateWorkers(std::size_t NumCheckmateWorkers) {
     for (std::size_t I = 0; I < NumCheckmateWorkers; ++I) {
         CheckmateWorkers.emplace_back(std::make_unique<CheckmateWorker>(CQueue.get()));
     }
+}
+
+void Manager::setupEvalCache(std::size_t EvalCacheMB) {
+    ECache = std::make_unique<EvalCache>(EvalCacheMB);
 }
 
 void Manager::setupSupervisor() {

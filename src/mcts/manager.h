@@ -4,6 +4,7 @@
 #include "evaluateworker.h"
 #include "searchworker.h"
 #include "evaluatequeue.h"
+#include "evalcache.h"
 #include "checkmatequeue.h"
 #include "checkmateworker.h"
 #include "garbagecollector.h"
@@ -30,6 +31,7 @@ class Manager {
         std::size_t NumSearchWorkers,
         std::size_t NumEvaluationWorkersPerGPU,
         std::size_t NumCheckmateWorkers,
+        std::size_t EvalCacheMB,
         std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
@@ -47,6 +49,7 @@ class Manager {
     void setupSearchWorkers(std::size_t NumSearchWorkers);
     void setupCheckmateQueue(std::size_t NumCheckmateWorkers);
     void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
+    void setupEvalCache(std::size_t EvalCacheMB);
     void setupSupervisor();
     void setupWatchDog();
 
@@ -62,6 +65,7 @@ class Manager {
     std::unique_ptr<GarbageCollector> GC;
     std::unique_ptr<EvaluationQueue<GlobalConfig::FeatureType>> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
+    std::unique_ptr<EvalCache> ECache;
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker<GlobalConfig::FeatureType>>> SearchWorkers;
     std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;

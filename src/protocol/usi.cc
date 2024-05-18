@@ -159,7 +159,9 @@ void isready() {
             GlobalConfig::getConfig().getNumGPUs(),
             2, // GlobalConfig::getConfig().getNumSearchThreadsPerGPU(),
             2,
-            2, Logger);
+            2,
+            GlobalConfig::getConfig().getEvalCacheMemoryMB(),
+            Logger);
 
     Manager->setIsPonderingEnabled(GlobalConfig::getConfig().getPonderingEnabled());
 
