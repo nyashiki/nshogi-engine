@@ -33,9 +33,7 @@ class EvaluateWorker : public worker::Worker {
     void flattenFeatures(std::size_t BatchSize);
     void doInference(std::size_t BatchSize);
     void feedResults(std::size_t BatchSize);
-    void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate);
-    void cacheResults(std::size_t BatchSize);
-    void cacheResult(uint64_t, uint16_t, const float* Policy, float WinRate, float DrawRate);
+    void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate, uint64_t Hash);
 
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;
@@ -49,7 +47,6 @@ class EvaluateWorker : public worker::Worker {
     std::vector<Node*> PendingNodes;
     std::vector<Features> PendingFeatures;
     std::vector<uint64_t> PendingHashes;
-    std::vector<uint16_t> PendingNumMoves;
     std::size_t SequentialSkip;
 };
 

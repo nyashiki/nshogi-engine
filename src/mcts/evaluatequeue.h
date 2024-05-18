@@ -18,14 +18,14 @@ class EvaluationQueue {
     EvaluationQueue(std::size_t MaxSize);
 
     void add(const core::State&, const core::StateConfig&, Node*);
-    auto get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>, std::vector<uint64_t>, std::vector<uint16_t>>;
+    auto get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>, std::vector<uint64_t>>;
 
  private:
     std::size_t MaxQueueSize;
     std::mutex Mutex;
     std::condition_variable CV;
-    // Tuple of (side to move, node address, feature vector, hash of the state, the number of moves).
-    std::queue<std::tuple<core::Color, Node*, Features, uint64_t, uint16_t>> Queue;
+    // Tuple of (side to move, node address, feature vector, hash of the state).
+    std::queue<std::tuple<core::Color, Node*, Features, uint64_t>> Queue;
 };
 
 } // namespace mcts

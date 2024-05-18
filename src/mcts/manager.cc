@@ -82,14 +82,17 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
     }
+    std::cerr << "[thinkNextMove()] await search worker ok ... " << std::endl;
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->await();
     }
+    std::cerr << "[thinkNextMove()] await evaluation worker ok ... " << std::endl;
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->await();
     }
-    std::cerr << "[thinkNextMove()] await ... ok." << std::endl;
+    std::cerr << "[thinkNextMove()] await checkmate worker ... ok." << std::endl;
     WatchdogWorker->await();
+    std::cerr << "[thinkNextMove()] await ... ok." << std::endl;
 
     // Update the current state.
     {
@@ -167,7 +170,7 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker<GlobalConfig::FeatureType>>(
-            EQueue.get(), CQueue.get(), MtxPool.get()));
+            EQueue.get(), CQueue.get(), MtxPool.get(), ECache.get()));
     }
 }
 
@@ -180,14 +183,16 @@ void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
 }
 
 void Manager::setupCheckmateWorkers(std::size_t NumCheckmateWorkers) {
-    assert(CQueue != nullptr);
+    assert(NumCheckmateWorkers == 0 || CQueue != nullptr);
     for (std::size_t I = 0; I < NumCheckmateWorkers; ++I) {
         CheckmateWorkers.emplace_back(std::make_unique<CheckmateWorker>(CQueue.get()));
     }
 }
 
 void Manager::setupEvalCache(std::size_t EvalCacheMB) {
-    ECache = std::make_unique<EvalCache>(EvalCacheMB);
+    if (EvalCacheMB > 0) {
+        ECache = std::make_unique<EvalCache>(EvalCacheMB);
+    }
 }
 
 void Manager::setupSupervisor() {

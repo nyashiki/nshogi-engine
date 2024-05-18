@@ -232,6 +232,10 @@ logger::PVLog Watchdog::getPVLog() const {
                 ? Config->BlackDrawValue : Config->WhiteDrawValue;
 
     while (N != nullptr) {
+        if ((N->getVisitsAndVirtualLoss() & Node::VisitMask) == 0) {
+            break;
+        }
+
         Edge* E = N->mostPromisingEdge();
 
         if (E == nullptr) {

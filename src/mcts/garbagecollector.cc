@@ -18,6 +18,7 @@ GarbageCollector::GarbageCollector(std::size_t NumWorkers) {
 
     ToExit = false;
 
+    std::lock_guard<std::mutex> Lock(Mtx);
     for (std::size_t I = 0; I < NumWorkers; ++I) {
         Workers.emplace_back(&GarbageCollector::mainLoop, this);
     }

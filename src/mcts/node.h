@@ -68,37 +68,37 @@ struct Node {
 
     inline void incrementVirtualLoss() {
         constexpr uint64_t Value = 1ULL << VirtualLossShift;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline void incrementVisitsAndDecrementVirtualLoss() {
         constexpr uint64_t Value = (0xffffffffffffffffULL << VirtualLossShift) | 0b1ULL;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline void decrementVirtualLoss() {
         constexpr uint64_t Value = 0xffffffffffffffffULL << VirtualLossShift;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline uint64_t getVisitsAndVirtualLoss() {
-        return VisitsAndVirtualLoss.load(std::memory_order_relaxed);
+        return VisitsAndVirtualLoss.load(std::memory_order_acquire);
     }
 
     inline double getWinRateAccumulated() const {
-        return WinRateAccumulated.load(std::memory_order_relaxed);
+        return WinRateAccumulated.load(std::memory_order_acquire);
     }
 
     inline double getDrawRateAccumulated() const {
-        return DrawRateAccumulated.load(std::memory_order_relaxed);
+        return DrawRateAccumulated.load(std::memory_order_acquire);
     }
 
     inline int16_t getPlyToTerminalSolved() const {
-        return PlyToTerminalSolved.load(std::memory_order_relaxed);
+        return PlyToTerminalSolved.load(std::memory_order_acquire);
     }
 
     inline void setPlyToTerminalSolved(int16_t Ply) {
-        PlyToTerminalSolved.store(Ply, std::memory_order_relaxed);
+        PlyToTerminalSolved.store(Ply, std::memory_order_release);
     }
 
     inline float getWinRatePredicted() const {
@@ -261,11 +261,11 @@ struct Node {
     }
 
     void setSolverResult(const core::Move16& Move) {
-        SolverMove.store(Move.value(), std::memory_order_relaxed);
+        SolverMove.store(Move.value(), std::memory_order_release);
     }
 
     core::Move16 getSolverResult() const {
-        return core::Move16::fromValue(SolverMove.load(std::memory_order_relaxed));
+        return core::Move16::fromValue(SolverMove.load(std::memory_order_acquire));
     }
 
     void* operator new(std::size_t Size) {

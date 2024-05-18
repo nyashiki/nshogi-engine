@@ -11,11 +11,12 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP)
+SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP, EvalCache* EC)
     : worker::Worker(true)
     , EQueue(EQ)
     , CQueue(CQ)
-    , MtxPool(MP) {
+    , MtxPool(MP)
+    , ECache(EC) {
 }
 
 template <typename Features>
@@ -150,15 +151,16 @@ Node* SearchWorker<Features>::collectOneLeaf() {
 }
 
 template <typename Feature>
-bool SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
+uint16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
     const auto Moves = core::MoveGenerator::generateLegalMoves(*State);
+    const uint16_t NumMoves = (uint16_t)Moves.size();
 
-    if (Moves.size() == 0) {
-        return false;
+    if (NumMoves == 0) {
+        return 0;
     }
 
     LeafNode->expand(Moves);
-    return true;
+    return NumMoves;
 }
 
 template <typename Feature>
@@ -401,8 +403,26 @@ bool SearchWorker<Features>::doTask() {
                 }
             }
 
-            if (expandLeaf(LeafNode)) {
-                EQueue->add(*State, Config, LeafNode);
+            const uint16_t NumMoves = expandLeaf(LeafNode);
+            if (NumMoves > 0) {
+                bool CacheFound = false;
+                if (ECache != nullptr) {
+                    CacheFound = ECache->load(*State, &CacheEvalInfo);
+
+                    if (CacheFound) {
+                        if (CacheEvalInfo.NumMoves == NumMoves) {
+                            LeafNode->setEvaluation(CacheEvalInfo.Policy, CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
+                            LeafNode->sort();
+                            LeafNode->updateAncestors(CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
+                        } else {
+                            CacheFound = false;
+                        }
+                    }
+                }
+
+                if (!CacheFound) {
+                    EQueue->add(*State, Config, LeafNode);
+                }
             } else {
                 bool IsCheckmatedByPawn = false;
                 if (State->getPly() > 0) {

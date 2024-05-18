@@ -34,7 +34,6 @@ EvaluateWorker<Features>::EvaluateWorker(std::size_t BatchSize, EvaluationQueue<
     PendingNodes.reserve(BatchSize);
     PendingFeatures.reserve(BatchSize);
     PendingHashes.reserve(BatchSize);
-    PendingNumMoves.reserve(BatchSize);
 }
 
 template <typename Features>
@@ -59,15 +58,11 @@ bool EvaluateWorker<Features>::doTask() {
     flattenFeatures(BatchSize);
     doInference(BatchSize);
     feedResults(BatchSize);
-    if (ECache != nullptr) {
-        cacheResults(BatchSize);
-    }
 
     PendingNodes.clear();
     PendingSideToMoves.clear();
     PendingFeatures.clear();
     PendingHashes.clear();
-    PendingNumMoves.clear();
     SequentialSkip = 0;
 
     return true;
@@ -85,7 +80,6 @@ void EvaluateWorker<Features>::getBatch() {
     auto Nodes = std::move(std::get<1>(Elements));
     auto FeatureStacks = std::move(std::get<2>(Elements));
     auto Hashes = std::move(std::get<3>(Elements));
-    auto NumMoves = std::move(std::get<4>(Elements));
 
     if (SideToMoves.size() == 0) {
         return;
@@ -95,7 +89,6 @@ void EvaluateWorker<Features>::getBatch() {
     std::move(Nodes.begin(), Nodes.end(), std::back_inserter(PendingNodes));
     std::move(FeatureStacks.begin(), FeatureStacks.end(), std::back_inserter(PendingFeatures));
     std::move(Hashes.begin(), Hashes.end(), std::back_inserter(PendingHashes));
-    std::move(NumMoves.begin(), NumMoves.end(), std::back_inserter(PendingNumMoves));
 }
 
 template <typename Features>
@@ -120,12 +113,12 @@ void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
         const float WinRate = *(Evaluator->getWinRate() + I);
         const float DrawRate = *(Evaluator->getDrawRate() + I);
 
-        feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate, DrawRate);
+        feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate, DrawRate, PendingHashes[I]);
     }
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate) {
+void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
     for (uint16_t I = 0; I < NumChildren; ++I) {
         const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
@@ -134,25 +127,12 @@ void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const
 
     ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
     N->setEvaluation(LegalPolicy, WinRate, DrawRate);
-
     N->sort();
     N->updateAncestors(WinRate, DrawRate);
-}
 
-template <typename Features>
-void EvaluateWorker<Features>::cacheResults(std::size_t BatchSize) {
-    for (std::size_t I = 0; I < BatchSize; ++I) {
-        const float* Policy = Evaluator->getPolicy() + 27 * core::NumSquares * I;
-        const float WinRate = *(Evaluator->getWinRate() + I);
-        const float DrawRate = *(Evaluator->getDrawRate() + I);
-
-        cacheResult(PendingHashes[I], PendingNumMoves[I], Policy, WinRate, DrawRate);
+    if (ECache != nullptr) {
+        ECache->store(Hash, NumChildren, LegalPolicy, WinRate, DrawRate);
     }
-}
-
-template <typename Features>
-void EvaluateWorker<Features>::cacheResult(uint64_t Hash, uint16_t NumMoves, const float* Policy, float WinRate, float DrawRate) {
-    ECache->store(Hash, NumMoves, Policy, WinRate, DrawRate);
 }
 
 template class EvaluateWorker<evaluate::preset::SimpleFeatures>;

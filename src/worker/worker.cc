@@ -10,8 +10,9 @@ Worker::Worker(bool LoopTask)
     : IsRunning(false)
     , IsWaiting(false)
     , IsExiting(false)
-    , LoopTaskFlag(LoopTask)
-    , Thread(&Worker::mainLoop, this) {
+    , LoopTaskFlag(LoopTask) {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    Thread = std::thread(&Worker::mainLoop, this);
 }
 
 Worker::~Worker() {

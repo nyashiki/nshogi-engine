@@ -35,7 +35,6 @@ namespace usi {
 
 namespace {
 
-// std::unique_ptr<mcts::Manager> Manager;
 std::unique_ptr<mcts::Manager> Manager;
 std::unique_ptr<nshogi::core::State> State;
 std::unique_ptr<nshogi::core::State> StatePondering;
@@ -157,10 +156,10 @@ void isready() {
     Manager = std::make_unique<mcts::Manager>(
             GlobalConfig::getConfig().getBatchSize(),
             GlobalConfig::getConfig().getNumGPUs(),
-            2, // GlobalConfig::getConfig().getNumSearchThreadsPerGPU(),
             2,
             2,
-            GlobalConfig::getConfig().getEvalCacheMemoryMB(),
+            0,
+            0, // GlobalConfig::getConfig().getEvalCacheMemoryMB(),
             Logger);
 
     Manager->setIsPonderingEnabled(GlobalConfig::getConfig().getPonderingEnabled());
