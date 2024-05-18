@@ -4,6 +4,8 @@
 #include "evaluateworker.h"
 #include "searchworker.h"
 #include "evaluatequeue.h"
+#include "checkmatequeue.h"
+#include "checkmateworker.h"
 #include "garbagecollector.h"
 #include "tree.h"
 #include "watchdog.h"
@@ -22,7 +24,13 @@ namespace mcts {
 
 class Manager {
  public:
-    Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::shared_ptr<logger::Logger> Logger);
+    Manager(
+        std::size_t BatchSize,
+        std::size_t NumGPUs,
+        std::size_t NumSearchWorkers,
+        std::size_t NumEvaluationWorkersPerGPU,
+        std::size_t NumCheckmateWorkers,
+        std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
     void setIsPonderingEnabled(bool Value);
@@ -37,6 +45,8 @@ class Manager {
     void setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU);
     void setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU);
     void setupSearchWorkers(std::size_t NumSearchWorkers);
+    void setupCheckmateQueue(std::size_t NumCheckmateWorkers);
+    void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
     void setupSupervisor();
     void setupWatchDog();
 
@@ -51,10 +61,11 @@ class Manager {
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
     std::unique_ptr<EvaluationQueue<GlobalConfig::FeatureType>> EQueue;
+    std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker<GlobalConfig::FeatureType>>> SearchWorkers;
     std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;
-
+    std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
     std::vector<std::unique_ptr<infer::Infer>> Infers;
     std::vector<std::unique_ptr<evaluate::Evaluator>> Evaluators;
 

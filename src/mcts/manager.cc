@@ -31,7 +31,7 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::shared_ptr<logger::Logger> Logger)
+Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::shared_ptr<logger::Logger> Logger)
     : PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
     , IsPonderingEnabled(false)
@@ -39,6 +39,8 @@ Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSear
     setupGarbageCollector();
     setupMutexPool();
     setupSearchTree();
+    setupCheckmateQueue(NumCheckmateWorkers);
+    setupCheckmateWorkers(NumCheckmateWorkers);
     setupEvaluationQueue(BatchSize, NumGPUs, NumEvaluationWorkersPerGPU);
     setupEvaluationWorkers(BatchSize, NumGPUs, NumEvaluationWorkersPerGPU);
     setupSearchWorkers(NumSearchWorkers);
@@ -54,6 +56,9 @@ Manager::~Manager() {
     }
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->await();
+    }
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->await();
     }
 
     {
@@ -78,6 +83,9 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
     }
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->await();
+    }
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->await();
     }
     std::cerr << "[thinkNextMove()] await ... ok." << std::endl;
     WatchdogWorker->await();
@@ -105,6 +113,9 @@ void Manager::interrupt() {
     }
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->await();
+    }
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->await();
     }
     WatchdogWorker->await();
 }
@@ -155,7 +166,22 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker<GlobalConfig::FeatureType>>(
-            EQueue.get(), MtxPool.get(), nullptr));
+            EQueue.get(), CQueue.get(), MtxPool.get()));
+    }
+}
+
+void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
+    // CheckmateQueue must be initialized before SearchWorker is.
+    assert(SearchWorkers.size() == 0);
+    if (NumCheckmateWorkers > 0) {
+        CQueue = std::make_unique<CheckmateQueue>();
+    }
+}
+
+void Manager::setupCheckmateWorkers(std::size_t NumCheckmateWorkers) {
+    assert(CQueue != nullptr);
+    for (std::size_t I = 0; I < NumCheckmateWorkers; ++I) {
+        CheckmateWorkers.emplace_back(std::make_unique<CheckmateWorker>(CQueue.get()));
     }
 }
 
@@ -206,14 +232,15 @@ void Manager::doSupervisorWork(bool CallCallback) {
     for (const auto& EvaluateWorker : EvaluateWorkers) {
         EvaluateWorker->start();
     }
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->start();
+    }
+
     std::cerr << "[doSupervisorWork()] start workers ... ok." << std::endl;
 
     WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNode);
     WatchdogWorker->setLimit(*Limit);
     std::cerr << "[doSupervisorWork()] start watchdog ..." << std::endl;
-    if (WatchdogWorker->getIsRunning()) {
-        std::cerr << "[doSupervisorWork()] ERROR !!!!!!!!!!!!!!! WATCHDOG IS RUNNING." << std::endl;
-    }
     WatchdogWorker->start();
     std::cerr << "[doSupervisorWork()] start watchdog ... ok." << std::endl;
 
@@ -227,6 +254,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
         EvaluateWorker->await();
     }
     std::cerr << "[doSupervisorWork()] await evaluation workers ... ok." << std::endl;
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->await();
+    }
     std::cerr << "[doSupervisorWork()] await watchdog ..." << std::endl;
     WatchdogWorker->await();
     std::cerr << "[doSupervisorWork()] await watchdog ... ok." << std::endl;
@@ -251,6 +281,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
             for (const auto& EvaluateWorker : EvaluateWorkers) {
                 EvaluateWorker->start();
             }
+            for (const auto& CheckmateWorker : CheckmateWorkers) {
+                CheckmateWorker->start();
+            }
 
             WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNodePondering);
             WatchdogWorker->setLimit(*Limit);
@@ -269,6 +302,9 @@ void Manager::stopWorkers() {
     }
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->stop();
+    }
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->stop();
     }
 }
 

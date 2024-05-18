@@ -9,7 +9,7 @@
 #include "../infer/random.h"
 // #include "../infer/trt.h"
 #include "../mcts/searchworker.h"
-#include "../mcts/manager2.h"
+#include "../mcts/manager.h"
 #include "usilogger.h"
 
 #include <chrono>
@@ -36,7 +36,7 @@ namespace usi {
 namespace {
 
 // std::unique_ptr<mcts::Manager> Manager;
-std::unique_ptr<mcts::Manager2> Manager;
+std::unique_ptr<mcts::Manager> Manager;
 std::unique_ptr<nshogi::core::State> State;
 std::unique_ptr<nshogi::core::State> StatePondering;
 std::unique_ptr<nshogi::core::StateConfig> StateConfig =
@@ -154,11 +154,12 @@ void isready() {
         Logger->printLog("Book->size(): ", Book->size());
     }
 
-    Manager = std::make_unique<mcts::Manager2>(
+    Manager = std::make_unique<mcts::Manager>(
             GlobalConfig::getConfig().getBatchSize(),
             GlobalConfig::getConfig().getNumGPUs(),
-            GlobalConfig::getConfig().getNumSearchThreadsPerGPU(),
-            1, Logger);
+            2, // GlobalConfig::getConfig().getNumSearchThreadsPerGPU(),
+            2,
+            2, Logger);
 
     Manager->setIsPonderingEnabled(GlobalConfig::getConfig().getPonderingEnabled());
 

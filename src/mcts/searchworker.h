@@ -1,7 +1,7 @@
 #ifndef NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 #define NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 
-#include "checkmatesearcher.h"
+#include "checkmatequeue.h"
 #include "evaluatequeue.h"
 #include "edge.h"
 #include "node.h"
@@ -19,7 +19,7 @@ namespace mcts {
 template <typename Features>
 class SearchWorker : public worker::Worker {
  public:
-    SearchWorker(EvaluationQueue<Features>*, MutexPool<lock::SpinLock>*, CheckmateSearcher*);
+    SearchWorker(EvaluationQueue<Features>*, CheckmateQueue*, MutexPool<lock::SpinLock>*);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -49,8 +49,8 @@ class SearchWorker : public worker::Worker {
     uint16_t RootPly;
 
     EvaluationQueue<Features>* EQueue;
+    CheckmateQueue* CQueue;
     MutexPool<lock::SpinLock>* MtxPool;
-    CheckmateSearcher* CSearcher;
 };
 
 } // namespace mcts

@@ -11,11 +11,11 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, MutexPool<lock::SpinLock>* MP, CheckmateSearcher* CS)
+SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP)
     : worker::Worker(true)
     , EQueue(EQ)
-    , MtxPool(MP)
-    , CSearcher(CS) {
+    , CQueue(CQ)
+    , MtxPool(MP) {
 }
 
 template <typename Features>
@@ -38,11 +38,11 @@ Node* SearchWorker<Features>::collectOneLeaf() {
     while (true) {
         const uint64_t Visits = CurrentNode->getVisitsAndVirtualLoss() & Node::VisitMask;
 
-        if (CSearcher != nullptr) {
+        if (CQueue != nullptr) {
             // If checkmate searcher is enabled and the node has not been
             // tried to solve, feed the node into the checkmate searcher.
             if (CurrentNode->getSolverResult().isNone()) {
-                CSearcher->addTask(CurrentNode, State->getPosition());
+                CQueue->add(CurrentNode, State->getPosition());
             }
         }
 

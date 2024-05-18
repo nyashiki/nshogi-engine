@@ -18,10 +18,9 @@ class Worker {
     void stop();
     void await();
 
-    bool getIsRunning();
  protected:
     virtual bool doTask() = 0;
-
+    bool getIsRunning();
 
     bool IsRunning;
     bool IsWaiting;
