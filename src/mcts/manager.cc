@@ -1,29 +1,5 @@
 #include "manager.h"
 
-#ifdef EXECUTOR_ZERO
-
-#include "../infer/zero.h"
-
-#endif
-
-#ifdef EXECUTOR_NOTHING
-
-#include "../infer/nothing.h"
-
-#endif
-
-#ifdef EXECUTOR_RANDOM
-
-#include "../infer/random.h"
-
-#endif
-
-#ifdef EXECUTOR_TRT
-
-#include "../infer/trt.h"
-
-#endif
-
 #include <functional>
 #include <cmath>
 
@@ -145,24 +121,9 @@ void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs, s
 void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU) {
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
-#if defined(EXECUTOR_ZERO)
-            Infers.emplace_back(std::make_unique<infer::Zero>());
-#elif defined(EXECUTOR_NOTHING)
-            Infers.emplace_back(std::make_unique<infer::Nothing>());
-#elif defined(EXECUTOR_RANDOM)
-            Infers.emplace_back(std::make_unique<infer::Random>(0));
-#elif defined(EXECUTOR_TRT)
-            auto TRT = std::make_unique<infer::TensorRT>(0, BatchSize, GlobalConfig::FeatureType::size());
-            TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
-            Infers.emplace_back(std::move(TRT));
-#endif
-            Evaluators.emplace_back(
-                    std::make_unique<evaluate::Evaluator>(
-                        BatchSize, Infers.back().get()));
-
             EvaluateWorkers.emplace_back(
                     std::make_unique<EvaluateWorker<GlobalConfig::FeatureType>>(
-                        BatchSize, EQueue.get(), Evaluators.back().get(), ECache.get()));
+                        I, BatchSize, EQueue.get(), ECache.get()));
         }
     }
 }
@@ -196,6 +157,8 @@ void Manager::setupEvalCache(std::size_t EvalCacheMB) {
 }
 
 void Manager::setupSupervisor() {
+    std::lock_guard<std::mutex> Lock(MutexSupervisor);
+
     Supervisor = std::make_unique<std::thread>([this]() {
         while (true) {
             {

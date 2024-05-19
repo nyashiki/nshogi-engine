@@ -5,6 +5,7 @@
 #include "evalcache.h"
 #include "evaluatequeue.h"
 #include "../evaluate/evaluator.h"
+#include "../infer/infer.h"
 #include "../worker/worker.h"
 
 #include <nshogi/ml/featurebitboard.h>
@@ -21,13 +22,13 @@ namespace mcts {
 template <typename Features>
 class EvaluateWorker : public worker::Worker {
  public:
-    EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>*, evaluate::Evaluator*, EvalCache*);
+    EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>*, EvalCache*);
     ~EvaluateWorker();
 
  private:
     static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
 
-    // void mainLoop();
+    void initializationTask() override;
     bool doTask() override;
     void getBatch();
     void flattenFeatures(std::size_t BatchSize);
@@ -37,10 +38,13 @@ class EvaluateWorker : public worker::Worker {
 
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;
-    evaluate::Evaluator* const Evaluator;
     EvalCache* const ECache;
 
-    std::vector<ml::FeatureBitboard> FeatureBitboards;
+    std::unique_ptr<infer::Infer> Infer;
+    std::unique_ptr<evaluate::Evaluator> Evaluator;
+    std::size_t GPUId_;
+
+    ml::FeatureBitboard* FeatureBitboards;
     float LegalPolicy[ml::MoveIndexMax];
 
     std::vector<core::Color> PendingSideToMoves;

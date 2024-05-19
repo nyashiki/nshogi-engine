@@ -13,8 +13,6 @@
 #include "../limit.h"
 #include "../globalconfig.h"
 #include "../evaluate/preset.h"
-#include "../evaluate/evaluator.h"
-#include "../infer/infer.h"
 
 #include <condition_variable>
 #include <vector>
@@ -70,8 +68,8 @@ class Manager {
     std::vector<std::unique_ptr<SearchWorker<GlobalConfig::FeatureType>>> SearchWorkers;
     std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
-    std::vector<std::unique_ptr<infer::Infer>> Infers;
-    std::vector<std::unique_ptr<evaluate::Evaluator>> Evaluators;
+    // std::vector<std::unique_ptr<infer::Infer>> Infers;
+    // std::vector<std::unique_ptr<evaluate::Evaluator>> Evaluators;
 
     std::shared_ptr<logger::Logger> PLogger;
 

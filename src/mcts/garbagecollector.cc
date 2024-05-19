@@ -25,7 +25,10 @@ GarbageCollector::GarbageCollector(std::size_t NumWorkers) {
 }
 
 GarbageCollector::~GarbageCollector() {
-    ToExit = true;
+    {
+        std::lock_guard<std::mutex> Lock(Mtx);
+        ToExit = true;
+    }
     Cv.notify_all();
 
     for (auto& Worker : Workers) {

@@ -10,9 +10,9 @@ Worker::Worker(bool LoopTask)
     : IsRunning(false)
     , IsWaiting(false)
     , IsExiting(false)
+    , IsStartNotified(false)
+    , IsInitializationDone(false)
     , LoopTaskFlag(LoopTask) {
-    std::lock_guard<std::mutex> Lock(Mutex);
-    Thread = std::thread(&Worker::mainLoop, this);
 }
 
 Worker::~Worker() {
@@ -58,12 +58,37 @@ void Worker::await() {
     });
 }
 
+void Worker::spawnThread() {
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        Thread = std::thread(&Worker::mainLoop, this);
+    }
+
+    {
+        std::unique_lock<std::mutex> Lock(MutexInitialization);
+        CVInitialization.wait(Lock, [this]() {
+            return IsInitializationDone;
+        });
+    }
+}
+
+void Worker::initializationTask() {
+}
+
 bool Worker::getIsRunning() {
     std::lock_guard<std::mutex> Lock(Mutex);
     return IsRunning;
 }
 
 void Worker::mainLoop() {
+    initializationTask();
+
+    {
+        std::lock_guard<std::mutex> Lock(MutexInitialization);
+        IsInitializationDone = true;
+    }
+    CVInitialization.notify_one();
+
     while (true) {
         {
             std::lock_guard<std::mutex> Lock(Mutex);

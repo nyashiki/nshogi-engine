@@ -17,6 +17,8 @@ SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQue
     , CQueue(CQ)
     , MtxPool(MP)
     , ECache(EC) {
+
+    spawnThread();
 }
 
 template <typename Features>

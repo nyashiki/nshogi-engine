@@ -10,6 +10,11 @@
 #include <nshogi/ml/common.h>
 #include <nshogi/ml/featurebitboard.h>
 
+#ifdef CUDA_ENABLED
+
+#include <cuda_runtime.h>
+
+#endif
 
 namespace nshogi {
 namespace engine {
@@ -17,18 +22,38 @@ namespace evaluate {
 
 class Evaluator {
  public:
-    Evaluator(std::size_t BatchSize, infer::Infer* In): PInfer(In) {
-        Policy = std::make_unique<float[]>(ml::MoveIndexMax * BatchSize);
-        WinRate = std::make_unique<float[]>(BatchSize);
-        DrawRate = std::make_unique<float[]>(BatchSize);
+    Evaluator(std::size_t BatchSize, infer::Infer* In)
+        : PInfer(In) {
+#ifdef CUDA_ENABLED
+        cudaMallocHost(&Policy, ml::MoveIndexMax * BatchSize * sizeof(float));
+        cudaMallocHost(&WinRate, BatchSize * sizeof(float));
+        cudaMallocHost(&DrawRate, BatchSize * sizeof(float));
+#else
+        Policy = new float[ml::MoveIndexMax * BatchSize];
+        WinRate = new float[BatchSize];
+        DrawRate = new float[BatchSize];
+#endif
+
+    }
+
+    ~Evaluator() {
+#ifdef CUDA_ENABLED
+        cudaFree(Policy);
+        cudaFree(WinRate);
+        cudaFree(DrawRate);
+#else
+        delete[] Policy;
+        delete[] WinRate;
+        delete[] DrawRate;
+#endif
     }
 
     void computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize) {
-        PInfer->computeNonBlocking(Features, BatchSize, Policy.get(), WinRate.get(), DrawRate.get());
+        PInfer->computeNonBlocking(Features, BatchSize, Policy, WinRate, DrawRate);
     }
 
     void computeBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize) {
-        PInfer->computeBlocking(Features, BatchSize, Policy.get(), WinRate.get(), DrawRate.get());
+        PInfer->computeBlocking(Features, BatchSize, Policy, WinRate, DrawRate);
     }
 
     void await() {
@@ -40,21 +65,25 @@ class Evaluator {
     }
 
     inline const float* getPolicy() const {
-        return Policy.get();
+        return Policy;
     }
 
     inline const float* getWinRate() const {
-        return WinRate.get();
+        return WinRate;
     }
 
     inline const float* getDrawRate() const {
-        return DrawRate.get();
+        return DrawRate;
+    }
+
+    infer::Infer* getInfer() {
+        return PInfer;
     }
 
  private:
-    std::unique_ptr<float[]> Policy;
-    std::unique_ptr<float[]> WinRate;
-    std::unique_ptr<float[]> DrawRate;
+    float* Policy;
+    float* WinRate;
+    float* DrawRate;
 
     infer::Infer* const PInfer;
 };

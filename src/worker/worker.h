@@ -19,6 +19,11 @@ class Worker {
     void await();
 
  protected:
+    // spawnThread() must be called exactly once in
+    // the constructor of a child class.
+    void spawnThread();
+
+    virtual void initializationTask();
     virtual bool doTask() = 0;
     bool getIsRunning();
 
@@ -26,6 +31,7 @@ class Worker {
     bool IsWaiting;
     bool IsExiting;
     bool IsStartNotified;
+    bool IsInitializationDone;
 
  private:
     void mainLoop();
@@ -34,7 +40,9 @@ class Worker {
 
     std::thread Thread;
     std::mutex Mutex;
+    std::mutex MutexInitialization;
     std::condition_variable CV;
+    std::condition_variable CVInitialization;
     std::condition_variable WaitingCV;
 };
 

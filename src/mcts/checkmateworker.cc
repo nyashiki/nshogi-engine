@@ -11,6 +11,8 @@ CheckmateWorker::CheckmateWorker(CheckmateQueue* CQueue)
     : worker::Worker(true)
     , SolverDepth(5)
     , PCheckmateQueue(CQueue) {
+
+    spawnThread();
 }
 
 CheckmateWorker::~CheckmateWorker() {

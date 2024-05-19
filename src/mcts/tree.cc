@@ -62,7 +62,6 @@ Node* Tree::updateRoot(const nshogi::core::State& State) {
         }
     }
 
-
     PLogger->printLog("Existing node has been found.");
 
     if (Root->getRepetitionStatus() != core::RepetitionStatus::NoRepetition) {
@@ -70,6 +69,7 @@ Node* Tree::updateRoot(const nshogi::core::State& State) {
         return createNewRoot(State);
     }
 
+    assert(Root->getParent() == nullptr);
     return Root.get();
 }
 

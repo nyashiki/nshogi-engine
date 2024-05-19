@@ -12,6 +12,7 @@ Watchdog::Watchdog(std::shared_ptr<logger::Logger> Logger)
     : worker::Worker(false)
     , StopSearchingCallback(nullptr)
     , PLogger(std::move(Logger)) {
+    spawnThread();
 }
 
 Watchdog::~Watchdog() {

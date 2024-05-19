@@ -1,5 +1,42 @@
 #include "evaluateworker.h"
 #include "../evaluate/preset.h"
+#include "../globalconfig.h"
+
+#ifdef EXECUTOR_TRT
+
+#include "../infer/trt.h"
+
+#endif
+
+#ifdef CUDA_ENABLED
+
+#include <cuda_runtime.h>
+
+#endif
+
+#ifdef EXECUTOR_ZERO
+
+#include "../infer/zero.h"
+
+#endif
+
+#ifdef EXECUTOR_NOTHING
+
+#include "../infer/nothing.h"
+
+#endif
+
+#ifdef EXECUTOR_RANDOM
+
+#include "../infer/random.h"
+
+#endif
+
+#ifdef EXECUTOR_TRT
+
+#include "../infer/trt.h"
+
+#endif
 
 #include <chrono>
 
@@ -21,23 +58,51 @@ void cancelVirtualLoss(Node* N) {
 } // namespace
 
 template <typename Features>
-EvaluateWorker<Features>::EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>* EQ, evaluate::Evaluator* Ev, EvalCache* EC)
+EvaluateWorker<Features>::EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
     : worker::Worker(true)
     , BatchSizeMax(BatchSize)
     , EQueue(EQ)
-    , Evaluator(Ev)
     , ECache(EC)
+    , GPUId_(GPUId)
     , SequentialSkip(0) {
-    FeatureBitboards.resize(Features::size() * BatchSize);
-
     PendingSideToMoves.reserve(BatchSize);
     PendingNodes.reserve(BatchSize);
     PendingFeatures.reserve(BatchSize);
     PendingHashes.reserve(BatchSize);
+
+    spawnThread();
 }
 
 template <typename Features>
 EvaluateWorker<Features>::~EvaluateWorker() {
+#ifdef CUDA_ENABLED
+    cudaFree(FeatureBitboards);
+#else
+    delete[] FeatureBitboards;
+#endif
+}
+
+template <typename Features>
+void EvaluateWorker<Features>::initializationTask() {
+#ifdef CUDA_ENABLED
+    cudaMallocHost(&FeatureBitboards, BatchSizeMax * Features::size() * sizeof(ml::FeatureBitboard));
+#else
+    FeatureBitboards = new ml::FeatureBitboard[BatchSizeMax * Features::size()];
+#endif
+
+#if defined(EXECUTOR_ZERO)
+    Infer = std::make_unique<infer::Zero>();
+#elif defined(EXECUTOR_NOTHING)
+    Infer = std::make_unique<infer::Nothing>();
+#elif defined(EXECUTOR_RANDOM)
+    Infer = std::make_unique<infer::Random>(0);
+#elif defined(EXECUTOR_TRT)
+    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, GlobalConfig::FeatureType::size());
+    TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
+    TRT->resetGPU();
+    Infer = std::move(TRT);
+#endif
+    Evaluator = std::make_unique<evaluate::Evaluator>(BatchSizeMax, Infer.get());
 }
 
 template <typename Features>
@@ -93,17 +158,19 @@ void EvaluateWorker<Features>::getBatch() {
 
 template <typename Features>
 void EvaluateWorker<Features>::flattenFeatures(std::size_t BatchSize) {
+    const std::size_t UnitSize = PendingFeatures[0].size();
+
     for (std::size_t I = 0; I < BatchSize; ++I) {
         std::memcpy(
-            static_cast<void*>(FeatureBitboards.data() + I * PendingFeatures[I].size()),
+            static_cast<void*>((ml::FeatureBitboard*)(FeatureBitboards) + I * UnitSize),
             PendingFeatures[I].data(),
-            PendingFeatures[I].size() * sizeof(ml::FeatureBitboard));
+            UnitSize * sizeof(ml::FeatureBitboard));
     }
 }
 
 template <typename Features>
 void EvaluateWorker<Features>::doInference(std::size_t BatchSize) {
-    Evaluator->computeBlocking(FeatureBitboards.data(), BatchSize);
+    Evaluator->computeBlocking(FeatureBitboards, BatchSize);
 }
 
 template <typename Features>

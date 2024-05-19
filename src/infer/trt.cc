@@ -5,8 +5,10 @@
 #include <cstdint>
 #include <fstream>
 #include <ios>
-#include <nshogi/ml/featurebitboard.h>
 #include <sstream>
+
+#include <nshogi/ml/featurebitboard.h>
+#include <nshogi/ml/common.h>
 
 namespace nshogi {
 namespace engine {
@@ -38,7 +40,6 @@ uint64_t computeFileHash(const std::string& Path) {
 TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
     : BatchSizeM(BatchSizeMax), NumC(NumChannels), GPUId_(GPUId) {
     cudaSetDevice(GPUId_);
-
     cudaMalloc(reinterpret_cast<void**>(&DeviceInput),
             BatchSizeMax * NumChannels * sizeof(ml::FeatureBitboard));
 
@@ -46,7 +47,7 @@ TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
             BatchSizeMax * NumChannels * core::NumSquares * sizeof(float));
 
     cudaMalloc(reinterpret_cast<void**>(&DevicePolicyOutput),
-            BatchSizeMax * 27 * core::NumSquares * sizeof(float));
+            BatchSizeMax * ml::MoveIndexMax * sizeof(float));
 
     cudaMalloc(reinterpret_cast<void**>(&DeviceValueOutput),
             BatchSizeMax * sizeof(float));
@@ -58,8 +59,6 @@ TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
 }
 
 TensorRT::~TensorRT() {
-    cudaSetDevice(GPUId_);
-
     Context.reset();
     CudaEngine.reset();
 
@@ -80,8 +79,6 @@ TensorRT::~TensorRT() {
 }
 
 void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) {
-    cudaSetDevice(GPUId_);
-
     const std::string SerializedPath = [&Path]() {
         std::stringstream SS;
         SS << std::hex << computeFileHash(Path) << ".serialized";
@@ -157,10 +154,32 @@ void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) 
     Context->setTensorAddress("policy", DevicePolicyOutput);
     Context->setTensorAddress("value", DeviceValueOutput);
     Context->setTensorAddress("draw", DeviceDrawOutput);
+
+    // Warm up.
+    dummyInference(5);
+    Called = false;
 }
 
 void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) {
-    cudaSetDevice(GPUId_);
+    // Thread sanitizer tells data race occurs in this function().
+    //     #0 memcpy <null> (nshogi-engine+0x6998b) (BuildId: d0bd33ba68a8b4b8cb33e5dea88e562ddd60bddf)
+    //     #1 <null> <null> (libcuda.so.1+0x1ee784) (BuildId: 7b817544d2d6ede34bc9da4b7e4d89a8c946eafe)
+    //     #2 nshogi::engine::infer::TensorRT::computeNonBlocking(nshogi::ml::FeatureBitboard const*, unsigned long, float*, float*, float*) /home/nyashiki/Projects/nshogi-engine/src/infer/trt.cc:178:14 (nshogi-engine+0x19489f) (BuildId: d0bd33ba68a8b4b8cb33e5dea88e562ddd60bddf)
+    //     ... (snip)
+    //
+    // But no data is shared among the other threads.
+    // We need debug furthermore.
+    // if (Called) {
+    //     if (ThreadIDPrev != std::this_thread::get_id()) {
+    //         throw std::runtime_error("THREAD ID ERROR IN INFER.");
+    //     }
+    // }
+    // Called = true;
+    // ThreadIDPrev = std::this_thread::get_id();
+
+    // std::cerr << "!!!!!!!!!! Thread ID: " << std::this_thread::get_id()
+    //     << ", Stream: " << Stream << " !!!!!!!!!!" << std::endl;
+    assert(!isComputing());
 
     cudaMemcpyAsync(DeviceInput, Features,
             BatchSize * NumC * sizeof(ml::FeatureBitboard),
@@ -170,13 +189,13 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features, std::size
 
     // Do inference.
     Context->setInputShape("input", nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
-    Context->enqueueV3(Stream);
+    Context->enqueueV3(Stream);  // Here, thread sanitizer found data race!!!
 
     cuda::sigmoid(reinterpret_cast<float*>(DeviceValueOutput), reinterpret_cast<float*>(DeviceValueOutput), BatchSize, Stream);
     cuda::sigmoid(reinterpret_cast<float*>(DeviceDrawOutput), reinterpret_cast<float*>(DeviceDrawOutput), BatchSize, Stream);
 
     // Copy GPU output onto CPU.
-    cudaMemcpyAsync(DstPolicy, DevicePolicyOutput, BatchSize * 27 * core::NumSquares * sizeof(float),
+    cudaMemcpyAsync(DstPolicy, DevicePolicyOutput, BatchSize * nshogi::ml::MoveIndexMax * sizeof(float),
             cudaMemcpyDeviceToHost, Stream);
     cudaMemcpyAsync(DstWinRate, DeviceValueOutput, BatchSize * sizeof(float),
             cudaMemcpyDeviceToHost, Stream);
@@ -196,6 +215,23 @@ void TensorRT::await() {
 
 bool TensorRT::isComputing() {
     return cudaStreamQuery(Stream) == cudaErrorNotReady;
+}
+
+void TensorRT::resetGPU() {
+    cudaSetDevice(GPUId_);
+}
+
+void TensorRT::dummyInference(std::size_t Repeat) {
+    std::vector<ml::FeatureBitboard> DummyInput(BatchSizeM * NumC);
+    std::vector<float> DummyPolicy(BatchSizeM * ml::MoveIndexMax);
+    std::vector<float> DummyWinRate(BatchSizeM);
+    std::vector<float> DummyDrawRate(BatchSizeM);
+
+
+    for (std::size_t I = 0; I < Repeat; ++I) {
+        computeBlocking(DummyInput.data(), BatchSizeM,
+                DummyPolicy.data(), DummyWinRate.data(), DummyDrawRate.data());
+    }
 }
 
 } // namespace infer
