@@ -14,6 +14,7 @@
 #include "../globalconfig.h"
 #include "../evaluate/preset.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <vector>
 
@@ -68,8 +69,6 @@ class Manager {
     std::vector<std::unique_ptr<SearchWorker<GlobalConfig::FeatureType>>> SearchWorkers;
     std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
-    // std::vector<std::unique_ptr<infer::Infer>> Infers;
-    // std::vector<std::unique_ptr<evaluate::Evaluator>> Evaluators;
 
     std::shared_ptr<logger::Logger> PLogger;
 
@@ -77,8 +76,8 @@ class Manager {
     std::unique_ptr<std::thread> Supervisor;
     std::mutex MutexSupervisor;
     std::condition_variable CVSupervisor;
-
     std::unique_ptr<Watchdog> WatchdogWorker;
+    std::atomic<bool> HasInterruptReceived;
 
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;

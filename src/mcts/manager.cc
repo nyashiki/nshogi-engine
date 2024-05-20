@@ -10,6 +10,7 @@ namespace mcts {
 Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::size_t EvalCacheMB, std::shared_ptr<logger::Logger> Logger)
     : PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
+    , HasInterruptReceived(false)
     , IsPonderingEnabled(false)
     , IsExiting(false) {
     setupGarbageCollector();
@@ -26,17 +27,7 @@ Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSear
 }
 
 Manager::~Manager() {
-    stopWorkers();
-
-    for (const auto& SearchWorker : SearchWorkers) {
-        SearchWorker->await();
-    }
-    for (const auto& EvaluationWorker : EvaluateWorkers) {
-        EvaluationWorker->await();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->await();
-    }
+    interrupt();
 
     {
         std::lock_guard<std::mutex> LockS(MutexSupervisor);
@@ -45,6 +36,17 @@ Manager::~Manager() {
     CVSupervisor.notify_one();
 
     Supervisor->join();
+
+    WatchdogWorker.reset(nullptr);
+    for (auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker.reset(nullptr);
+    }
+    for (auto& EvaluationWorker : EvaluateWorkers) {
+        EvaluationWorker.reset(nullptr);
+    }
+    for (auto& SearchWorker : SearchWorkers) {
+        SearchWorker.reset(nullptr);
+    }
 }
 
 void Manager::setIsPonderingEnabled(bool Value) {
@@ -70,6 +72,8 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
     WatchdogWorker->await();
     std::cerr << "[thinkNextMove()] await ... ok." << std::endl;
 
+    HasInterruptReceived.store(false);
+
     // Update the current state.
     {
         std::lock_guard<std::mutex> Lock(MutexSupervisor);
@@ -87,6 +91,8 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
 }
 
 void Manager::interrupt() {
+    HasInterruptReceived.store(true);
+
     WatchdogWorker->stop();
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
@@ -240,7 +246,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (IsPonderingEnabled && !Bestmove.isNone() && !Bestmove.isWin()) {
+        if (IsPonderingEnabled && !Bestmove.isNone() && !Bestmove.isWin() && !HasInterruptReceived.load()) {
             CurrentState->doMove(Bestmove);
             Node* RootNodePondering = SearchTree->updateRoot(*CurrentState);
             Limit = std::make_unique<engine::Limit>(NoLimit);

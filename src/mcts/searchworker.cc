@@ -380,66 +380,74 @@ bool SearchWorker<Features>::doTask() {
 
     Node* LeafNode = collectOneLeaf();
 
-    if (LeafNode != nullptr) {
-        const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
-        const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
-        const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
+    if (LeafNode == nullptr) {
+        std::this_thread::yield();
+        return false;
+    }
 
-        if (NumVisits > 0) {
-            immediateUpdate(LeafNode);
-        } else if (VirtualLoss == 1) {
-            if (LeafNode != RootNode) {
-                const auto RS = State->getRepetitionStatus();
-                LeafNode->setRepetitionStatus(RS);
-                if (RS == core::RepetitionStatus::WinRepetition
-                        || RS == core::RepetitionStatus::SuperiorRepetition) {
-                    immediateUpdateByWin(LeafNode);
-                    return false;
-                } else if (RS == core::RepetitionStatus::LossRepetition
-                        || RS == core::RepetitionStatus::InferiorRepetition) {
-                    immediateUpdateByLoss(LeafNode);
-                    return false;
-                } else if (RS == core::RepetitionStatus::Repetition) {
-                    immediateUpdateByDraw(LeafNode);
-                    return false;
-                }
-            }
+    const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
+    const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
+    const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
-            const uint16_t NumMoves = expandLeaf(LeafNode);
-            if (NumMoves > 0) {
-                bool CacheFound = false;
-                if (ECache != nullptr) {
-                    CacheFound = ECache->load(*State, &CacheEvalInfo);
+    if (NumVisits > 0) {
+        immediateUpdate(LeafNode);
+        std::this_thread::yield();
+        return false;
+    }
 
-                    if (CacheFound) {
-                        if (CacheEvalInfo.NumMoves == NumMoves) {
-                            LeafNode->setEvaluation(CacheEvalInfo.Policy, CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
-                            LeafNode->sort();
-                            LeafNode->updateAncestors(CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
-                        } else {
-                            CacheFound = false;
-                        }
-                    }
-                }
+    if (LeafNode != RootNode) {
+        const auto RS = State->getRepetitionStatus();
+        LeafNode->setRepetitionStatus(RS);
+        if (RS == core::RepetitionStatus::WinRepetition
+                || RS == core::RepetitionStatus::SuperiorRepetition) {
+            immediateUpdateByWin(LeafNode);
+            std::this_thread::yield();
+            return false;
+        } else if (RS == core::RepetitionStatus::LossRepetition
+                || RS == core::RepetitionStatus::InferiorRepetition) {
+            immediateUpdateByLoss(LeafNode);
+            std::this_thread::yield();
+            return false;
+        } else if (RS == core::RepetitionStatus::Repetition) {
+            immediateUpdateByDraw(LeafNode);
+            std::this_thread::yield();
+            return false;
+        }
+    }
 
-                if (!CacheFound) {
-                    EQueue->add(*State, Config, LeafNode);
-                }
-            } else {
-                bool IsCheckmatedByPawn = false;
-                if (State->getPly() > 0) {
-                    const auto LastMove = State->getLastMove();
-                    if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
-                        immediateUpdateByWin(LeafNode);
-                        IsCheckmatedByPawn = true;
-                    }
-                }
+    const uint16_t NumMoves = expandLeaf(LeafNode);
 
-                if (!IsCheckmatedByPawn) {
-                    immediateUpdateByLoss(LeafNode);
-                }
+    if (NumMoves == 0) {
+        if (State->getPly() > 0) {
+            const auto LastMove = State->getLastMove();
+            if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                immediateUpdateByWin(LeafNode);
+                return false;
             }
         }
+
+        immediateUpdateByLoss(LeafNode);
+        std::this_thread::yield();
+        return false;
+    }
+
+    bool CacheFound = false;
+    if (ECache != nullptr) {
+        CacheFound = ECache->load(*State, &CacheEvalInfo);
+
+        if (CacheFound) {
+            if (CacheEvalInfo.NumMoves == NumMoves) {
+                LeafNode->setEvaluation(CacheEvalInfo.Policy, CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
+                LeafNode->sort();
+                LeafNode->updateAncestors(CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
+            } else {
+                CacheFound = false;
+            }
+        }
+    }
+
+    if (!CacheFound) {
+        EQueue->add(*State, Config, LeafNode);
     }
 
     return false;

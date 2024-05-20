@@ -16,6 +16,7 @@ Watchdog::Watchdog(std::shared_ptr<logger::Logger> Logger)
 }
 
 Watchdog::~Watchdog() {
+    assert(!getIsRunning());
 }
 
 void Watchdog::updateRoot(const core::State* S, const core::StateConfig* SC, Node* N) {
@@ -38,6 +39,7 @@ bool Watchdog::doTask() {
     const uint64_t NumNodesAtStarted = Root->getVisitsAndVirtualLoss() & Node::VisitMask;
 
     BestEdgePrevious = nullptr;
+    ElapsedPrevious = 0;
 
     while (true) {
         const auto CurrentTime = std::chrono::steady_clock::now();
@@ -61,16 +63,18 @@ bool Watchdog::doTask() {
             break;
         }
 
-        if (!Limit->isNoLimit()) {
-            if (checkResourceBudget()) {
-                break;
-            }
+        if (checkResourceBudget()) {
+            break;
+        }
 
+        if (!Limit->isNoLimit()) {
             if (checkThinkingTimeBudget(Elapsed)) {
+                PLogger->printLog("Time limit.");
                 break;
             }
 
             if (hasMadeUpMind(Elapsed)) {
+                PLogger->printLog("Made up mind.");
                 break;
             }
         }

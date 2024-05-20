@@ -7,7 +7,6 @@
 #include "../evaluate/evaluator.h"
 #include "../evaluate/preset.h"
 #include "../infer/random.h"
-// #include "../infer/trt.h"
 #include "../mcts/searchworker.h"
 #include "../mcts/manager.h"
 #include "usilogger.h"
@@ -37,7 +36,6 @@ namespace {
 
 std::unique_ptr<mcts::Manager> Manager;
 std::unique_ptr<nshogi::core::State> State;
-std::unique_ptr<nshogi::core::State> StatePondering;
 std::unique_ptr<nshogi::core::StateConfig> StateConfig =
     std::make_unique<nshogi::core::StateConfig>();
 std::unique_ptr<nshogi::book::Book> Book = nullptr;
@@ -45,9 +43,6 @@ std::unique_ptr<nshogi::book::Book> Book = nullptr;
 USIOption Option;
 std::shared_ptr<USILogger> Logger = std::make_shared<USILogger>();
 
-std::mutex MutexPondering;
-bool StopCommandReceived = false;
-bool IsPondering = false;
 Limit Limits[nshogi::core::NumColors];
 
 } // namespace
@@ -156,10 +151,10 @@ void isready() {
     Manager = std::make_unique<mcts::Manager>(
             GlobalConfig::getConfig().getBatchSize(),
             GlobalConfig::getConfig().getNumGPUs(),
-            2,
-            2,
-            0,
-            0, // GlobalConfig::getConfig().getEvalCacheMemoryMB(),
+            4,
+            4,
+            4,
+            GlobalConfig::getConfig().getEvalCacheMemoryMB(),
             Logger);
 
     Manager->setIsPonderingEnabled(GlobalConfig::getConfig().getPonderingEnabled());
@@ -171,17 +166,6 @@ void isready() {
 
     // Logger.setScoreFormatType(USILogger::ScoreFormatType::WinDraw);
     Logger->printRawMessage("readyok");
-}
-
-void stopPonderingIfNeeded() {
-    std::lock_guard<std::mutex> Lock(MutexPondering);
-
-    if (!IsPondering) {
-        return;
-    }
-
-    // Manager->stop();
-    IsPondering = false;
 }
 
 void position(std::istringstream& Stream) {
@@ -201,8 +185,6 @@ void position(std::istringstream& Stream) {
     while (Stream >> Token) {
         Sfen += Token + " ";
     }
-
-    stopPonderingIfNeeded();
 
     State = std::make_unique<nshogi::core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
 }
@@ -235,8 +217,6 @@ void go(std::istringstream& Stream, void (*CallBack)(const nshogi::core::Move32&
         }
     }
 
-    stopPonderingIfNeeded();
-    StopCommandReceived = false;
     Logger->setIsInverse(false);
 
     if (Book != nullptr) {
@@ -319,9 +299,6 @@ void setOption(std::istringstream& Stream) {
 }
 
 void stop() {
-    StopCommandReceived = true;
-
-    stopPonderingIfNeeded();
     Manager->interrupt();
 }
 
@@ -342,20 +319,6 @@ void debug() {
     std::cout << std::endl;
 
     Option.showOption();
-
-    // infer::TensorRT Infer(0, 2, GlobalConfig::FeatureType::size());
-    // Infer.load(GlobalConfig::getConfig().getWeightPath());
-    // evaluate::Evaluator<float> Eval(2, &Infer);
-    // evaluate::Batch<GlobalConfig::FeatureType> Batch(2, &Eval);
-
-    // Batch.add(*State, *StateConfig);
-    // Batch.add(*State, *StateConfig);
-    // Batch.doInference();
-
-    // std::cout << "Value: " << Batch.getWinRate(0) << std::endl;
-    // std::cout << "Draw: " << Batch.getDrawRate(0) << std::endl;
-    // std::cout << "Value: " << Batch.getWinRate(1) << std::endl;
-    // std::cout << "Draw: " << Batch.getDrawRate(1) << std::endl;
 }
 
 void bestMoveCallBackFunction(const nshogi::core::Move32& Move) {
