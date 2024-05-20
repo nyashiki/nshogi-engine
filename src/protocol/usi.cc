@@ -57,8 +57,10 @@ void setupOption() {
             GlobalConfig::getConfig().getPonderingEnabled());
     Option.addIntOption("NumGPUs",
             (int64_t)GlobalConfig::getConfig().getNumGPUs(), 1, 16);
-    Option.addIntOption("NumSearchThreadsPerGPU",
-            (int64_t)GlobalConfig::getConfig().getNumSearchThreadsPerGPU(), 1, 2048);
+    Option.addIntOption("NumSearchThreads",
+            (int64_t)GlobalConfig::getConfig().getNumSearchThreads(), 1, 2048);
+    Option.addIntOption("NumEvaluationThreadsPerGPU",
+            (int64_t)GlobalConfig::getConfig().getNumEvaluationThreadsPerGPU(), 1, 2048);
     Option.addIntOption("NumCheckmateSearchThreads",
             (int64_t)GlobalConfig::getConfig().getNumCheckmateSearchThreads(), 0, 128);
     Option.addIntOption("BatchSize",
@@ -108,8 +110,10 @@ void isready() {
 
     GlobalConfig::getConfig().setNumGPUs(
             (std::size_t)(Option.getIntOption("NumGPUs")));
-    GlobalConfig::getConfig().setNumSearchThreadsPerGPU(
-            (std::size_t)(Option.getIntOption("NumSearchThreadsPerGPU")));
+    GlobalConfig::getConfig().setNumSearchThreads(
+            (std::size_t)(Option.getIntOption("NumSearchThreads")));
+    GlobalConfig::getConfig().setNumEvaluationThreadsPerGPU(
+            (std::size_t)(Option.getIntOption("NumEvaluationThreadsPerGPU")));
     GlobalConfig::getConfig().setNumCheckmateSearchThreads(
             (std::size_t)(Option.getIntOption("NumCheckmateSearchThreads")));
     GlobalConfig::getConfig().setBatchSize(
@@ -151,9 +155,9 @@ void isready() {
     Manager = std::make_unique<mcts::Manager>(
             GlobalConfig::getConfig().getBatchSize(),
             GlobalConfig::getConfig().getNumGPUs(),
-            4,
-            4,
-            4,
+            GlobalConfig::getConfig().getNumSearchThreads(),
+            GlobalConfig::getConfig().getNumEvaluationThreadsPerGPU(),
+            GlobalConfig::getConfig().getNumCheckmateSearchThreads(),
             GlobalConfig::getConfig().getEvalCacheMemoryMB(),
             Logger);
 

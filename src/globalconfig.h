@@ -22,8 +22,12 @@ struct GlobalConfigImpl {
         return NumGPUs;
     }
 
-    std::size_t getNumSearchThreadsPerGPU() const {
-        return NumSearchThreadsPerGPU;
+    std::size_t getNumSearchThreads() const {
+        return NumSearchThreads;
+    }
+
+    std::size_t getNumEvaluationThreadsPerGPU() const {
+        return NumEvaluationThreadsPerGPU;
     }
 
     std::size_t getNumCheckmateSearchThreads() const {
@@ -94,8 +98,12 @@ struct GlobalConfigImpl {
         NumGPUs = GPUs;
     }
 
-    void setNumSearchThreadsPerGPU(std::size_t NumThreads) {
-        NumSearchThreadsPerGPU = NumThreads;
+    void setNumSearchThreads(std::size_t NumThreads) {
+        NumSearchThreads = NumThreads;
+    }
+
+    void setNumEvaluationThreadsPerGPU(std::size_t NumThreads) {
+        NumEvaluationThreadsPerGPU = NumThreads;
     }
 
     void setNumCheckmateSearchThreads(std::size_t NumCheckmateThreads) {
@@ -165,7 +173,8 @@ struct GlobalConfigImpl {
     uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000;  // one hour.
 
     std::size_t NumGPUs = 1;
-    std::size_t NumSearchThreadsPerGPU = 2;
+    std::size_t NumSearchThreads = 2;
+    std::size_t NumEvaluationThreadsPerGPU = 2;
     std::size_t NumCheckmateSearchThreads = 2;
 
     std::size_t BatchSize = 128;
@@ -174,11 +183,11 @@ struct GlobalConfigImpl {
 
     uint32_t LogMargin = 800;
 
-    std::size_t AvailableMemoryMB = 1024;
-    double MemoryLimitFactor = 0.8;
+    std::size_t AvailableMemoryMB = 8 * 1024;
+    double MemoryLimitFactor = 0.7;
     std::size_t NumGarbageCollectorThreads = 2;
 
-    std::size_t EvalCacheMemoryMB = 1024;
+    std::size_t EvalCacheMemoryMB = 8 * 1024;
 
     float BlackDrawValue = 0.5f;
     float WhiteDrawValue = 0.5f;

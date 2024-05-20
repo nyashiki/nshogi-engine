@@ -251,6 +251,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
             Node* RootNodePondering = SearchTree->updateRoot(*CurrentState);
             Limit = std::make_unique<engine::Limit>(NoLimit);
 
+            PLogger->setIsInverse(true);
+
             // Start pondering.
             std::cerr << "[doSupervisorWork()] start pondering ..." << std::endl;
             for (const auto& SearchWorker : SearchWorkers) {

@@ -395,6 +395,11 @@ bool SearchWorker<Features>::doTask() {
         return false;
     }
 
+    if (VirtualLoss != 1) {
+        std::this_thread::yield();
+        return false;
+    }
+
     if (LeafNode != RootNode) {
         const auto RS = State->getRepetitionStatus();
         LeafNode->setRepetitionStatus(RS);
