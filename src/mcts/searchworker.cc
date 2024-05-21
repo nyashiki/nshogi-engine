@@ -180,9 +180,9 @@ void SearchWorker<Feature>::immediateUpdateByLoss(Node* LeafNode) {
 }
 
 template <typename Feature>
-void SearchWorker<Feature>::immediateUpdateByDraw(Node* LeafNode) {
-    LeafNode->setEvaluation(nullptr, 0.5f, 1.0f);
-    LeafNode->updateAncestors(0.5f, 1.0f);
+void SearchWorker<Feature>::immediateUpdateByDraw(Node* LeafNode, float DrawValue) {
+    LeafNode->setEvaluation(nullptr, DrawValue, 1.0f);
+    LeafNode->updateAncestors(DrawValue, 1.0f);
 }
 
 template <typename Feature>
@@ -191,19 +191,7 @@ void SearchWorker<Feature>::immediateUpdate(Node* LeafNode) {
     float DrawRate = LeafNode->getDrawRatePredicted();
 
     const auto RS = LeafNode->getRepetitionStatus();
-
-    if (RS == core::RepetitionStatus::WinRepetition
-            || RS == core::RepetitionStatus::SuperiorRepetition) {
-        WinRate = 1.0;
-        DrawRate = 0.0;
-    } else if (RS == core::RepetitionStatus::LossRepetition
-            || RS == core::RepetitionStatus::InferiorRepetition) {
-        WinRate = 0.0;
-        DrawRate = 0.0;
-    } else if (RS == core::RepetitionStatus::Repetition) {
-        WinRate = 0.5;
-        DrawRate = 1.0;
-    } else {
+    if (RS == core::RepetitionStatus::NoRepetition) {
         const auto PlyToTerminal = LeafNode->getPlyToTerminalSolved();
         if (PlyToTerminal > 0) {
             WinRate = 1.0;
@@ -389,17 +377,25 @@ bool SearchWorker<Features>::doTask() {
     const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
     const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
+    // Collected leafnode has already evaluated.
+    // This occurs when another thread has evaluated the leaf node,
+    // the solver has solved the leaf node, or the leaf node is
+    // game's terminal node e.g., repetition.
     if (NumVisits > 0) {
         immediateUpdate(LeafNode);
         std::this_thread::yield();
         return false;
     }
 
+    // Although the leaf node is not evaluated yet,
+    // other threads has reached the leaf node already and
+    // the leaf node will be evaluated so there is nothing to do.
     if (VirtualLoss != 1) {
         std::this_thread::yield();
         return false;
     }
 
+    // Check repetition.
     if (LeafNode != RootNode) {
         const auto RS = State->getRepetitionStatus();
         LeafNode->setRepetitionStatus(RS);
@@ -414,14 +410,16 @@ bool SearchWorker<Features>::doTask() {
             std::this_thread::yield();
             return false;
         } else if (RS == core::RepetitionStatus::Repetition) {
-            immediateUpdateByDraw(LeafNode);
+            immediateUpdateByDraw(
+                LeafNode,
+                State->getSideToMove() == core::Black ? Config.BlackDrawValue : Config.WhiteDrawValue);
             std::this_thread::yield();
             return false;
         }
     }
 
     const uint16_t NumMoves = expandLeaf(LeafNode);
-
+    // Check checkmate.
     if (NumMoves == 0) {
         if (State->getPly() > 0) {
             const auto LastMove = State->getLastMove();
@@ -436,6 +434,21 @@ bool SearchWorker<Features>::doTask() {
         return false;
     }
 
+    // Check delaration.
+    if (State->canDeclare()) {
+        immediateUpdateByWin(LeafNode);
+        return false;
+    }
+
+    // Check the number of plies.
+    if (State->getPly() >= Config.MaxPly) {
+        immediateUpdateByDraw(
+            LeafNode,
+            State->getSideToMove() == core::Black ? Config.BlackDrawValue : Config.WhiteDrawValue);
+        return false;
+    }
+
+    // Check cache.
     bool CacheFound = false;
     if (ECache != nullptr) {
         CacheFound = ECache->load(*State, &CacheEvalInfo);
@@ -451,6 +464,7 @@ bool SearchWorker<Features>::doTask() {
         }
     }
 
+    // Evaluate the leaf node.
     if (!CacheFound) {
         EQueue->add(*State, Config, LeafNode);
     }

@@ -31,7 +31,7 @@ class SearchWorker : public worker::Worker {
 
     void immediateUpdateByWin(Node*);
     void immediateUpdateByLoss(Node*);
-    void immediateUpdateByDraw(Node*);
+    void immediateUpdateByDraw(Node*, float DrawValue);
     void immediateUpdate(Node*);
 
  private:
