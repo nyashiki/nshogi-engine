@@ -221,8 +221,6 @@ void go(std::istringstream& Stream, void (*CallBack)(const nshogi::core::Move32&
         }
     }
 
-    Logger->setIsInverse(false);
-
     if (Book != nullptr) {
         if (State->getRepetitionStatus() == nshogi::core::RepetitionStatus::NoRepetition ||
                 (State->getRepetitionStatus() == nshogi::core::RepetitionStatus::Repetition &&
