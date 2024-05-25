@@ -89,7 +89,8 @@ void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) 
 
     if (!UseSerializedFileIfAvailable || !SerializedIfs.is_open()) {
         Builder.reset(nvinfer1::createInferBuilder(Logger));
-        Network.reset(Builder->createNetworkV2(1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+        // Network.reset(Builder->createNetworkV2(1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+        Network.reset(Builder->createNetworkV2(0));
 
         Parser.reset(nvonnxparser::createParser(*Network, Logger));
 
@@ -161,24 +162,6 @@ void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) 
 }
 
 void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) {
-    // Thread sanitizer tells data race occurs in this function().
-    //     #0 memcpy <null> (nshogi-engine+0x6998b) (BuildId: d0bd33ba68a8b4b8cb33e5dea88e562ddd60bddf)
-    //     #1 <null> <null> (libcuda.so.1+0x1ee784) (BuildId: 7b817544d2d6ede34bc9da4b7e4d89a8c946eafe)
-    //     #2 nshogi::engine::infer::TensorRT::computeNonBlocking(nshogi::ml::FeatureBitboard const*, unsigned long, float*, float*, float*) /home/nyashiki/Projects/nshogi-engine/src/infer/trt.cc:178:14 (nshogi-engine+0x19489f) (BuildId: d0bd33ba68a8b4b8cb33e5dea88e562ddd60bddf)
-    //     ... (snip)
-    //
-    // But no data is shared among the other threads.
-    // We need debug furthermore.
-    // if (Called) {
-    //     if (ThreadIDPrev != std::this_thread::get_id()) {
-    //         throw std::runtime_error("THREAD ID ERROR IN INFER.");
-    //     }
-    // }
-    // Called = true;
-    // ThreadIDPrev = std::this_thread::get_id();
-
-    // std::cerr << "!!!!!!!!!! Thread ID: " << std::this_thread::get_id()
-    //     << ", Stream: " << Stream << " !!!!!!!!!!" << std::endl;
     assert(!isComputing());
 
     cudaMemcpyAsync(DeviceInput, Features,
@@ -189,7 +172,7 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features, std::size
 
     // Do inference.
     Context->setInputShape("input", nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
-    Context->enqueueV3(Stream);  // Here, thread sanitizer found data race!!!
+    Context->enqueueV3(Stream);
 
     cuda::sigmoid(reinterpret_cast<float*>(DeviceValueOutput), reinterpret_cast<float*>(DeviceValueOutput), BatchSize, Stream);
     cuda::sigmoid(reinterpret_cast<float*>(DeviceDrawOutput), reinterpret_cast<float*>(DeviceDrawOutput), BatchSize, Stream);
