@@ -63,7 +63,7 @@ bool Watchdog::doTask() {
             break;
         }
 
-        if (checkResourceBudget()) {
+        if (checkMemoryBudget()) {
             break;
         }
 
@@ -102,7 +102,7 @@ bool Watchdog::isRootSolved() const {
     return Root->getPlyToTerminalSolved() != 0;
 }
 
-bool Watchdog::checkResourceBudget() const {
+bool Watchdog::checkMemoryBudget() const {
     const auto& NodeAllocator = allocator::getNodeAllocator();
     const double Factor = GlobalConfig::getConfig().getMemoryLimitFactor();
 

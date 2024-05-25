@@ -163,8 +163,6 @@ void Manager::setupEvalCache(std::size_t EvalCacheMB) {
 }
 
 void Manager::setupSupervisor() {
-    std::lock_guard<std::mutex> Lock(MutexSupervisor);
-
     Supervisor = std::make_unique<std::thread>([this]() {
         while (true) {
             {
@@ -246,7 +244,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (IsPonderingEnabled && !Bestmove.isNone() && !Bestmove.isWin() && !HasInterruptReceived.load()) {
+        if (IsPonderingEnabled && !Bestmove.isNone() && !Bestmove.isWin() && !HasInterruptReceived.load() && !checkMemoryBudgetForPondering()) {
             CurrentState->doMove(Bestmove);
             Node* RootNodePondering = SearchTree->updateRoot(*CurrentState);
             Limit = std::make_unique<engine::Limit>(NoLimit);
@@ -303,6 +301,25 @@ core::Move32 Manager::getBestmove(Node* Root) {
     }
 
     return CurrentState->getMove32FromMove16(BestEdge->getMove());
+}
+
+bool Manager::checkMemoryBudgetForPondering() {
+    const auto& NodeAllocator = allocator::getNodeAllocator();
+
+    if (NodeAllocator.getTotal() > 0 &&
+            (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * 0.6) {
+        PLogger->printLog("Pondering has been skipped due to little memory budget (Node).");
+        return true;
+    }
+
+    const auto& EdgeAllocator = allocator::getEdgeAllocator();
+    if (EdgeAllocator.getTotal() > 0 &&
+            (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * 0.6) {
+        PLogger->printLog("Pondering has been skipped due to little memory budget (Edge).");
+        return true;
+    }
+
+    return false;
 }
 
 void Manager::watchdogStopCallback() {

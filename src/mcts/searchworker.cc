@@ -10,6 +10,17 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
+namespace {
+
+void cancelVirtualLoss(Node* N) {
+    do {
+        N->decrementVirtualLoss();
+        N = N->getParent();
+    } while (N != nullptr);
+}
+
+} // namespace
+
 template <typename Features>
 SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP, EvalCache* EC)
     : worker::Worker(true)
@@ -39,7 +50,8 @@ Node* SearchWorker<Features>::collectOneLeaf() {
     Node* CurrentNode = RootNode;
 
     while (true) {
-        const uint64_t Visits = CurrentNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+        const uint64_t VisitsAndVirtualLoss = CurrentNode->getVisitsAndVirtualLoss();
+        const uint64_t Visits = VisitsAndVirtualLoss & Node::VisitMask;
 
         if (CQueue != nullptr) {
             // If checkmate searcher is enabled and the node has not been
@@ -50,34 +62,33 @@ Node* SearchWorker<Features>::collectOneLeaf() {
         }
 
         if (Visits == 0) {
-            if (CurrentNode == RootNode) {
+            const uint64_t VirtualLoss = VisitsAndVirtualLoss >> Node::VirtualLossShift;
+
+            if (VirtualLoss == 0) {
+                lock::SpinLock* Mutex = nullptr;
                 if (MtxPool != nullptr) {
-                    MtxPool->getRootMtx()->lock();
+                    Mutex = MtxPool->get(CurrentNode);
+                    Mutex->lock();
                 }
 
-                // After get the lock, the node might be already
-                // extracted by another thread, so check its visit again.
+                // Re-check the number of visit and virtual loss after getting a lock.
+                // It is no longer zero if another thread has expanded this leaf.
                 if (CurrentNode->getVisitsAndVirtualLoss() != 0ULL) {
-                    if (MtxPool != nullptr) {
-                        MtxPool->getRootMtx()->unlock();
+                    if (Mutex != nullptr) {
+                        Mutex->unlock();
                     }
-
-                    // Since the node has been already extracted by another thread,
-                    // this node is no longer a leaf node.
                     return nullptr;
                 }
 
-                CurrentNode->incrementVirtualLoss();
+                incrementVirtualLosses(CurrentNode);
 
-                if (MtxPool != nullptr) {
-                    MtxPool->getRootMtx()->unlock();
+                if (Mutex != nullptr) {
+                    Mutex->unlock();
                 }
 
                 return CurrentNode;
             }
 
-            // Except for the root node, if the number of visits of the node is zero,
-            // it means the node is being extracted so we return nullptr here.
             return nullptr;
         }
 
@@ -115,8 +126,7 @@ Node* SearchWorker<Features>::collectOneLeaf() {
 
         Node* Target = E->getTarget();
         if (Target == nullptr) {
-            // If `Target` is nullptr, we have not extracted the child
-            // of this node after transitioning by the edge.
+            // If `Target` is nullptr, we have not extracted the child of this node.
 
             lock::SpinLock* EdgeMtx = nullptr;
             if (MtxPool != nullptr) {
@@ -126,14 +136,23 @@ Node* SearchWorker<Features>::collectOneLeaf() {
                 if (E->getTarget() != nullptr) {
                     // This thread has reached a leaf node but another thread also
                     // had reached this leaf node and has evaluated this leaf node.
-                    // Therefore E->getTarget() is no longer nullptr and
-                    // nothing to do is left.
+                    // Therefore E->getTarget() is no longer nullptr and nothing to do is left.
                     EdgeMtx->unlock();
                     return nullptr;
                 }
             }
 
             auto NewNode = std::make_unique<Node>(CurrentNode);
+
+            if (NewNode == nullptr) {
+                // If there is no available memory, it has failed to allocate a new node.
+                if (EdgeMtx != nullptr) {
+                    EdgeMtx->unlock();
+                }
+
+                return nullptr;
+            }
+
             auto* NewNodePtr = NewNode.get();
             incrementVirtualLosses(NewNodePtr);
             E->setTarget(std::move(NewNode));
@@ -153,7 +172,7 @@ Node* SearchWorker<Features>::collectOneLeaf() {
 }
 
 template <typename Feature>
-uint16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
+int16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
     const auto Moves = core::MoveGenerator::generateLegalMoves(*State);
     const uint16_t NumMoves = (uint16_t)Moves.size();
 
@@ -161,8 +180,7 @@ uint16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
         return 0;
     }
 
-    LeafNode->expand(Moves);
-    return NumMoves;
+    return LeafNode->expand(Moves);
 }
 
 template <typename Feature>
@@ -418,7 +436,7 @@ bool SearchWorker<Features>::doTask() {
         }
     }
 
-    const uint16_t NumMoves = expandLeaf(LeafNode);
+    const int16_t NumMoves = expandLeaf(LeafNode);
     // Check checkmate.
     if (NumMoves == 0) {
         if (State->getPly() > 0) {
@@ -430,6 +448,13 @@ bool SearchWorker<Features>::doTask() {
         }
 
         immediateUpdateByLoss(LeafNode);
+        std::this_thread::yield();
+        return false;
+    }
+
+    // This occurs when there is no available memory for edges.
+    if (NumMoves == -1) {
+        cancelVirtualLoss(LeafNode);
         std::this_thread::yield();
         return false;
     }

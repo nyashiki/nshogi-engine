@@ -109,17 +109,22 @@ struct Node {
         return DrawRatePredicted;
     }
 
-    inline void expand(const nshogi::core::MoveList& MoveList) {
+    inline int16_t expand(const nshogi::core::MoveList& MoveList) {
         assert(Edges == nullptr);
 
         Edges = std::make_unique<Edge[]>(MoveList.size());
-        assert(Edges != nullptr);
+
+        if (Edges == nullptr) {
+            // There is no available memory.
+            return -1;
+        }
 
         for (std::size_t I = 0; I < MoveList.size(); ++I) {
             Edges[I].setMove(core::Move16(MoveList[I]));
         }
 
         NumChildren = (uint16_t)MoveList.size();
+        return (int16_t)NumChildren;
     }
 
     inline void setEvaluation(const float* Policy, float WinRate, float DrawRate) {

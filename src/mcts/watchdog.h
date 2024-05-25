@@ -31,7 +31,7 @@ class Watchdog : public worker::Worker {
     bool doTask() override;
 
     bool isRootSolved() const;
-    bool checkResourceBudget() const;
+    bool checkMemoryBudget() const;
     bool checkThinkingTimeBudget(uint32_t) const;
     bool hasMadeUpMind(uint32_t);
 

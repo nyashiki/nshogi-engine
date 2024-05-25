@@ -25,7 +25,7 @@ class SearchWorker : public worker::Worker {
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
     Node* collectOneLeaf();
-    uint16_t expandLeaf(Node*);
+    int16_t expandLeaf(Node*);
 
     void evaluateByRule(Node*);
 

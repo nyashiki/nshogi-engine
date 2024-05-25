@@ -46,17 +46,6 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-namespace {
-
-void cancelVirtualLoss(Node* N) {
-    do {
-        N->decrementVirtualLoss();
-        N = N->getParent();
-    } while (N != nullptr);
-}
-
-} // namespace
-
 template <typename Features>
 EvaluateWorker<Features>::EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
     : worker::Worker(true)
@@ -117,6 +106,7 @@ bool EvaluateWorker<Features>::doTask() {
 
     if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD && BatchSize < BatchSizeMax / 2) {
         ++SequentialSkip;
+        std::this_thread::yield();
         return true;
     }
 
@@ -139,7 +129,7 @@ void EvaluateWorker<Features>::getBatch() {
         return;
     }
 
-    auto Elements = std::move(EQueue->get(BatchSizeMax - PendingSideToMoves.size()));
+    auto Elements = EQueue->get(BatchSizeMax - PendingSideToMoves.size());
 
     auto SideToMoves = std::move(std::get<0>(Elements));
     auto Nodes = std::move(std::get<1>(Elements));

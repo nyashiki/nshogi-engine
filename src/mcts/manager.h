@@ -57,6 +57,7 @@ class Manager {
 
     void stopWorkers();
     core::Move32 getBestmove(Node* Root);
+    bool checkMemoryBudgetForPondering();
 
     void watchdogStopCallback();
 
