@@ -5,8 +5,10 @@
 #include <cstdint>
 #include <fstream>
 #include <ios>
-#include <nshogi/ml/featurebitboard.h>
 #include <sstream>
+
+#include <nshogi/ml/featurebitboard.h>
+#include <nshogi/ml/common.h>
 
 namespace nshogi {
 namespace engine {
@@ -38,7 +40,6 @@ uint64_t computeFileHash(const std::string& Path) {
 TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
     : BatchSizeM(BatchSizeMax), NumC(NumChannels), GPUId_(GPUId) {
     cudaSetDevice(GPUId_);
-
     cudaMalloc(reinterpret_cast<void**>(&DeviceInput),
             BatchSizeMax * NumChannels * sizeof(ml::FeatureBitboard));
 
@@ -46,7 +47,7 @@ TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
             BatchSizeMax * NumChannels * core::NumSquares * sizeof(float));
 
     cudaMalloc(reinterpret_cast<void**>(&DevicePolicyOutput),
-            BatchSizeMax * 27 * core::NumSquares * sizeof(float));
+            BatchSizeMax * ml::MoveIndexMax * sizeof(float));
 
     cudaMalloc(reinterpret_cast<void**>(&DeviceValueOutput),
             BatchSizeMax * sizeof(float));
@@ -58,8 +59,6 @@ TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
 }
 
 TensorRT::~TensorRT() {
-    cudaSetDevice(GPUId_);
-
     Context.reset();
     CudaEngine.reset();
 
@@ -80,8 +79,6 @@ TensorRT::~TensorRT() {
 }
 
 void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) {
-    cudaSetDevice(GPUId_);
-
     const std::string SerializedPath = [&Path]() {
         std::stringstream SS;
         SS << std::hex << computeFileHash(Path) << ".serialized";
@@ -92,7 +89,8 @@ void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) 
 
     if (!UseSerializedFileIfAvailable || !SerializedIfs.is_open()) {
         Builder.reset(nvinfer1::createInferBuilder(Logger));
-        Network.reset(Builder->createNetworkV2(1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+        // Network.reset(Builder->createNetworkV2(1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+        Network.reset(Builder->createNetworkV2(0));
 
         Parser.reset(nvonnxparser::createParser(*Network, Logger));
 
@@ -157,10 +155,14 @@ void TensorRT::load(const std::string &Path, bool UseSerializedFileIfAvailable) 
     Context->setTensorAddress("policy", DevicePolicyOutput);
     Context->setTensorAddress("value", DeviceValueOutput);
     Context->setTensorAddress("draw", DeviceDrawOutput);
+
+    // Warm up.
+    dummyInference(5);
+    Called = false;
 }
 
 void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) {
-    cudaSetDevice(GPUId_);
+    assert(!isComputing());
 
     cudaMemcpyAsync(DeviceInput, Features,
             BatchSize * NumC * sizeof(ml::FeatureBitboard),
@@ -176,7 +178,7 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features, std::size
     cuda::sigmoid(reinterpret_cast<float*>(DeviceDrawOutput), reinterpret_cast<float*>(DeviceDrawOutput), BatchSize, Stream);
 
     // Copy GPU output onto CPU.
-    cudaMemcpyAsync(DstPolicy, DevicePolicyOutput, BatchSize * 27 * core::NumSquares * sizeof(float),
+    cudaMemcpyAsync(DstPolicy, DevicePolicyOutput, BatchSize * nshogi::ml::MoveIndexMax * sizeof(float),
             cudaMemcpyDeviceToHost, Stream);
     cudaMemcpyAsync(DstWinRate, DeviceValueOutput, BatchSize * sizeof(float),
             cudaMemcpyDeviceToHost, Stream);
@@ -196,6 +198,23 @@ void TensorRT::await() {
 
 bool TensorRT::isComputing() {
     return cudaStreamQuery(Stream) == cudaErrorNotReady;
+}
+
+void TensorRT::resetGPU() {
+    cudaSetDevice(GPUId_);
+}
+
+void TensorRT::dummyInference(std::size_t Repeat) {
+    std::vector<ml::FeatureBitboard> DummyInput(BatchSizeM * NumC);
+    std::vector<float> DummyPolicy(BatchSizeM * ml::MoveIndexMax);
+    std::vector<float> DummyWinRate(BatchSizeM);
+    std::vector<float> DummyDrawRate(BatchSizeM);
+
+
+    for (std::size_t I = 0; I < Repeat; ++I) {
+        computeBlocking(DummyInput.data(), BatchSizeM,
+                DummyPolicy.data(), DummyWinRate.data(), DummyDrawRate.data());
+    }
 }
 
 } // namespace infer

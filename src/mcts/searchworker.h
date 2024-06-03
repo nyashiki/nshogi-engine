@@ -1,93 +1,61 @@
 #ifndef NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 #define NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 
-#include "checkmatesearcher.h"
+#include "checkmatequeue.h"
 #include "evalcache.h"
-#include "tree.h"
+#include "evaluatequeue.h"
+#include "edge.h"
+#include "node.h"
 #include "mutexpool.h"
-#include "../evaluate/batch.h"
-#include "../evaluate/evaluator.h"
-#include "../evaluate/preset.h"
-#include "../globalconfig.h"
-#include <atomic>
-#include <condition_variable>
-#include <memory>
-#include <queue>
-#include <thread>
-#include <mutex>
+#include "../lock/spinlock.h"
+#include "../worker/worker.h"
 
 #include <nshogi/core/state.h>
+#include <nshogi/core/stateconfig.h>
 
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-class SearchWorker {
+template <typename Features>
+class SearchWorker : public worker::Worker {
  public:
-    SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_ = nullptr, MutexPool* = nullptr, EvalCache* = nullptr);
+    SearchWorker(EvaluationQueue<Features>*, CheckmateQueue*, MutexPool<lock::SpinLock>*, EvalCache*);
     ~SearchWorker();
 
-    void start(Node* Root, const core::State& St, const core::StateConfig& Config);
-    void stop();
-    void await();
-    void join();
+    void updateRoot(const core::State&, const core::StateConfig&, Node*);
+    Node* collectOneLeaf();
+    int16_t expandLeaf(Node*);
+
+    void evaluateByRule(Node*);
+
+    void immediateUpdateByWin(Node*);
+    void immediateUpdateByLoss(Node*);
+    void immediateUpdateByDraw(Node*, float DrawValue);
+    void immediateUpdate(Node*);
 
  private:
-    struct LeafInfo {
-        core::State State;
-        Node* LeafNode;
-    };
-
-    const std::size_t BatchSizeMax;
-
-    std::mutex Mtx;
-    std::condition_variable Cv;
-    std::condition_variable AwaitCv;
-
-    evaluate::Batch<GlobalConfig::FeatureType> Batch;
-    std::atomic<bool> IsRunning;
-    bool IsFinnishing;
-
-    CheckmateSearcher* CSearcher;
-
-    Node* RootNode;
-    MutexPool* MtxPool;
-    EvalCache* ECache;
-    EvalCache::EvalInfo EInfo;
-
-    uint16_t RootPly;
-    const core::StateConfig* StateConfig;
-
-    std::thread WorkerThread;
-
-    void mainLoop();
-    void doOneIteration();
-
-    template <bool PolicyLogits>
-    void feedLeafNode(const LeafInfo& N, const float* Policy, float WinRate, float DrawRate);
-    void evaluateStoredLeafNodes(std::size_t BatchIndexMax);
-    bool evaluateByRule(const core::State& State, Node* N);
-
-    void immediateUpdateByWin(Node* N) const;
-    void immediateUpdateByLoss(Node* N) const;
-    void immediateUpdateByDraw(Node* N) const;
-    void updateAncestors(Node* N) const;
-    void goBack(core::State* S) const;
-    Node* selectLeafNode(core::State* S) const;
-
-    Edge* computeUCBMaxEdge(const core::State& State, Node* N, bool RegardNotVisitedWin) const;
-    void incrementVirtualLoss(Node* N) const;
-
-    double computeWinRateOfChild(const core::State& State, Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits) const;
-
     static constexpr int32_t CBase = 19652;
     static constexpr double CInit = 1.25;
 
-    std::vector<LeafInfo> LeafInfos;
+    bool doTask() override;
 
-    std::atomic<bool> IsRunningInternal_;
+    Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren, bool regardNotVisitedWin);
+    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits);
+    void incrementVirtualLosses(Node*);
+
+    std::unique_ptr<core::State> State;
+    core::StateConfig Config;
+    Node* RootNode;
+    uint16_t RootPly;
+
+    EvaluationQueue<Features>* EQueue;
+    CheckmateQueue* CQueue;
+    MutexPool<lock::SpinLock>* MtxPool;
+    EvalCache* ECache;
+
+    EvalCache::EvalInfo CacheEvalInfo;
 };
-
 
 } // namespace mcts
 } // namespace engine

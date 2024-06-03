@@ -62,22 +62,22 @@ class USIOption {
     }
 
     int64_t getIntOption(const char* Key) const {
-        void* Value = getOption(Key);
-        return *((int64_t*)(Value));
+        const void* Value = getOption(Key);
+        return *((const int64_t*)(Value));
     }
 
     bool getBoolOption(const char* Key) const {
-        void* Value = getOption(Key);
-        return *((bool*)(Value));
+        const void* Value = getOption(Key);
+        return *((const bool*)(Value));
     }
 
     const char* getStringOption(const char* Key) const {
-        void* Value = getOption(Key);
+        const void* Value = getOption(Key);
         return (const char*)Value;
     }
 
     const char* getFileNameOption(const char* Key) const {
-        void* Value = getOption(Key);
+        const void* Value = getOption(Key);
         return (const char*)Value;
     }
 

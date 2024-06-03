@@ -22,8 +22,12 @@ struct GlobalConfigImpl {
         return NumGPUs;
     }
 
-    std::size_t getNumSearchThreadsPerGPU() const {
-        return NumSearchThreadsPerGPU;
+    std::size_t getNumSearchThreads() const {
+        return NumSearchThreads;
+    }
+
+    std::size_t getNumEvaluationThreadsPerGPU() const {
+        return NumEvaluationThreadsPerGPU;
     }
 
     std::size_t getNumCheckmateSearchThreads() const {
@@ -94,8 +98,12 @@ struct GlobalConfigImpl {
         NumGPUs = GPUs;
     }
 
-    void setNumSearchThreadsPerGPU(std::size_t NumThreads) {
-        NumSearchThreadsPerGPU = NumThreads;
+    void setNumSearchThreads(std::size_t NumThreads) {
+        NumSearchThreads = NumThreads;
+    }
+
+    void setNumEvaluationThreadsPerGPU(std::size_t NumThreads) {
+        NumEvaluationThreadsPerGPU = NumThreads;
     }
 
     void setNumCheckmateSearchThreads(std::size_t NumCheckmateThreads) {
@@ -165,38 +173,31 @@ struct GlobalConfigImpl {
     uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000;  // one hour.
 
     std::size_t NumGPUs = 1;
-    std::size_t NumSearchThreadsPerGPU = 2;
+    std::size_t NumSearchThreads = 2;
+    std::size_t NumEvaluationThreadsPerGPU = 2;
     std::size_t NumCheckmateSearchThreads = 2;
 
-    std::size_t BatchSize = 126;
+    std::size_t BatchSize = 128;
 
     uint32_t ThinkingTimeMargin = 500;
 
     uint32_t LogMargin = 800;
 
-    std::size_t AvailableMemoryMB = 1024;
-    double MemoryLimitFactor = 0.8;
+    std::size_t AvailableMemoryMB = 8 * 1024;
+    double MemoryLimitFactor = 0.7;
     std::size_t NumGarbageCollectorThreads = 2;
 
-    std::size_t EvalCacheMemoryMB = 1024;
+    std::size_t EvalCacheMemoryMB = 8 * 1024;
 
     float BlackDrawValue = 0.5f;
     float WhiteDrawValue = 0.5f;
 
     bool IsRepetitionBookAllowed = true;
 
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/mid_1.onnx";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/efficient_net_v2_s.onnx";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/debug.onnx";
-    std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/debug2.onnx";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/small_v2.bin";
-    // std::string WeightPath = "/home/nyashiki/Projects/nshogi-engine/res/mid_1.onnx";
-    // std::string WeightPath = "./res/small.bin";
+    std::string WeightPath = "./res/model.onnx";
 
     bool IsBookEnabled = false;
-
-    // std::string Bookpath = "/home/nyashiki/Projects/nshogi-engine/res/suisho_kakugawari_book.txt";
-    std::string Bookpath = "/home/nyashiki/Projects/nshogi-engine/res/furibisha_book.bin";
+    std::string Bookpath = "";
 
     book::Strategy BookSelectionStrategy = book::Strategy::MostVisited;
 

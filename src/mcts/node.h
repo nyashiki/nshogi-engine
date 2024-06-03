@@ -68,32 +68,37 @@ struct Node {
 
     inline void incrementVirtualLoss() {
         constexpr uint64_t Value = 1ULL << VirtualLossShift;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline void incrementVisitsAndDecrementVirtualLoss() {
         constexpr uint64_t Value = (0xffffffffffffffffULL << VirtualLossShift) | 0b1ULL;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_relaxed);
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
+    }
+
+    inline void decrementVirtualLoss() {
+        constexpr uint64_t Value = 0xffffffffffffffffULL << VirtualLossShift;
+        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline uint64_t getVisitsAndVirtualLoss() {
-        return VisitsAndVirtualLoss.load(std::memory_order_relaxed);
+        return VisitsAndVirtualLoss.load(std::memory_order_acquire);
     }
 
     inline double getWinRateAccumulated() const {
-        return WinRateAccumulated.load(std::memory_order_relaxed);
+        return WinRateAccumulated.load(std::memory_order_acquire);
     }
 
     inline double getDrawRateAccumulated() const {
-        return DrawRateAccumulated.load(std::memory_order_relaxed);
+        return DrawRateAccumulated.load(std::memory_order_acquire);
     }
 
     inline int16_t getPlyToTerminalSolved() const {
-        return PlyToTerminalSolved.load(std::memory_order_relaxed);
+        return PlyToTerminalSolved.load(std::memory_order_acquire);
     }
 
     inline void setPlyToTerminalSolved(int16_t Ply) {
-        PlyToTerminalSolved.store(Ply, std::memory_order_relaxed);
+        PlyToTerminalSolved.store(Ply, std::memory_order_release);
     }
 
     inline float getWinRatePredicted() const {
@@ -104,17 +109,22 @@ struct Node {
         return DrawRatePredicted;
     }
 
-    inline void expand(const nshogi::core::MoveList& MoveList) {
+    inline int16_t expand(const nshogi::core::MoveList& MoveList) {
         assert(Edges == nullptr);
 
         Edges = std::make_unique<Edge[]>(MoveList.size());
-        assert(Edges != nullptr);
+
+        if (Edges == nullptr) {
+            // There is no available memory.
+            return -1;
+        }
 
         for (std::size_t I = 0; I < MoveList.size(); ++I) {
             Edges[I].setMove(core::Move16(MoveList[I]));
         }
 
         NumChildren = (uint16_t)MoveList.size();
+        return (int16_t)NumChildren;
     }
 
     inline void setEvaluation(const float* Policy, float WinRate, float DrawRate) {
@@ -133,6 +143,23 @@ struct Node {
                   [](const Edge& E1, const Edge& E2) {
                       return E1.getProbability() > E2.getProbability();
                   });
+    }
+
+    inline void updateAncestors(float WinRate, float DrawRate) {
+        const float FlipWinRate = 1.0f - WinRate;
+        bool Flip = false;
+
+        Node* N = this;
+
+        do {
+            N->addWinRate(Flip ? FlipWinRate : WinRate);
+            N->addDrawRate(DrawRate);
+
+            N->incrementVisitsAndDecrementVirtualLoss();
+
+            Flip = !Flip;
+            N = N->getParent();
+        } while (N != nullptr);
     }
 
     inline void addWinRate(double WinRate) {
@@ -239,11 +266,11 @@ struct Node {
     }
 
     void setSolverResult(const core::Move16& Move) {
-        SolverMove.store(Move.value(), std::memory_order_relaxed);
+        SolverMove.store(Move.value(), std::memory_order_release);
     }
 
     core::Move16 getSolverResult() const {
-        return core::Move16::fromValue(SolverMove.load(std::memory_order_relaxed));
+        return core::Move16::fromValue(SolverMove.load(std::memory_order_acquire));
     }
 
     void* operator new(std::size_t Size) {

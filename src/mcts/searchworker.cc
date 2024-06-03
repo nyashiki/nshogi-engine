@@ -1,418 +1,134 @@
 #include "searchworker.h"
-#include "mutexpool.h"
-#include "../globalconfig.h"
+#include "../evaluate/preset.h"
 
-#include <cassert>
-#include <cstddef>
+#include <limits>
 #include <cmath>
-#include <cstdint>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <thread>
 
-#include <nshogi/solver/mate1ply.h>
 #include <nshogi/core/movegenerator.h>
-#include <nshogi/ml/math.h>
 
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-SearchWorker::SearchWorker(std::size_t BatchSize, evaluate::Evaluator* Ev, CheckmateSearcher* CSearcher_, MutexPool* MPool, EvalCache* ECache_)
-    : BatchSizeMax(BatchSize), Batch(BatchSize, Ev), IsRunning(false), IsFinnishing(false), CSearcher(CSearcher_), MtxPool(MPool), ECache(ECache_) {
-
-    WorkerThread = std::thread(&SearchWorker::mainLoop, this);
-}
-
-SearchWorker::~SearchWorker() {
-}
-
-void SearchWorker::start(Node* Root, const core::State& St, const core::StateConfig& Config) {
-    LeafInfos.clear();
-    for (std::size_t I = 0; I < BatchSizeMax; ++I) {
-        LeafInfos.push_back({St.clone(), nullptr});
-    }
-
-    RootNode = Root;
-    RootPly = St.getPly();
-    StateConfig = &Config;
-
-    std::lock_guard<std::mutex> Lock(Mtx);
-    assert(!IsRunning);
-    IsRunning = true;
-    IsRunningInternal_ = true;
-
-    Cv.notify_one();
-}
-
-void SearchWorker::stop() {
-    {
-        std::lock_guard<std::mutex> Lock(Mtx);
-
-        assert(IsRunning);
-        IsRunning.store(false);
-    }
-
-    Cv.notify_one();
-}
-
-void SearchWorker::await() {
-    std::unique_lock<std::mutex> Lock(Mtx);
-
-    AwaitCv.wait(Lock, [&]{
-        return !IsRunningInternal_;
-    });
-}
-
-void SearchWorker::join() {
-    {
-        std::lock_guard<std::mutex> Lock(Mtx);
-        IsFinnishing = true;
-        Cv.notify_one();
-    }
-
-    WorkerThread.join();
-}
-
-void SearchWorker::mainLoop() {
-    while (true) {
-        {
-            std::unique_lock<std::mutex> Lock(Mtx);
-
-            if (!IsRunning.load(std::memory_order_relaxed)) {
-                IsRunningInternal_ = false;
-                AwaitCv.notify_one();
-            }
-
-            Cv.wait(Lock, [&]{
-                return IsRunningInternal_
-                       || IsRunning.load(std::memory_order_relaxed)
-                       || IsFinnishing;
-            });
-
-            if (IsFinnishing) {
-                break;
-            }
-
-            IsRunningInternal_ = true;
-        }
-
-        while (IsRunning.load(std::memory_order_relaxed)) {
-            doOneIteration();
-        }
-    }
-}
-
-void SearchWorker::doOneIteration() {
-    Batch.reset();
-
-    uint16_t OutOfOrder = 0;
-    uint16_t SequentialNullTerminal = 0;
-
-    std::size_t BatchIndex = 0;
-
-    while (true) {
-        if (Batch.size() >= Batch.getBatchSizeMax()) {
-            break;
-        }
-
-        if (OutOfOrder >= Batch.getBatchSizeMax()) {
-            break;
-        }
-
-        if (SequentialNullTerminal >= 3 && BatchIndex > 0) {
-            break;
-        }
-
-        // Restore the state to the root node.
-        goBack(&LeafInfos[BatchIndex].State);
-
-        // Select a leaf node.
-        Node* LeafNode = selectLeafNode(&LeafInfos[BatchIndex].State);
-
-        if (LeafNode == nullptr) {
-            ++OutOfOrder;
-            if (BatchIndex > 0) {
-                ++SequentialNullTerminal;
-            }
-            continue;
-        }
-
-        SequentialNullTerminal = 0;
-
-        const uint64_t LeafVisits = LeafNode->getVisitsAndVirtualLoss() & Node::VisitMask;
-
-        if (LeafVisits > 0) {
-            // A terminal node has been selected.
-            updateAncestors(LeafNode);
-            ++OutOfOrder;
-            continue;
-        }
-
-        if (evaluateByRule(LeafInfos[BatchIndex].State, LeafNode)) {
-            ++OutOfOrder;
-            continue;
-        }
-
-        LeafInfos[BatchIndex].LeafNode = LeafNode;
-
-        if (ECache != nullptr) {
-            bool CacheExists = ECache->load(LeafInfos[BatchIndex].State, &EInfo);
-
-            if (CacheExists) {
-                const auto MoveList = core::MoveGenerator::generateLegalMoves(LeafInfos[BatchIndex].State);
-
-                assert((LeafNode->getVisitsAndVirtualLoss() & Node::VisitMask) == 0);
-                assert(MoveList.size() > 0);
-
-                LeafNode->expand(MoveList);
-                feedLeafNode<false>(LeafInfos[BatchIndex], EInfo.Policy, EInfo.WinRate, EInfo.DrawRate);
-                updateAncestors(LeafNode);
-
-                ++OutOfOrder;
-                continue;
-            }
-        }
-
-        // Feed batch with the leaf node.
-        assert(BatchIndex < Batch.getBatchSizeMax());
-        Batch.add(LeafInfos[BatchIndex].State, *StateConfig);
-
-        if (CSearcher != nullptr) {
-            if (LeafInfos[BatchIndex].LeafNode->getSolverResult().isNone()) {
-                CSearcher->addTask(LeafInfos[BatchIndex].LeafNode,
-                        LeafInfos[BatchIndex].State.getPosition());
-            }
-        }
-
-        ++BatchIndex;
-    }
-
-    if (BatchIndex > 0) {
-        evaluateStoredLeafNodes(BatchIndex);
-    }
-}
-
-void SearchWorker::evaluateStoredLeafNodes(std::size_t BatchIndexMax) {
-    Batch.doInferenceNonBlocking();
-
-    // Here, we have free time until the computation is done.
-    for (std::size_t I = 0; I < BatchIndexMax; ++I) {
-        const auto MoveList = core::MoveGenerator::generateLegalMoves(LeafInfos[I].State);
-
-        // No legal moves, which means the king is checkmated.
-        if (MoveList.size() == 0) {
-            // If the last opponnet move is dropping a pawn, it's illegal.
-            if (LeafInfos[I].State.getPly() > 0) {
-                const auto& LastMove = LeafInfos[I].State.getLastMove();
-                if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
-                    immediateUpdateByWin(LeafInfos[I].LeafNode);
-                    LeafInfos[I].LeafNode = nullptr;
-                    continue;
-                }
-            }
-
-            immediateUpdateByLoss(LeafInfos[I].LeafNode);
-            LeafInfos[I].LeafNode = nullptr;
-            continue;
-        }
-
-        // Extract children of the leaf node.
-        assert(LeafInfos[I].LeafNode->getVisitsAndVirtualLoss() == (1ULL << Node::VirtualLossShift));
-        LeafInfos[I].LeafNode->expand(MoveList);
-    }
-
-    Batch.await();
-
-    for (std::size_t I = 0; I < Batch.size(); ++I) {
-        if (LeafInfos[I].LeafNode == nullptr) {
-            continue;
-        }
-
-        feedLeafNode<true>(LeafInfos[I], Batch.getPolicy(I), Batch.getWinRate(I), Batch.getDrawRate(I));
-        updateAncestors(LeafInfos[I].LeafNode);
-    }
-}
-
-bool SearchWorker::evaluateByRule(const core::State& State, Node* N) {
-    if ((StateConfig->Rule & core::Declare27_ER) != 0) {
-        if (State.canDeclare()) {
-            immediateUpdateByWin(N);
-            return true;
-        }
-    }
-
-    if (State.getPly() >= StateConfig->MaxPly) {
-        immediateUpdateByDraw(N);
-        return true;
-    }
-
-    // Check win/draw/loss by the rule.
-    if (N != RootNode) {
-        core::RepetitionStatus Repetition = State.getRepetitionStatus();
-
-        N->setRepetitionStatus(Repetition);
-        if (Repetition == core::RepetitionStatus::WinRepetition ||
-                Repetition == core::RepetitionStatus::SuperiorRepetition) {
-
-            immediateUpdateByWin(N);
-            return true;
-        } else if (Repetition == core::RepetitionStatus::LossRepetition ||
-                Repetition == core::RepetitionStatus::InferiorRepetition) {
-
-            immediateUpdateByLoss(N);
-            return true;
-        } else if (Repetition == core::RepetitionStatus::Repetition) {
-            immediateUpdateByDraw(N);
-            return true;
-        }
-    }
-
-    return false;
-}
-
-template <bool PolicyLogits>
-void SearchWorker::feedLeafNode(const LeafInfo& LInfo, const float* Policy, float WinRate, float DrawRate) {
-    if constexpr (PolicyLogits) {
-        float LegalPolicy[ml::MoveIndexMax];
-        for (uint16_t I = 0; I < LInfo.LeafNode->getNumChildren(); ++I) {
-            const std::size_t MoveIndex = ml::getMoveIndex(LInfo.State.getSideToMove(), LInfo.LeafNode->getEdge(I)->getMove());
-            LegalPolicy[I] = Policy[MoveIndex];
-        }
-
-        // ml::math::softmax_(LegalPolicy, LInfo.LeafNode->getNumChildren(), 1.6f);
-        ml::math::softmax_(LegalPolicy, LInfo.LeafNode->getNumChildren(), 1.2062533236123854f);
-
-        LInfo.LeafNode->setEvaluation(LegalPolicy, WinRate, DrawRate);
-
-        // Store the evaluation result into the cache.
-        if (ECache != nullptr && LInfo.LeafNode->getNumChildren() < EvalCache::MAX_CACHE_MOVES_COUNT) {
-            assert(LInfo.LeafNode->getNumChildren() > 0);
-            ECache->store(LInfo.State, LInfo.LeafNode->getNumChildren(),
-                    LegalPolicy, WinRate, DrawRate);
-        }
-    } else {
-        LInfo.LeafNode->setEvaluation(Policy, WinRate, DrawRate);
-    }
-
-    LInfo.LeafNode->sort();
-}
-
-void SearchWorker::goBack(core::State* S) const {
-    while (S->getPly() != RootPly) {
-        S->undoMove();
-    }
-}
-
-void SearchWorker::updateAncestors(Node* N) const {
-    float LeafWinRate = N->getWinRatePredicted();
-    float LeafDrawRate = N->getDrawRatePredicted();
-
-    if (N->getPlyToTerminalSolved() > 0) {
-        LeafWinRate = 1.0f;
-        LeafDrawRate = 0.0f;
-    } else if (N->getPlyToTerminalSolved() < 0) {
-        LeafWinRate = 0.0f;
-        LeafDrawRate = 0.0f;
-    } else if (N->getRepetitionStatus() == core::RepetitionStatus::Repetition) {
-        LeafWinRate = 0.5f;
-        LeafDrawRate = 1.0f;
-    }
-
-    const float FlipWinRate = 1.0f - LeafWinRate;
-    bool Flip = false;
-
-    while (N != nullptr) {
-        N->addWinRate(Flip? FlipWinRate : LeafWinRate);
-        N->addDrawRate(LeafDrawRate);
-
-        N->incrementVisitsAndDecrementVirtualLoss();
-
-        Flip = !Flip;
+namespace {
+
+void cancelVirtualLoss(Node* N) {
+    do {
+        N->decrementVirtualLoss();
         N = N->getParent();
-    }
+    } while (N != nullptr);
 }
 
-void SearchWorker::immediateUpdateByWin(Node* N) const {
-    N->setEvaluation(nullptr, 1.0f, 0.0f);
-    N->setPlyToTerminalSolved(1);
-    updateAncestors(N);
+} // namespace
+
+template <typename Features>
+SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP, EvalCache* EC)
+    : worker::Worker(true)
+    , EQueue(EQ)
+    , CQueue(CQ)
+    , MtxPool(MP)
+    , ECache(EC) {
+
+    spawnThread();
 }
 
-void SearchWorker::immediateUpdateByLoss(Node* N) const {
-    N->setEvaluation(nullptr, 0.0f, 0.0f);
-    N->setPlyToTerminalSolved(-1);
-    updateAncestors(N);
+template <typename Features>
+SearchWorker<Features>::~SearchWorker() {
 }
 
-void SearchWorker::immediateUpdateByDraw(Node* N) const {
-    N->setEvaluation(nullptr, 0.0f, 1.0f);
-    updateAncestors(N);
+template <typename Features>
+void SearchWorker<Features>::updateRoot(const core::State& S, const core::StateConfig& StateConfig, Node* Root) {
+    State = std::make_unique<core::State>(S.clone());
+    Config = StateConfig;
+    RootNode = Root;
+
+    RootPly = State->getPly();
 }
 
-Node* SearchWorker::selectLeafNode(core::State* S) const {
-    Node* N = RootNode;
-    uint16_t Depth = 0;
+template <typename Features>
+Node* SearchWorker<Features>::collectOneLeaf() {
+    Node* CurrentNode = RootNode;
 
     while (true) {
-        const uint64_t Visits = N->getVisitsAndVirtualLoss() & Node::VisitMask;
+        const uint64_t VisitsAndVirtualLoss = CurrentNode->getVisitsAndVirtualLoss();
+        const uint64_t Visits = VisitsAndVirtualLoss & Node::VisitMask;
 
-        if (CSearcher != nullptr) {
-            if (N->getSolverResult().isNone()) {
-                CSearcher->addTask(N, S->getPosition());
+        if (CQueue != nullptr) {
+            // If checkmate searcher is enabled and the node has not been
+            // tried to solve, feed the node into the checkmate searcher.
+            if (CurrentNode->getSolverResult().isNone()) {
+                CQueue->add(CurrentNode, State->getPosition());
             }
         }
 
         if (Visits == 0) {
-            if (N == RootNode) {
+            const uint64_t VirtualLoss = VisitsAndVirtualLoss >> Node::VirtualLossShift;
+
+            if (VirtualLoss == 0) {
+                lock::SpinLock* Mutex = nullptr;
                 if (MtxPool != nullptr) {
-                    MtxPool->getRootMtx()->lock();
+                    Mutex = MtxPool->get(CurrentNode);
+                    Mutex->lock();
                 }
 
-                if (N->getVisitsAndVirtualLoss() != 0ULL) {
-                    if (MtxPool != nullptr) {
-                        MtxPool->getRootMtx()->unlock();
+                // Re-check the number of visit and virtual loss after getting a lock.
+                // It is no longer zero if another thread has expanded this leaf.
+                if (CurrentNode->getVisitsAndVirtualLoss() != 0ULL) {
+                    if (Mutex != nullptr) {
+                        Mutex->unlock();
                     }
-
                     return nullptr;
                 }
 
-                N->incrementVirtualLoss();
+                incrementVirtualLosses(CurrentNode);
 
-                if (MtxPool != nullptr) {
-                    MtxPool->getRootMtx()->unlock();
+                if (Mutex != nullptr) {
+                    Mutex->unlock();
                 }
 
-                return N;
+                return CurrentNode;
             }
 
             return nullptr;
         }
 
-        if (Visits > 0 && N->getNumChildren() == 0) {
+        const uint16_t NumChildren = CurrentNode->getNumChildren();
+
+        // If the number of visits of the node is larger than zero and
+        // the number of children of it is zero, the state is a terminal state
+        // and therefore the node is a leaf node.
+        if (Visits > 0 && NumChildren == 0) {
             break;
         }
 
-        if (N != RootNode && N->getRepetitionStatus() != core::RepetitionStatus::NoRepetition) {
+        // If the state is a repetition state, we regard the node as a leaf node.
+        // But when the node is the root node, we don't so that the search can proceed
+        // to have the children of the root in the tree.
+        if (CurrentNode != RootNode &&
+                CurrentNode->getRepetitionStatus() != core::RepetitionStatus::NoRepetition) {
             break;
         }
 
-        if (N->getPlyToTerminalSolved() != 0) {
+        // If `getPlyToTerminalSolved()` returns a non-zero value,
+        // it means the game theoretical value has already been solved and therefore
+        // we don't have to search this node furthermore.
+        if (CurrentNode->getPlyToTerminalSolved() != 0) {
             break;
         }
 
-        Edge* E = computeUCBMaxEdge(*S, N, Depth <= 1);
+        Edge* E = computeUCBMaxEdge(CurrentNode, NumChildren, false);
+        // computeUCBMaxEdge() can return nullptr if many threads reaches on the same leaf node.
         if (E == nullptr) {
             return nullptr;
         }
 
-        S->doMove(S->getMove32FromMove16(E->getMove()));
+        State->doMove(State->getMove32FromMove16(E->getMove()));
 
         Node* Target = E->getTarget();
-
         if (Target == nullptr) {
-            std::mutex* EdgeMtx = nullptr;
+            // If `Target` is nullptr, we have not extracted the child of this node.
+
+            lock::SpinLock* EdgeMtx = nullptr;
             if (MtxPool != nullptr) {
                 EdgeMtx = MtxPool->get(reinterpret_cast<void*>(E));
                 EdgeMtx->lock();
@@ -420,28 +136,25 @@ Node* SearchWorker::selectLeafNode(core::State* S) const {
                 if (E->getTarget() != nullptr) {
                     // This thread has reached a leaf node but another thread also
                     // had reached this leaf node and has evaluated this leaf node.
-                    // Therefore E->getTarget() is not nullptr anymore and
-                    // nothing to do is left.
+                    // Therefore E->getTarget() is no longer nullptr and nothing to do is left.
                     EdgeMtx->unlock();
                     return nullptr;
                 }
             }
 
-            std::unique_ptr<Node> NewNode = std::make_unique<Node>(N);
-            Node* NewNodePtr = NewNode.get();
+            auto NewNode = std::make_unique<Node>(CurrentNode);
 
-            if (NewNodePtr == nullptr) {
-                // This happens when memory allocation is failed.
-
-                if (MtxPool != nullptr) {
+            if (NewNode == nullptr) {
+                // If there is no available memory, it has failed to allocate a new node.
+                if (EdgeMtx != nullptr) {
                     EdgeMtx->unlock();
                 }
 
                 return nullptr;
             }
 
-            incrementVirtualLoss(NewNodePtr);
-
+            auto* NewNodePtr = NewNode.get();
+            incrementVirtualLosses(NewNodePtr);
             E->setTarget(std::move(NewNode));
 
             if (EdgeMtx != nullptr) {
@@ -451,39 +164,94 @@ Node* SearchWorker::selectLeafNode(core::State* S) const {
             return NewNodePtr;
         }
 
-        N = E->getTarget();
-        ++Depth;
+        CurrentNode = E->getTarget();
     }
 
-    incrementVirtualLoss(N);
-    return N;
+    incrementVirtualLosses(CurrentNode);
+    return CurrentNode;
 }
 
-Edge* SearchWorker::computeUCBMaxEdge(const core::State& State, Node* N, bool RegardNotVisitedWin) const {
-    const uint16_t NumChildren = N->getNumChildren();
+template <typename Feature>
+int16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
+    const auto Moves = core::MoveGenerator::generateLegalMoves(*State);
+    const uint16_t NumMoves = (uint16_t)Moves.size();
+
+    if (NumMoves == 0) {
+        return 0;
+    }
+
+    return LeafNode->expand(Moves);
+}
+
+template <typename Feature>
+void SearchWorker<Feature>::immediateUpdateByWin(Node* LeafNode) {
+    LeafNode->setEvaluation(nullptr, 1.0f, 0.0f);
+    LeafNode->setPlyToTerminalSolved(1);
+    LeafNode->updateAncestors(1.0f, 0.0f);
+}
+
+template <typename Feature>
+void SearchWorker<Feature>::immediateUpdateByLoss(Node* LeafNode) {
+    LeafNode->setEvaluation(nullptr, 0.0f, 0.0f);
+    LeafNode->setPlyToTerminalSolved(-1);
+    LeafNode->updateAncestors(0.0f, 0.0f);
+}
+
+template <typename Feature>
+void SearchWorker<Feature>::immediateUpdateByDraw(Node* LeafNode, float DrawValue) {
+    LeafNode->setEvaluation(nullptr, DrawValue, 1.0f);
+    LeafNode->updateAncestors(DrawValue, 1.0f);
+}
+
+template <typename Feature>
+void SearchWorker<Feature>::immediateUpdate(Node* LeafNode) {
+    float WinRate = LeafNode->getWinRatePredicted();
+    float DrawRate = LeafNode->getDrawRatePredicted();
+
+    const auto RS = LeafNode->getRepetitionStatus();
+    if (RS == core::RepetitionStatus::NoRepetition) {
+        const auto PlyToTerminal = LeafNode->getPlyToTerminalSolved();
+        if (PlyToTerminal > 0) {
+            WinRate = 1.0;
+            DrawRate = 0.0;
+        } else if (PlyToTerminal < 0) {
+            WinRate = 0.0;
+            DrawRate = 0.0;
+        }
+    }
+
+    LeafNode->updateAncestors(WinRate, DrawRate);
+}
+
+template <typename Features>
+Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren, bool regardNotVisitedWin) {
     assert(NumChildren > 0);
-
     const uint64_t CurrentVisitsAndVirtualLoss = N->getVisitsAndVirtualLoss();
-    const uint64_t CurrentVisit = CurrentVisitsAndVirtualLoss & Node::VisitMask;
-    const uint32_t CurrentVirtualLoss = (uint32_t)(CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift);
+    const uint64_t CurrentVisits = CurrentVisitsAndVirtualLoss & Node::VisitMask;
+    const uint64_t CurrentVirtualLoss = CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
-    if (CurrentVisit == 1) {
+    if (CurrentVisits == 1) {
+        // If the number of visit is equal to one, it means all children
+        // is not expanded yet. Recall the UCB fomular, the most promising edge is
+        // the edge with the highest prior. Since we have sorted the children along
+        // their prior, we can simply select 0-th edge if the virtual loss is zero.
+        // If the virtual loss is not zero, we simply choose `virtual-loss`-th element.
         if (CurrentVirtualLoss < NumChildren) {
-            // Since the edges are sorted by its policy,
-            // the most promising edge when CurrentVisit == 1 is Edges[0];
             return N->getEdge(CurrentVirtualLoss);
         } else {
+            // When the virtual loss is larger than or equal to the number of children,
+            // all children will be extracted so nothing to do here.
             return nullptr;
         }
     }
 
-    const uint64_t CurrentVirtualVisits = CurrentVisit + CurrentVirtualLoss;
+    const uint64_t CurrentVirtualVisits = CurrentVisits + CurrentVirtualLoss;
 
     const double Const = std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase + CInit) *
                         std::sqrt((double)CurrentVirtualVisits);
 
     Edge* UCBMaxEdge = nullptr;
-    double UCBMaxValue = -1e9;
+    double UCBMaxValue = std::numeric_limits<double>::lowest();
     bool IsAllTargetLoss = true;
     int16_t WinTargetPlyMin = 1024;
     int16_t LossTargetPlyMax = 0;
@@ -492,59 +260,80 @@ Edge* SearchWorker::computeUCBMaxEdge(const core::State& State, Node* N, bool Re
     Edge* LongestLossEdge = nullptr;
 
     for (uint16_t I = 0; I < NumChildren; ++I) {
-        auto* Edge = N->getEdge(I);
-        auto* Child = Edge->getTarget();
+        auto* const Edge = N->getEdge(I);
+        auto* const Child = Edge->getTarget();
 
-        double UCBValue;
-
+        // The child is not visited yet.
         if (Child == nullptr) {
-            UCBValue =
-                RegardNotVisitedWin ? (1.0 + Const * Edge->getProbability())
-                                    : Const * Edge->getProbability();
-            IsAllTargetLoss = false;
-        } else {
-            const uint64_t ChildVisitsAndVirtualLoss = Child->getVisitsAndVirtualLoss();
-            const uint64_t ChildVisits = ChildVisitsAndVirtualLoss & Node::VisitMask;
-            const uint32_t ChildVirtualLoss = (uint32_t)(ChildVisitsAndVirtualLoss >> Node::VirtualLossShift);
-            const uint64_t ChildVirtualVisits = ChildVisits + ChildVirtualLoss;
+            const double UCBValue = regardNotVisitedWin
+                ? (1.0 + Const * Edge->getProbability())
+                : (Const * Edge->getProbability());
 
-            if (ChildVisits == 0 && ChildVirtualLoss > 0) {
-                // This node is being evaluated so don't touch it now.
-                IsAllTargetLoss = false;
-                continue;
-            }
-
-            const int16_t PlyToTerminal = Child->getPlyToTerminalSolved();
-
-            if (PlyToTerminal > 0) {
-                if (PlyToTerminal > LossTargetPlyMax) {
-                    LongestLossEdge = Edge;
-                    LossTargetPlyMax = PlyToTerminal;
-                }
-
-                continue;
-            }
-
+            // Since there is at least one unvisited child, which means
+            // the child is not solved, we don't know all children are loss states.
             IsAllTargetLoss = false;
 
-            if (PlyToTerminal < 0) {
-                const int16_t NegativePlyToTerminal = -PlyToTerminal;
-
-                if (NegativePlyToTerminal < WinTargetPlyMin) {
-                    ShortestWinEdge = Edge;
-                    WinTargetPlyMin = NegativePlyToTerminal;
-                }
-
-                continue;
+            if (UCBValue > UCBMaxValue) {
+                UCBMaxValue = UCBValue;
+                UCBMaxEdge = Edge;
             }
-
-            if (ShortestWinEdge != nullptr) {
-                continue;
-            }
-
-            const double ChildWinRate = computeWinRateOfChild(State, Child, ChildVisits, ChildVirtualVisits);
-            UCBValue = ChildWinRate + Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
+            continue;
         }
+
+        const uint64_t ChildVisitsAndVirtualLoss = Child->getVisitsAndVirtualLoss();
+        const uint64_t ChildVisits = ChildVisitsAndVirtualLoss & Node::VisitMask;
+        const uint64_t ChildVirtualLoss = ChildVisitsAndVirtualLoss >> Node::VirtualLossShift;
+
+        if (ChildVisits == 0 && ChildVirtualLoss > 0) {
+            // When the number of visits is zero and the number of
+            // virtual loss is larger than zero of a node,
+            // it means the node is being extracted.
+            IsAllTargetLoss = false;
+            continue;
+        }
+
+        const uint64_t ChildVirtualVisits = ChildVisits + ChildVirtualLoss;
+
+        const int16_t PlyToTerminal = Child->getPlyToTerminalSolved();
+        if (PlyToTerminal > 0) {
+            // If `PlyToTerminal` of a child is larger than zero,
+            // it means the child is a win state from the perspective of
+            // the side to move of the child state. Therefore, if we choose
+            // this child, we will lose the game. When losing, one of the
+            // best moves is a move that has longest sequence of moves to a terminal.
+            if (PlyToTerminal > LossTargetPlyMax) {
+                LongestLossEdge = Edge;
+                LossTargetPlyMax = PlyToTerminal;
+            }
+            continue;
+        }
+
+        IsAllTargetLoss = false;
+
+        if (PlyToTerminal < 0) {
+            const int16_t NegativePlyToTerminal = -PlyToTerminal;
+
+            // If `PlyToTerminal` of a child is less than zero,
+            // it means the child is a loss state from the perspective of
+            // the side to move of the child state. Therefore, if we choose
+            // this child, we will win the game. When winning, one of the
+            // best moves is a move that has shortest sequence of moves to a terminal.
+            if (NegativePlyToTerminal < WinTargetPlyMin) {
+                ShortestWinEdge = Edge;
+                WinTargetPlyMin = NegativePlyToTerminal;
+            }
+            continue;
+        }
+
+        // Since we have already at least one winning edge,
+        // if the current searching edge is not a winning edge, we don't have to
+        // search it so `continue` here.
+        if (ShortestWinEdge != nullptr) {
+            continue;
+        }
+
+        const double ChildWinRate = computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
+        const double UCBValue = ChildWinRate + Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
 
         if (UCBValue > UCBMaxValue) {
             UCBMaxValue = UCBValue;
@@ -565,25 +354,151 @@ Edge* SearchWorker::computeUCBMaxEdge(const core::State& State, Node* N, bool Re
     return UCBMaxEdge;
 }
 
-void SearchWorker::incrementVirtualLoss(Node* N) const {
-    while (N != nullptr) {
-        N->incrementVirtualLoss();
-        N = N->getParent();
-    }
-}
-
-double SearchWorker::computeWinRateOfChild(const core::State& State, Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits) const {
+template <typename Features>
+double SearchWorker<Features>::computeWinRateOfChild(Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits) {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
-    const double ChildDrawRateAccumulated = Child->getDrawRateAccumulated();
+    const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
     const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVirtualVisits;
-    const double DrawRate = ChildDrawRateAccumulated / (double)ChildVirtualVisits;
+    const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVirtualVisits;
 
-    const auto SideToMove = State.getSideToMove();
-    const double DrawValue = (SideToMove == core::Black)? StateConfig->BlackDrawValue : StateConfig->WhiteDrawValue;
+    const double DrawValue = (State->getSideToMove() == core::Black)
+                                ? Config.BlackDrawValue
+                                : Config.WhiteDrawValue;
 
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
 }
+
+template <typename Features>
+void SearchWorker<Features>::incrementVirtualLosses(Node* N) {
+    do {
+        N->incrementVirtualLoss();
+        N = N->getParent();
+    } while (N != nullptr);
+}
+
+template <typename Features>
+bool SearchWorker<Features>::doTask() {
+    // Go back to the root state.
+    while (State->getPly() != RootPly) {
+        State->undoMove();
+    }
+
+    Node* LeafNode = collectOneLeaf();
+
+    if (LeafNode == nullptr) {
+        std::this_thread::yield();
+        return false;
+    }
+
+    const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
+    const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
+    const uint64_t VirtualLoss = NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
+
+    // Collected leafnode has already evaluated.
+    // This occurs when another thread has evaluated the leaf node,
+    // the solver has solved the leaf node, or the leaf node is
+    // game's terminal node e.g., repetition.
+    if (NumVisits > 0) {
+        immediateUpdate(LeafNode);
+        std::this_thread::yield();
+        return false;
+    }
+
+    // Although the leaf node is not evaluated yet,
+    // other threads has reached the leaf node already and
+    // the leaf node will be evaluated so there is nothing to do.
+    if (VirtualLoss != 1) {
+        std::this_thread::yield();
+        return false;
+    }
+
+    // Check repetition.
+    if (LeafNode != RootNode) {
+        const auto RS = State->getRepetitionStatus();
+        LeafNode->setRepetitionStatus(RS);
+        if (RS == core::RepetitionStatus::WinRepetition
+                || RS == core::RepetitionStatus::SuperiorRepetition) {
+            immediateUpdateByWin(LeafNode);
+            std::this_thread::yield();
+            return false;
+        } else if (RS == core::RepetitionStatus::LossRepetition
+                || RS == core::RepetitionStatus::InferiorRepetition) {
+            immediateUpdateByLoss(LeafNode);
+            std::this_thread::yield();
+            return false;
+        } else if (RS == core::RepetitionStatus::Repetition) {
+            immediateUpdateByDraw(
+                LeafNode,
+                State->getSideToMove() == core::Black ? Config.BlackDrawValue : Config.WhiteDrawValue);
+            std::this_thread::yield();
+            return false;
+        }
+    }
+
+    const int16_t NumMoves = expandLeaf(LeafNode);
+    // Check checkmate.
+    if (NumMoves == 0) {
+        if (State->getPly() > 0) {
+            const auto LastMove = State->getLastMove();
+            if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                immediateUpdateByWin(LeafNode);
+                return false;
+            }
+        }
+
+        immediateUpdateByLoss(LeafNode);
+        std::this_thread::yield();
+        return false;
+    }
+
+    // This occurs when there is no available memory for edges.
+    if (NumMoves == -1) {
+        cancelVirtualLoss(LeafNode);
+        std::this_thread::yield();
+        return false;
+    }
+
+    // Check delaration.
+    if (State->canDeclare()) {
+        immediateUpdateByWin(LeafNode);
+        return false;
+    }
+
+    // Check the number of plies.
+    if (State->getPly() >= Config.MaxPly) {
+        immediateUpdateByDraw(
+            LeafNode,
+            State->getSideToMove() == core::Black ? Config.BlackDrawValue : Config.WhiteDrawValue);
+        return false;
+    }
+
+    // Check cache.
+    bool CacheFound = false;
+    if (ECache != nullptr) {
+        CacheFound = ECache->load(*State, &CacheEvalInfo);
+
+        if (CacheFound) {
+            if (CacheEvalInfo.NumMoves == NumMoves) {
+                LeafNode->setEvaluation(CacheEvalInfo.Policy, CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
+                LeafNode->sort();
+                LeafNode->updateAncestors(CacheEvalInfo.WinRate, CacheEvalInfo.DrawRate);
+            } else {
+                CacheFound = false;
+            }
+        }
+    }
+
+    // Evaluate the leaf node.
+    if (!CacheFound) {
+        EQueue->add(*State, Config, LeafNode);
+    }
+
+    return false;
+}
+
+template class SearchWorker<evaluate::preset::SimpleFeatures>;
+template class SearchWorker<evaluate::preset::CustomFeaturesV1>;
 
 } // namespace mcts
 } // namespace engine
