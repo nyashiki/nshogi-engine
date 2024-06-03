@@ -13,6 +13,10 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 
+
+#include <thread>
+#include <stdexcept>
+
 namespace nshogi {
 namespace engine {
 namespace infer {
@@ -38,8 +42,11 @@ class TensorRT : public Infer {
     void computeBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
     void await() override;
     bool isComputing() override;
+    void resetGPU();
 
  private:
+    void dummyInference(std::size_t Repeat);
+
     const uint16_t BatchSizeM;
     const uint16_t NumC;
     const int GPUId_;
@@ -60,6 +67,8 @@ class TensorRT : public Infer {
     void* DevicePolicyOutput;
     void* DeviceValueOutput;
     void* DeviceDrawOutput;
+    bool Called = false;
+    std::thread::id ThreadIDPrev;
 };
 
 } // namespace infer

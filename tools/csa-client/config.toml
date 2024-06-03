@@ -12,6 +12,8 @@ send_pv = false
 [engine]
 wd = ""
 command = ""
+stderr = true
+
 [engine.usioptions]
 USI_Hash = 1024
 USI_Ponder = false

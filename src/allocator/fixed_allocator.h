@@ -77,24 +77,20 @@ class FixedAllocator : public Allocator {
     }
 
     void* malloc(std::size_t) override {
+        std::lock_guard<lock::SpinLock> Lk(SpinLock);
+
         if (FreeList == nullptr) {
             return nullptr;
         }
 
         Used.fetch_add(BlockSize, std::memory_order_relaxed);
 
-        Header* Head;
-
-        {
-            std::lock_guard<lock::SpinLock> Lk(SpinLock);
-
-            if (FreeList == nullptr) {
-                return nullptr;
-            }
-
-            Head = FreeList;
-            FreeList = FreeList->Next;
+        if (FreeList == nullptr) {
+            return nullptr;
         }
+
+        Header* Head = FreeList;
+        FreeList = FreeList->Next;
 
         assert(reinterpret_cast<uint64_t>(Head) % Alignment == 0);
         return Head;

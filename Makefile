@@ -34,14 +34,18 @@ endif
 SOURCES :=                              \
 	src/allocator/allocator.cc      \
 	src/allocator/default.cc        \
-	src/mcts/checkmatesearcher.cc   \
+	src/mcts/checkmateworker.cc     \
+	src/mcts/checkmatequeue.cc      \
 	src/mcts/garbagecollector.cc    \
 	src/mcts/manager.cc             \
+	src/mcts/evaluatequeue.cc       \
+	src/mcts/evaluateworker.cc      \
 	src/mcts/searchworker.cc        \
-	src/mcts/searchworkerbuilder.cc \
 	src/mcts/tree.cc                \
 	src/mcts/mutexpool.cc           \
 	src/mcts/evalcache.cc           \
+	src/mcts/watchdog.cc            \
+	src/worker/worker.cc            \
 	src/evaluate/batch.cc           \
 	src/protocol/usi.cc             \
 	src/protocol/usilogger.cc

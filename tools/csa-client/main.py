@@ -4,6 +4,7 @@ import tomllib
 import threading
 import time
 import math
+import sys
 import os
 
 import flask
@@ -292,15 +293,18 @@ class CSAClient:
                 else:
                     message = f"{csa_move},'* {cp}"
                     if pv is not None:
-                        stm = int(self._state.side_to_move)
-                        csa_pv = []
-                        s = self._state.clone()
-                        for i, m in enumerate(pv):
-                            m = nshogi.io.sfen.move_from_sfen(s, m)
-                            s.do_move(m)
-                            csa_pv.append(nshogi.io.csa.stringify(m, nshogi.Color(stm)))
-                            stm = 1 - stm
-                        message += " " + " ".join(csa_pv[1:])
+                        try:
+                            stm = int(self._state.side_to_move)
+                            csa_pv = []
+                            s = self._state.clone()
+                            for i, m in enumerate(pv[:-1]):
+                                m = nshogi.io.sfen.move_from_sfen(s, m)
+                                s.do_move(m)
+                                csa_pv.append(nshogi.io.csa.stringify(m, nshogi.Color(stm)))
+                                stm = 1 - stm
+                            message += " " + " ".join(csa_pv[1:])
+                        except RuntimeError:
+                            pass
 
                 self._send_message(message)
 
@@ -477,7 +481,9 @@ class CSAClient:
                 })
 
 if __name__ == "__main__":
-    with open("config.toml", "rb") as f:
+    config_file = "config.toml" if len(sys.argv) == 1 else sys.argv[1]
+
+    with open(config_file, "rb") as f:
         config = tomllib.load(f)
 
     try:

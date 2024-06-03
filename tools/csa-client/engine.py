@@ -19,11 +19,13 @@ class Engine:
             cwd=config["wd"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE if config["stderr"] else subprocess.DEVNULL,
         )
 
         self.message_queue = queue.Queue()
         threading.Thread(target=self._message_reader).start()
+        if config["stderr"]:
+            threading.Thread(target=self._stderr_reader).start()
 
         self.send_message_callbacks = []
         self.read_message_callbacks = []
@@ -61,6 +63,12 @@ class Engine:
 
                 if message.startswith("bestmove"):
                     self.enable_info_logging = False
+
+    def _stderr_reader(self):
+        with self.process.stderr:
+            for line in iter(self.process.stderr.readline, b""):
+                message = line.decode("utf-8").rstrip("\r\n")
+                print("Engine (stderr) >", message)
 
     def _parse_info(self, message):
         splitted = message.split(" ")

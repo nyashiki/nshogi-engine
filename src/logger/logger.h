@@ -26,9 +26,14 @@ struct PVLog {
 
 class Logger {
  public:
+    virtual ~Logger() {
+    };
+
     virtual void printPVLog(const PVLog& Log) const = 0;
     virtual void printBestMove(const core::Move32& Move) const = 0;
     virtual void printLog(const char* Message) const = 0;
+
+    virtual void setIsInverse(bool Value) = 0;
 };
 
 } // namespace logger
