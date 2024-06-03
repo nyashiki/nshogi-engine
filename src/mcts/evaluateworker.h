@@ -2,8 +2,11 @@
 #define NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
 
 #include "node.h"
+#include "evalcache.h"
 #include "evaluatequeue.h"
 #include "../evaluate/evaluator.h"
+#include "../infer/infer.h"
+#include "../worker/worker.h"
 
 #include <nshogi/ml/featurebitboard.h>
 #include <nshogi/ml/common.h>
@@ -17,36 +20,38 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-class EvaluateWorker {
+class EvaluateWorker : public worker::Worker {
  public:
-    EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>*, evaluate::Evaluator*);
+    EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>*, EvalCache*);
     ~EvaluateWorker();
 
-    void start();
-    void stop();
-
  private:
-    void mainLoop();
+    static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
 
-    void flattenFeatures(const std::vector<Features>&);
+    void initializationTask() override;
+    bool doTask() override;
+    void getBatch();
+    void flattenFeatures(std::size_t BatchSize);
     void doInference(std::size_t BatchSize);
-    void feedResults(const std::vector<core::Color>&, const std::vector<Node*>&);
-    void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate);
+    void feedResults(std::size_t BatchSize);
+    void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate, uint64_t Hash);
 
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;
-    evaluate::Evaluator* const Evaluator;
+    EvalCache* const ECache;
 
-    std::vector<ml::FeatureBitboard> FeatureBitboards;
+    std::unique_ptr<infer::Infer> Infer;
+    std::unique_ptr<evaluate::Evaluator> Evaluator;
+    std::size_t GPUId_;
+
+    ml::FeatureBitboard* FeatureBitboards;
     float LegalPolicy[ml::MoveIndexMax];
 
-    std::mutex Mutex;
-    std::condition_variable CV;
-    std::atomic<bool> IsRunnning;
-    std::atomic<bool> IsThreadWorking;
-    std::atomic<bool> IsExiting;
-
-    std::thread Worker;
+    std::vector<core::Color> PendingSideToMoves;
+    std::vector<Node*> PendingNodes;
+    std::vector<Features> PendingFeatures;
+    std::vector<uint64_t> PendingHashes;
+    std::size_t SequentialSkip;
 };
 
 } // namespace mcts

@@ -1,5 +1,42 @@
 #include "evaluateworker.h"
 #include "../evaluate/preset.h"
+#include "../globalconfig.h"
+
+#ifdef EXECUTOR_TRT
+
+#include "../infer/trt.h"
+
+#endif
+
+#ifdef CUDA_ENABLED
+
+#include <cuda_runtime.h>
+
+#endif
+
+#ifdef EXECUTOR_ZERO
+
+#include "../infer/zero.h"
+
+#endif
+
+#ifdef EXECUTOR_NOTHING
+
+#include "../infer/nothing.h"
+
+#endif
+
+#ifdef EXECUTOR_RANDOM
+
+#include "../infer/random.h"
+
+#endif
+
+#ifdef EXECUTOR_TRT
+
+#include "../infer/trt.h"
+
+#endif
 
 #include <chrono>
 
@@ -9,139 +46,136 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-namespace {
-
-void cancelVirtualLoss(Node* N) {
-    do {
-        N->decrementVirtualLoss();
-        N = N->getParent();
-    } while (N != nullptr);
-}
-
-} // namespace
-
 template <typename Features>
-EvaluateWorker<Features>::EvaluateWorker(std::size_t BatchSize, EvaluationQueue<Features>* EQ, evaluate::Evaluator* Ev)
-    : BatchSizeMax(BatchSize)
+EvaluateWorker<Features>::EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
+    : worker::Worker(true)
+    , BatchSizeMax(BatchSize)
     , EQueue(EQ)
-    , Evaluator(Ev)
-    , IsRunnning(false)
-    , IsThreadWorking(false)
-    , IsExiting(false) {
-    FeatureBitboards.resize(Features::size() * BatchSize);
+    , ECache(EC)
+    , GPUId_(GPUId)
+    , SequentialSkip(0) {
+    PendingSideToMoves.reserve(BatchSize);
+    PendingNodes.reserve(BatchSize);
+    PendingFeatures.reserve(BatchSize);
+    PendingHashes.reserve(BatchSize);
 
-    Worker = std::thread(&EvaluateWorker<Features>::mainLoop, this);
+    spawnThread();
 }
 
 template <typename Features>
 EvaluateWorker<Features>::~EvaluateWorker() {
-    IsRunnning.store(false);
-    IsExiting.store(true);
-    CV.notify_one();
-
-    Worker.join();
+#ifdef CUDA_ENABLED
+    cudaFree(FeatureBitboards);
+#else
+    delete[] FeatureBitboards;
+#endif
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::start() {
-    IsRunnning.store(true, std::memory_order_release);
-    CV.notify_one();
+void EvaluateWorker<Features>::initializationTask() {
+#ifdef CUDA_ENABLED
+    cudaMallocHost(&FeatureBitboards, BatchSizeMax * Features::size() * sizeof(ml::FeatureBitboard));
+#else
+    FeatureBitboards = new ml::FeatureBitboard[BatchSizeMax * Features::size()];
+#endif
+
+#if defined(EXECUTOR_ZERO)
+    Infer = std::make_unique<infer::Zero>();
+#elif defined(EXECUTOR_NOTHING)
+    Infer = std::make_unique<infer::Nothing>();
+#elif defined(EXECUTOR_RANDOM)
+    Infer = std::make_unique<infer::Random>(0);
+#elif defined(EXECUTOR_TRT)
+    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, GlobalConfig::FeatureType::size());
+    TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
+    TRT->resetGPU();
+    Infer = std::move(TRT);
+#endif
+    Evaluator = std::make_unique<evaluate::Evaluator>(BatchSizeMax, Infer.get());
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::stop() {
-    IsRunnning.store(false, std::memory_order_release);
+bool EvaluateWorker<Features>::doTask() {
+    getBatch();
+    const std::size_t BatchSize = PendingSideToMoves.size();
 
-    while (IsThreadWorking.load(std::memory_order_acquire)) {
-        // Busy loop until the thread stops.
+    if (BatchSize == 0) {
         std::this_thread::yield();
+        return false;
     }
+
+    if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD && BatchSize < BatchSizeMax / 2) {
+        ++SequentialSkip;
+        std::this_thread::yield();
+        return true;
+    }
+
+    flattenFeatures(BatchSize);
+    doInference(BatchSize);
+    feedResults(BatchSize);
+
+    PendingNodes.clear();
+    PendingSideToMoves.clear();
+    PendingFeatures.clear();
+    PendingHashes.clear();
+    SequentialSkip = 0;
+
+    return true;
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::mainLoop() {
-    while (true) {
-        std::unique_lock<std::mutex> Lock(Mutex);
-
-        if (!IsRunnning.load(std::memory_order_relaxed)) {
-            IsThreadWorking.store(false, std::memory_order_relaxed);
-        }
-
-        CV.wait(Lock, [this]() {
-            return IsRunnning.load(std::memory_order_relaxed)
-                    || IsExiting.load(std::memory_order_relaxed);
-        });
-
-        if (IsExiting.load(std::memory_order_relaxed)) {
-            return;
-        }
-
-        IsThreadWorking.store(true, std::memory_order_relaxed);
-
-        while (true) {
-            auto Elements = std::move(EQueue->get(BatchSizeMax));
-
-            const auto SideToMoves = std::move(std::get<0>(Elements));
-            const auto Nodes = std::move(std::get<1>(Elements));
-
-            const std::size_t BatchSize = SideToMoves.size();
-
-            // if (!IsRunnning.load(std::memory_order_relaxed)) {
-            //     if (BatchSize == 0) {
-            //         break;
-            //     }
-
-            //     for (const auto& Node : Nodes) {
-            //         cancelVirtualLoss(Node);
-            //     }
-
-            //     continue;
-            // }
-
-            if (BatchSize == 0) {
-                if (!IsRunnning.load(std::memory_order_relaxed)) {
-                    break;
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                continue;
-            }
-
-            const auto FeatureStacks = std::move(std::get<2>(Elements));
-
-            flattenFeatures(FeatureStacks);
-            doInference(BatchSize);
-            feedResults(SideToMoves, Nodes);
-        }
+void EvaluateWorker<Features>::getBatch() {
+    if (PendingSideToMoves.size() >= BatchSizeMax) {
+        return;
     }
+
+    auto Elements = EQueue->get(BatchSizeMax - PendingSideToMoves.size());
+
+    auto SideToMoves = std::move(std::get<0>(Elements));
+    auto Nodes = std::move(std::get<1>(Elements));
+    auto FeatureStacks = std::move(std::get<2>(Elements));
+    auto Hashes = std::move(std::get<3>(Elements));
+
+    if (SideToMoves.size() == 0) {
+        return;
+    }
+
+    std::move(SideToMoves.begin(), SideToMoves.end(), std::back_inserter(PendingSideToMoves));
+    std::move(Nodes.begin(), Nodes.end(), std::back_inserter(PendingNodes));
+    std::move(FeatureStacks.begin(), FeatureStacks.end(), std::back_inserter(PendingFeatures));
+    std::move(Hashes.begin(), Hashes.end(), std::back_inserter(PendingHashes));
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::flattenFeatures(const std::vector<Features>& FSC) {
-    for (std::size_t I = 0; I < FSC.size(); ++I) {
-        std::memcpy(static_cast<void*>(FeatureBitboards.data() + I * FSC[I].size()),
-                    FSC[I].data(),
-                    FSC[I].size() * sizeof(ml::FeatureBitboard));
+void EvaluateWorker<Features>::flattenFeatures(std::size_t BatchSize) {
+    const std::size_t UnitSize = PendingFeatures[0].size();
+
+    for (std::size_t I = 0; I < BatchSize; ++I) {
+        std::memcpy(
+            static_cast<void*>((ml::FeatureBitboard*)(FeatureBitboards) + I * UnitSize),
+            PendingFeatures[I].data(),
+            UnitSize * sizeof(ml::FeatureBitboard));
     }
 }
 
 template <typename Features>
 void EvaluateWorker<Features>::doInference(std::size_t BatchSize) {
-    Evaluator->computeBlocking(FeatureBitboards.data(), BatchSize);
+    Evaluator->computeBlocking(FeatureBitboards, BatchSize);
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::feedResults(const std::vector<core::Color>& SideToMoves, const std::vector<Node*>& Nodes) {
-    for (std::size_t I = 0; I < Nodes.size(); ++I) {
+void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
+    for (std::size_t I = 0; I < BatchSize; ++I) {
         const float* Policy = Evaluator->getPolicy() + 27 * core::NumSquares * I;
         const float WinRate = *(Evaluator->getWinRate() + I);
         const float DrawRate = *(Evaluator->getDrawRate() + I);
 
-        feedResult(SideToMoves[I], Nodes[I], Policy, WinRate, DrawRate);
+        feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate, DrawRate, PendingHashes[I]);
     }
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate) {
+void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
     for (uint16_t I = 0; I < NumChildren; ++I) {
         const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
@@ -150,9 +184,12 @@ void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const
 
     ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
     N->setEvaluation(LegalPolicy, WinRate, DrawRate);
-
     N->sort();
     N->updateAncestors(WinRate, DrawRate);
+
+    if (ECache != nullptr) {
+        ECache->store(Hash, NumChildren, LegalPolicy, WinRate, DrawRate);
+    }
 }
 
 template class EvaluateWorker<evaluate::preset::SimpleFeatures>;

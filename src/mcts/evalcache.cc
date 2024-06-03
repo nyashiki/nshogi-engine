@@ -36,8 +36,10 @@ EvalCache::EvalCache(std::size_t MemorySize)
     }
 }
 
-bool EvalCache::store(const core::State& St, uint16_t NumM, const float* P, float WR, float D) {
-    const uint64_t Hash = St.getHash();
+bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR, float D) {
+    if (NumM > MAX_CACHE_MOVES_COUNT) {
+        return false;
+    }
 
     CacheBundle* Bundle = &CacheStorage[Hash % NumBundle];
 
@@ -126,6 +128,8 @@ bool EvalCache::load(const core::State& St, EvalInfo* EI) {
             *EI = CacheElem->EInfo;
 
             // Reorder.
+            // If the found element is not located at the first position,
+            // reorder so that it comes to the first position.
             if (CacheElem->Prev != nullptr) {
                 CacheElem->Prev->Next = CacheElem->Next;
 

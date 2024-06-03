@@ -21,18 +21,20 @@ void EvaluationQueue<Features>::add(const core::State& State, const core::StateC
         return Queue.size() < MaxQueueSize;
     });
 
-    Queue.emplace(State.getSideToMove(), N, std::move(FSC));
+    Queue.emplace(State.getSideToMove(), N, std::move(FSC), State.getHash());
 }
 
 template <typename Features>
-auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>> {
+auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>, std::vector<uint64_t>> {
     std::vector<core::Color> SideToMoves;
     std::vector<Node*> Nodes;
     std::vector<Features> FeatureStacks;
+    std::vector<uint64_t> Hashes;
 
     SideToMoves.reserve(NumElements);
     Nodes.reserve(NumElements);
     FeatureStacks.reserve(NumElements);
+    Hashes.reserve(NumElements);
 
     {
         std::lock_guard<std::mutex> Lock(Mutex);
@@ -43,12 +45,17 @@ auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::
             SideToMoves.emplace_back(std::get<0>(Element));
             Nodes.emplace_back(std::get<1>(Element));
             FeatureStacks.emplace_back(std::move(std::get<2>(Element)));
+            Hashes.emplace_back(std::get<3>(Element));
         }
     }
 
     CV.notify_all();
 
-    return std::make_tuple(std::move(SideToMoves), std::move(Nodes), std::move(FeatureStacks));
+    return std::make_tuple(
+            std::move(SideToMoves),
+            std::move(Nodes),
+            std::move(FeatureStacks),
+            std::move(Hashes));
 }
 
 template class EvaluationQueue<evaluate::preset::SimpleFeatures>;
