@@ -35,7 +35,7 @@ int main() {
         } else if (Command == "quit" || Command == "exit") {
             break;
         } else {
-            std::cout << "Unknown command `" << Command << "`," << std::endl;
+            std::cout << "Unknown command `" << Command << "`." << std::endl;
         }
     }
 
