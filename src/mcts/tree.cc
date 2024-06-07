@@ -14,8 +14,8 @@ Tree::Tree(GarbageCollector* GCollector, logger::Logger* Logger)
     , PLogger(Logger) {
 }
 
-Node* Tree::updateRoot(const nshogi::core::State& State) {
-    if (Root == nullptr) {
+Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
+    if (Root == nullptr || !ReUse) {
         return createNewRoot(State);
     }
 
