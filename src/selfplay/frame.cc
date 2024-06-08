@@ -85,6 +85,10 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
     NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
 }
 
+uint64_t Frame::getNumPlayouts() const {
+    return NumPlayouts;
+}
+
 uint16_t Frame::getNumSamplingMove() const {
     return NumSamplingMove;
 }
@@ -95,6 +99,10 @@ std::vector<double>& Frame::getGumbelNoise() {
 
 std::vector<bool>& Frame::getIsTarget() {
     return IsTarget;
+}
+
+void Frame::setNumPlayouts(uint64_t N) {
+    NumPlayouts = N;
 }
 
 void Frame::setNumSamplingMove(uint16_t M) {

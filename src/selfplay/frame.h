@@ -35,9 +35,11 @@ struct Frame {
 
     void setEvaluation(const float* Policy, float WinRate, float DrawRate);
 
+    uint64_t getNumPlayouts() const;
     uint16_t getNumSamplingMove() const;
     std::vector<double>& getGumbelNoise();
     std::vector<bool>& getIsTarget();
+    void setNumPlayouts(uint64_t);
     void setNumSamplingMove(uint16_t);
 
  private:
@@ -60,6 +62,7 @@ struct Frame {
     std::unique_ptr<float[]> LegalPolicyLogits;
 
     // Gumbel.
+    uint64_t NumPlayouts; // n in the paper.
     uint16_t NumSamplingMove;  // m in the paper.
     std::vector<double> GumbelNoise;
     std::vector<bool> IsTarget;

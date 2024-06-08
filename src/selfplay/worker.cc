@@ -89,6 +89,7 @@ SelfplayPhase Worker::initialize(Frame* F) const {
     F->setConfig(std::move(Config));
 
     // Other settings.
+    F->setNumPlayouts(8);
     F->setNumSamplingMove(8);
 
     return SelfplayPhase::RootPreparation;
@@ -237,6 +238,13 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         }
     }
 
+    const uint64_t StopPlayout =
+        std::min(F->getNumPlayouts() + 1, (uint64_t)F->getSearchTree()->getRoot()->getNumChildren() + 1);
+    if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() == StopPlayout) {
+        // Add one above as one simulation was used for the root evaluation.
+        return SelfplayPhase::Transition;
+    }
+
     return SelfplayPhase::LeafSelection;
 }
 
@@ -354,7 +362,6 @@ mcts::Edge* Worker::pickUpEdgeToExploreAtRoot(Frame* F, mcts::Node* N) const {
             // chosen in the first sampling of m children).
             continue;
         }
-
 
         mcts::Edge* Edge = N->getEdge(I);
         mcts::Node* Child = Edge->getTarget();
