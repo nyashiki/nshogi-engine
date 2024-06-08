@@ -51,9 +51,11 @@ SOURCES :=                              \
 	src/protocol/usi.cc             \
 	src/protocol/usilogger.cc
 
-SELFPLAY_SOURCES :=                \
-	src/selfplay/frame.cc      \
-	src/selfplay/framequeue.cc \
+SELFPLAY_SOURCES :=                      \
+	src/selfplay/evaluationworker.cc \
+	src/selfplay/frame.cc            \
+	src/selfplay/framequeue.cc       \
+	src/selfplay/saveworker.cc       \
 	src/selfplay/worker.cc
 
 CUDA_SOURCES :=
@@ -178,6 +180,10 @@ $(TARGET): $(OBJECTS) src/main.cc
 $(TEST_TARGET): $(OBJECTS) $(TEST_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -o $@ $(OBJECTS) $(TEST_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
+
+$(SELFPLAY_TARGET): $(OBJECTS) $(SELFPLAY_OBJECTS) src/selfplay/main.cc
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	$(CXX) -o $@ src/selfplay/main.cc $(OBJECTS) $(SELFPLAY_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) $(INCLUDES) -fPIC $(INCLUDES) $(LINK_DIRS) $(LINKS)
 
 $(BENCH_TARGET): $(OBJECTS) $(BENCH_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)

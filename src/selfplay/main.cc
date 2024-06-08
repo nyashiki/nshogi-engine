@@ -1,6 +1,7 @@
 #include "framequeue.h"
 #include "worker.h"
 #include "evaluationworker.h"
+#include "saveworker.h"
 #include "../allocator/allocator.h"
 
 #include <vector>
@@ -58,11 +59,14 @@ int main() {
         }
     }
 
+    auto Saver = std::make_unique<SaveWorker>(SaveQueue.get(), SearchQueue.get());
+
     // Launch workers.
-    for (auto& Worker : SearchWorkers) {
+    Saver->start();
+    for (auto& Worker : EvaluationWorkers) {
         Worker->start();
     }
-    for (auto& Worker : EvaluationWorkers) {
+    for (auto& Worker : SearchWorkers) {
         Worker->start();
     }
 
