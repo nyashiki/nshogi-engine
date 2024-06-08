@@ -38,6 +38,7 @@ struct Frame {
     uint16_t getNumSamplingMove() const;
     std::vector<double>& getGumbelNoise();
     std::vector<bool>& getIsTarget();
+    void setNumSamplingMove(uint16_t);
 
  private:
     void setSearchTree(std::unique_ptr<mcts::Tree>&&);

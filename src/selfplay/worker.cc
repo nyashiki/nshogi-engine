@@ -88,6 +88,9 @@ SelfplayPhase Worker::initialize(Frame* F) const {
 
     F->setConfig(std::move(Config));
 
+    // Other settings.
+    F->setNumSamplingMove(8);
+
     return SelfplayPhase::RootPreparation;
 }
 

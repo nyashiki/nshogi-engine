@@ -2,12 +2,6 @@
 #include "../evaluate/preset.h"
 #include "../globalconfig.h"
 
-#ifdef EXECUTOR_TRT
-
-#include "../infer/trt.h"
-
-#endif
-
 #ifdef CUDA_ENABLED
 
 #include <cuda_runtime.h>

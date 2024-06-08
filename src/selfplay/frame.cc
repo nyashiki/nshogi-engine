@@ -97,6 +97,10 @@ std::vector<bool>& Frame::getIsTarget() {
     return IsTarget;
 }
 
+void Frame::setNumSamplingMove(uint16_t M) {
+    NumSamplingMove = M;
+}
+
 } // namespace selfplay
 } // namespace engine
 } // namespace nshogi

@@ -1,16 +1,67 @@
 #include "evaluationworker.h"
 #include "../evaluate/preset.h"
 
+#ifdef CUDA_ENABLED
+
+#include <cuda_runtime.h>
+
+#endif
+
+#ifdef EXECUTOR_ZERO
+
+#include "../infer/zero.h"
+
+#endif
+
+#ifdef EXECUTOR_NOTHING
+
+#include "../infer/nothing.h"
+
+#endif
+
+#ifdef EXECUTOR_RANDOM
+
+#include "../infer/random.h"
+
+#endif
+
+#ifdef EXECUTOR_TRT
+
+#include "../infer/trt.h"
+
+#endif
+
 namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-EvaluationWorker::EvaluationWorker(std::size_t BSize, FrameQueue* EQ, FrameQueue* SQ)
+EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::size_t BSize, FrameQueue* EQ, FrameQueue* SQ)
     : worker::Worker(true)
     , BatchSize(BSize)
     , EvaluationQueue(EQ)
     , SearchQueue(SQ) {
+
+    prepareInfer();
+    allocate();
+
     spawnThread();
+}
+
+EvaluationWorker::~EvaluationWorker() {
+#ifdef CUDA_ENABLED
+    cudaFree(FeatureBitboards);
+#else
+    delete[] FeatureBitboards;
+#endif
+}
+
+void EvaluationWorker::initializationTask() {
+#if defined(EXECUTOR_TRT)
+    auto TRTInfer = dynamic_cast<infer::TensorRT>(Infer);
+    if (TRTInfer != nullptr) {
+        TRTInfer->resetGPU();
+    }
+#endif
 }
 
 bool EvaluationWorker::doTask() {
@@ -42,6 +93,31 @@ bool EvaluationWorker::doTask() {
     }
 
     return false;
+}
+
+void EvaluationWorker::prepareInfer() {
+#if defined(EXECUTOR_ZERO)
+    Infer = std::make_unique<infer::Zero>();
+#elif defined(EXECUTOR_NOTHING)
+    Infer = std::make_unique<infer::Nothing>();
+#elif defined(EXECUTOR_RANDOM)
+    Infer = std::make_unique<infer::Random>(0);
+#elif defined(EXECUTOR_TRT)
+    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, GlobalConfig::FeatureType::size());
+    TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
+    Infer = std::move(TRT);
+#endif
+    Evaluator = std::make_unique<evaluate::Evaluator>(BatchSize, Infer.get());
+}
+
+void EvaluationWorker::allocate() {
+#ifdef CUDA_ENABLED
+    cudaMallocHost(
+        &FeatureBitboards,
+        BatchSize * evaluate::preset::CustomFeaturesV1::size() * sizeof(ml::FeatureBitboard));
+#else
+    FeatureBitboards = new ml::FeatureBitboard[BatchSize * evaluate::preset::CustomFeaturesV1::size()];
+#endif
 }
 
 } // namespace selfplay
