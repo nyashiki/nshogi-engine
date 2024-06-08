@@ -1,13 +1,19 @@
 #include "framequeue.h"
 #include "worker.h"
+#include "../allocator/allocator.h"
 
 int main() {
+    constexpr std::size_t AVAILABLE_MEMORY = 4 * 1024ULL;
     constexpr std::size_t NUM_SEARCH_WORKERS = 1;
     constexpr std::size_t NUM_FRAME_POOL = 1;
 
     using namespace nshogi;
     using namespace nshogi::engine;
     using namespace nshogi::engine::selfplay;
+
+    // Setup allocator.
+    allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AVAILABLE_MEMORY));
+    allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AVAILABLE_MEMORY));
 
     // Prepare queue.
     auto SearchQueue = std::make_unique<FrameQueue>();

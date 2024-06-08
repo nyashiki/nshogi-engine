@@ -29,6 +29,7 @@ class Worker : public worker::Worker {
     SelfplayPhase transition(Frame*) const;
 
     double sampleGumbelNoise() const;
+    double transformQ(double, uint64_t MaxN) const;
     mcts::Edge* pickUpEdgeToExplore(Frame*, mcts::Node*, uint8_t Depth) const;
     mcts::Edge* pickUpEdgeToExploreAtRoot(Frame*, mcts::Node*) const;
     double computeWinRateOfChild(Frame* F, mcts::Node* Child) const;

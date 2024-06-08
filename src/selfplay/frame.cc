@@ -6,9 +6,12 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Frame::Frame(mcts::GarbageCollector* GC) {
+Frame::Frame(mcts::GarbageCollector* GC)
+    : Phase(SelfplayPhase::Initialization) {
     setSearchTree(std::make_unique<mcts::Tree>(GC, nullptr));
     allocatePolicyArray();
+
+    GumbelNoise.resize(600);
 }
 
 SelfplayPhase Frame::getPhase() const {

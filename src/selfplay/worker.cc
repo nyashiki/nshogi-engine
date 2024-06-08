@@ -16,6 +16,8 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
     , SaveQueue(SFQ) {
+
+    spawnThread();
 }
 
 bool Worker::doTask() {
@@ -84,12 +86,12 @@ SelfplayPhase Worker::initialize(Frame* F) const {
         Config->WhiteDrawValue = 1.0f - Config->BlackDrawValue;
     }
 
+    F->setConfig(std::move(Config));
+
     return SelfplayPhase::RootPreparation;
 }
 
 SelfplayPhase Worker::prepareRoot(Frame* F) const {
-    assert(F->getCurrentPlayouts() == 0);
-
     // Update the search tree.
     F->getSearchTree()->updateRoot(*F->getState(), false);
     F->setRootPly(F->getState()->getPly());
@@ -211,7 +213,7 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
             F->getDrawRatePredicted());
 
     // Backpropagate win rate and draw rate.
-    F->getNodeToEvalute()->updateAncestors(
+    F->getNodeToEvalute()->updateAncestors<false>(
             F->getWinRatePredicted(),
             F->getDrawRatePredicted());
 
@@ -291,6 +293,18 @@ SelfplayPhase Worker::transition(Frame* F) const {
     double ScoreMax = std::numeric_limits<double>::lowest();
     mcts::Edge* ScoreMaxEdge = nullptr;
 
+    uint64_t MaxN = 1;
+
+    // for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
+    //     if (!F->getIsTarget().at(I)) {
+    //         continue;
+    //     }
+    //     mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+    //     mcts::Node* Child = Edge->getTarget();
+    //     assert(Child != nullptr);
+    //     MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
+    // }
+
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         if (!F->getIsTarget().at(I)) {
             continue;
@@ -301,7 +315,9 @@ SelfplayPhase Worker::transition(Frame* F) const {
         assert(Child != nullptr);
 
         const double Score =
-            F->getGumbelNoise().at(I) + Edge->getProbability() + computeWinRateOfChild(F, Child);
+            F->getGumbelNoise().at(I)
+            + Edge->getProbability()
+            + transformQ(computeWinRateOfChild(F, Child), MaxN);
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -318,6 +334,13 @@ double Worker::sampleGumbelNoise() const {
     std::uniform_real_distribution<double> Distirbution(0.0, 1.0);
     const double U = Distirbution(MT);
     return -std::log(-std::log(U));
+}
+
+double Worker::transformQ(double Q, uint64_t MaxN) const {
+    constexpr double C_VISIT = 50.0;
+    constexpr double C_SCALE = 1.0;
+
+    return (C_VISIT + (double)MaxN) * C_SCALE * Q;
 }
 
 mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, mcts::Node* N, uint8_t Depth) const {
