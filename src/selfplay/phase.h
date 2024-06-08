@@ -16,6 +16,7 @@ enum class SelfplayPhase : uint8_t {
     Backpropagation,
     Judging,
     Transition,
+    Save,
 };
 
 } // namespace selfpaly

@@ -15,7 +15,7 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue*, FrameQueue*);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave);
 
  private:
     bool doTask() override;
@@ -26,17 +26,20 @@ class Worker : public worker::Worker {
     SelfplayPhase checkTerminal(Frame*) const;
     SelfplayPhase backpropagate(Frame*) const;
     SelfplayPhase judge(Frame*) const;
+    SelfplayPhase transition(Frame*) const;
 
     double sampleGumbelNoise() const;
-    mcts::Edge* pickUpEdgeToExplore(mcts::Node*) const;
+    mcts::Edge* pickUpEdgeToExplore(Frame*, mcts::Node*, uint8_t Depth) const;
+    mcts::Edge* pickUpEdgeToExploreAtRoot(Frame*, mcts::Node*) const;
+    double computeWinRateOfChild(Frame* F, mcts::Node* Child) const;
 
     FrameQueue* FQueue;
     FrameQueue* EvaluationQueue;
+    FrameQueue* SaveQueue;
 
-    std::mt19937_64 MT;
+    mutable std::mt19937_64 MT;
 
     std::vector<core::Position> InitialPositions;
-    std::shared_ptr<mcts::GarbageCollector> GarbageCollector;
 };
 
 } // namespace selfplay

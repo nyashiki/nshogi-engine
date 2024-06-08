@@ -11,6 +11,7 @@ NVCC_ARCH := sm_86
 
 OBJDIR = build/$(BUILD)_$(CXX)
 TARGET := $(OBJDIR)/nshogi-engine
+SELFPLAY_TARGET := $(OBJDIR)/nshogi-selfplay
 TEST_TARGET := $(OBJDIR)/nshogi-test
 BENCH_TARGET := $(OBJDIR)/nshogi-bench
 
@@ -50,6 +51,11 @@ SOURCES :=                              \
 	src/protocol/usi.cc             \
 	src/protocol/usilogger.cc
 
+SELFPLAY_SOURCES :=                \
+	src/selfplay/frame.cc      \
+	src/selfplay/framequeue.cc \
+	src/selfplay/worker.cc
+
 CUDA_SOURCES :=
 
 TEST_SOURCES :=                      \
@@ -64,6 +70,7 @@ BENCH_SOURCES :=               \
 
 ifeq ($(CUDA_ENABLED), 1)
 	INCLUDES += -I$(CUDA_DIR)/include/
+	CXX_FLAGS += -DCUDA_ENABLED
 	LINK_DIRS += -L$(CUDA_DIR)/lib64/
 	LINKS += -lcudart
 	SOURCES += src/infer/trt.cc
@@ -94,6 +101,7 @@ ifeq ($(EXECUTOR), tensorrt)
 endif
 
 OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
+SELFPLAY_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SELFPLAY_SOURCES))
 CUDA_OBJECTS = $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
 TEST_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(TEST_SOURCES))
 BENCH_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(BENCH_SOURCES))
@@ -129,6 +137,10 @@ $(OBJECTS): $(OBJDIR)/%.o: %.cc Makefile
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -c -o $@ $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(INCLUDES) $<
 
+$(SELFPLAY_OBJECTS): $(OBJDIR)/%.o: %.cc Makefile
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	$(CXX) -c -o $@ $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(INCLUDES) $<
+
 $(TEST_OBJECTS): $(OBJDIR)/%.o: %.cc Makefile
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -c -o $@ $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(INCLUDES) $<
@@ -145,6 +157,10 @@ ifeq ($(CUDA_ENABLED), 1)
 $(TARGET): $(OBJECTS) $(CUDA_OBJECTS) src/main.cc
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CXX) -o $@ src/main.cc $(OBJECTS) $(CUDA_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) $(INCLUDES) -fPIC $(INCLUDES) $(LINK_DIRS) $(LINKS)
+
+$(SELFPLAY_TARGET): $(OBJECTS) $(SELFPLAY_OBJECTS) $(CUDA_OBJECTS) src/selfplay/main.cc
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	$(CXX) -o $@ src/selfplay/main.cc $(OBJECTS) $(SELFPLAY_OBJECTS) $(CUDA_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) $(INCLUDES) -fPIC $(INCLUDES) $(LINK_DIRS) $(LINKS)
 
 $(TEST_TARGET): $(OBJECTS) $(CUDA_OBJECTS) $(TEST_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
@@ -175,6 +191,9 @@ engine: $(TARGET)
 .PHONY: runengine
 runengine: engine
 	./$(TARGET)
+
+.PHONY: selfplay
+selfplay: $(SELFPLAY_TARGET)
 
 .PHONY: test
 test: $(TEST_TARGET)
