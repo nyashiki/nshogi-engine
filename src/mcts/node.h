@@ -115,11 +115,7 @@ struct Node {
 
     inline int16_t expand(const nshogi::core::MoveList& MoveList) {
         assert(Edges == nullptr);
-
-        if (MoveList.size() == 0) {
-            NumChildren = 0;
-            return 0;
-        }
+        assert(MoveList.size() > 0);
 
         Edges = std::make_unique<Edge[]>(MoveList.size());
 

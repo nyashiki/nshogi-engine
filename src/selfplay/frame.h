@@ -33,12 +33,7 @@ struct Frame {
     void setNodeToEvaluate(mcts::Node*);
     void setRootPly(uint16_t);
 
-    float* getPolicyPredicted();
-    float getWinRatePredicted() const;
-    float getDrawRatePredicted() const;
-    void setPolicyPredicted(float*, std::size_t);
-    void setWinRatePredicted(float);
-    void setDrawRatePredicted(float);
+    void setEvaluation(const float* Policy, float WinRate, float DrawRate);
 
     uint16_t getNumSamplingMove() const;
     std::vector<double>& getGumbelNoise();
@@ -61,11 +56,7 @@ struct Frame {
     uint16_t RootPly;
     std::unique_ptr<mcts::Tree> SearchTree;
     mcts::Node* NodeToEvaluate;
-
-    // Evaluation.
-    std::unique_ptr<float[]> PolicyPredicted;
-    float WinRatePredicted;
-    float DrawRatePredicted;
+    std::unique_ptr<float[]> LegalPolicyLogits;
 
     // Gumbel.
     uint16_t NumSamplingMove;  // m in the paper.

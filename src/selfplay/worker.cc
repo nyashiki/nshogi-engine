@@ -155,67 +155,54 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition ||
             RS == core::RepetitionStatus::SuperiorRepetition) {
-        F->setWinRatePredicted(1.0f);
-        F->setDrawRatePredicted(0.0f);
+        F->setEvaluation(nullptr, 1.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::LossRepetition ||
             RS == core::RepetitionStatus::InferiorRepetition) {
-        F->setWinRatePredicted(0.0f);
-        F->setDrawRatePredicted(0.0f);
+        F->setEvaluation(nullptr, 0.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
-        F->setWinRatePredicted(
-                F->getState()->getSideToMove() == core::Black ?
-                    F->getStateConfig()->BlackDrawValue : F->getStateConfig()->WhiteDrawValue);
-        F->setDrawRatePredicted(1.0f);
+        const float DrawValue = F->getState()->getSideToMove() == core::Black
+                ? F->getStateConfig()->BlackDrawValue
+                : F->getStateConfig()->WhiteDrawValue;
+        F->setEvaluation(nullptr, DrawValue, 1.0f);
         return SelfplayPhase::Backpropagation;
     }
 
     // Declaration.
     if (F->getStateConfig()->Rule == core::EndingRule::Declare27_ER) {
         if (F->getState()->canDeclare()) {
-            F->setWinRatePredicted(1.0f);
-            F->setDrawRatePredicted(0.0f);
+            F->setEvaluation(nullptr, 1.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
         }
     }
 
+    const auto LegalMoves = nshogi::core::MoveGenerator::generateLegalMoves(*F->getState());
+
     // Checkmate.
-    if (core::MoveGenerator::generateLegalMoves(*F->getState()).size() == 0) {
-        F->setWinRatePredicted(0.0f);
-        F->setDrawRatePredicted(0.0f);
+    if (LegalMoves.size() == 0) {
+        F->setEvaluation(nullptr, 0.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     }
 
     // Max ply.
     if (F->getState()->getPly() >= F->getStateConfig()->MaxPly) {
-        F->setWinRatePredicted(
-                F->getState()->getSideToMove() == core::Black ?
-                    F->getStateConfig()->BlackDrawValue : F->getStateConfig()->WhiteDrawValue);
-        F->setDrawRatePredicted(1.0f);
+        const float DrawValue = F->getState()->getSideToMove() == core::Black
+                ? F->getStateConfig()->BlackDrawValue
+                : F->getStateConfig()->WhiteDrawValue;
+        F->setEvaluation(nullptr, DrawValue, 1.0f);
         return SelfplayPhase::Backpropagation;
     }
 
+    F->getNodeToEvalute()->expand(LegalMoves);
     return SelfplayPhase::Evaluation;
 }
 
 SelfplayPhase Worker::backpropagate(Frame* F) const {
-    // Generate the legal moves.
-    const auto LegalMoves = nshogi::core::MoveGenerator::generateLegalMoves(*F->getState());
-
-    // Update the node.
-    F->getNodeToEvalute()->expand(LegalMoves);
-
-    // Set policy, win rate, and draw rate.
-    F->getNodeToEvalute()->setEvaluation(
-            F->getPolicyPredicted(),
-            F->getWinRatePredicted(),
-            F->getDrawRatePredicted());
-
     // Backpropagate win rate and draw rate.
     F->getNodeToEvalute()->updateAncestors<false>(
-            F->getWinRatePredicted(),
-            F->getDrawRatePredicted());
+        F->getNodeToEvalute()->getWinRatePredicted(),
+        F->getNodeToEvalute()->getDrawRatePredicted());
 
     // If the node is root node, extract top m moves sorted by
     // gumbel noise and policy.

@@ -17,7 +17,7 @@ std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size) {
 
     while (Buffer.size() < Size) {
         std::unique_ptr<Frame> F;
-
+        bool IsQueueEmpty = false;
         {
             std::unique_lock<std::mutex> Lock(Mutex);
 
@@ -27,9 +27,14 @@ std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size) {
 
             F = std::move(Queue.front());
             Queue.pop();
+
+            IsQueueEmpty = Queue.empty();
         }
 
         Buffer.emplace_back(std::move(F));
+        if (IsQueueEmpty) {
+            break;
+        }
     }
 
     return Buffer;

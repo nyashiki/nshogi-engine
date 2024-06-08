@@ -10,7 +10,6 @@ Frame::Frame(mcts::GarbageCollector* GC)
     : Phase(SelfplayPhase::Initialization) {
     setSearchTree(std::make_unique<mcts::Tree>(GC, nullptr));
     allocatePolicyArray();
-
     GumbelNoise.resize(600);
 }
 
@@ -36,6 +35,10 @@ void Frame::setPhase(SelfplayPhase SP) {
 
 void Frame::setSearchTree(std::unique_ptr<mcts::Tree>&& Tree) {
     SearchTree = std::move(Tree);
+}
+
+void Frame::allocatePolicyArray() {
+    LegalPolicyLogits = std::make_unique<float[]>(ml::MoveIndexMax);
 }
 
 core::Color Frame::getWinner() const {
@@ -66,36 +69,20 @@ void Frame::setNodeToEvaluate(mcts::Node* N) {
     NodeToEvaluate = N;
 }
 
-void Frame::allocatePolicyArray() {
-    PolicyPredicted = std::make_unique<float[]>(ml::MoveIndexMax);
-}
-
 void Frame::setRootPly(uint16_t Ply) {
     RootPly = Ply;
 }
 
-float* Frame::getPolicyPredicted() {
-    return PolicyPredicted.get();
-}
+void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
+    const uint16_t NumChildren = NodeToEvaluate->getNumChildren();
+    assert(Policy != nullptr || NumChildren == 0);
 
-float Frame::getWinRatePredicted() const {
-    return WinRatePredicted;
-}
-
-float Frame::getDrawRatePredicted() const {
-    return DrawRatePredicted;
-}
-
-void Frame::setPolicyPredicted(float* Policy, std::size_t Size) {
-    std::memcpy(static_cast<void*>(PolicyPredicted.get()), Policy, Size * sizeof(float));
-}
-
-void Frame::setWinRatePredicted(float WinRate) {
-    WinRatePredicted = WinRate;
-}
-
-void Frame::setDrawRatePredicted(float DrawRate) {
-    DrawRatePredicted = DrawRate;
+    for (uint16_t I = 0; I < NumChildren; ++I) {
+        const std::size_t MoveIndex =
+            ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge(I)->getMove());
+        LegalPolicyLogits[I] = Policy[MoveIndex];
+    }
+    NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
 }
 
 uint16_t Frame::getNumSamplingMove() const {
