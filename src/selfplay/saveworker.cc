@@ -2,18 +2,27 @@
 
 #include <cstdio>
 
+#include <nshogi/core/movegenerator.h>
+#include <nshogi/core/statebuilder.h>
 #include <nshogi/io/sfen.h>
+#include <nshogi/ml/simpleteacher.h>
+#include <nshogi/io/file.h>
 
 namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ, std::size_t NumSelfplayGames)
+SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ, std::size_t NumSelfplayGames, const char* SavePath)
     : worker::Worker(true)
     , NumSelfplayGamesToStop(NumSelfplayGames)
     , SInfo(SI)
     , SaveQueue(SVQ)
     , SearchQueue(SCQ) {
+
+    Ofs.open(SavePath, std::ios::binary);
+    if (!Ofs) {
+        throw std::runtime_error(std::string("Failed to open ") + SavePath + ".");
+    }
 
     StartTime = std::chrono::steady_clock::now();
     PreviousPrintTime = StartTime;
@@ -29,6 +38,7 @@ bool SaveWorker::doTask() {
         Tasks.pop();
 
         updateStatistics(Task.get());
+        save(Task.get());
 
         assert(Task->getPhase() == SelfplayPhase::Save);
         if (Statistics.NumBlackWin + Statistics.NumDraw + Statistics.NumWhiteWin + SInfo->getNumOnGoinggames() < NumSelfplayGamesToStop) {
@@ -49,10 +59,10 @@ void SaveWorker::updateStatistics(Frame* F) {
     if (F->getWinner() != core::NoColor) {
         const uint64_t N = Statistics.NumBlackWin + Statistics.NumWhiteWin;
         Statistics.AveragePly =
-            (Statistics.AveragePly * (double)N + (double)F->getState()->getPly()) / (double)(1 + N);
+            (Statistics.AveragePly * (double)N + (double)F->getState()->getPly(false)) / (double)(1 + N);
     } else {
         Statistics.AveragePlyDraw =
-            (Statistics.AveragePlyDraw * (double)Statistics.NumDraw + (double)F->getState()->getPly())
+            (Statistics.AveragePlyDraw * (double)Statistics.NumDraw + (double)F->getState()->getPly(false))
             / (double)(1 + Statistics.NumDraw);
     }
 
@@ -115,6 +125,26 @@ void SaveWorker::printStatistics(bool Force) const {
     std::printf("\n");
     std::printf("    Latest game:\n");
     std::printf("        %s\n", LatestGame.c_str());
+}
+
+void SaveWorker::save(Frame* F) {
+    ml::SimpleTeacher STeacher;
+    core::State Replay = core::StateBuilder::newState(F->getState()->getInitialPosition());
+
+    STeacher.setConfig(*F->getStateConfig());
+    STeacher.setWinner(F->getWinner());
+
+    while (Replay.getPly(false) < F->getState()->getPly(false)) {
+        const auto NextMove = F->getState()->getHistoryMove(Replay.getPly(false));
+
+        if (core::MoveGenerator::generateLegalMoves(Replay).size() > 1) {
+            STeacher.setState(Replay);
+            STeacher.setNextMove(NextMove);
+            io::file::simple_teacher::save(Ofs, STeacher);
+        }
+
+        Replay.doMove(F->getState()->getHistoryMove(Replay.getPly(false)));
+    }
 }
 
 } // namespace selfplay

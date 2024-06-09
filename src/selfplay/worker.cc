@@ -186,6 +186,15 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Checkmate.
     if (LegalMoves.size() == 0) {
+        if (F->getState()->getPly(false) > 0) {
+            // Check if the last move is a checkmate by dropping a pawn.
+            const auto LastMove = F->getState()->getLastMove();
+            if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                F->setEvaluation(nullptr, 1.0f, 0.0f);
+                return SelfplayPhase::Backpropagation;
+            }
+        }
+
         F->setEvaluation(nullptr, 0.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     }
@@ -270,6 +279,15 @@ SelfplayPhase Worker::judge(Frame* F) const {
     }
 
     if (core::MoveGenerator::generateLegalMoves(*F->getState()).size() == 0) {
+        if (F->getState()->getPly(false) > 0) {
+            // Check if the last move is a checkmate by dropping a pawn.
+            const auto LastMove = F->getState()->getLastMove();
+            if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                F->setWinner(F->getState()->getSideToMove());
+                return SelfplayPhase::Save;
+            }
+        }
+
         F->setWinner(~F->getState()->getSideToMove());
         return SelfplayPhase::Save;
     }

@@ -19,6 +19,7 @@ int main() {
     constexpr std::size_t BATCH_SIZE = 128;
     constexpr const char* WEIGHT_PATH = "./res/model.onnx";
     constexpr std::size_t NumSelfplayGames = 128;
+    constexpr const char* SAVE_PATH = "teacher.bin";
 
     using namespace nshogi;
     using namespace nshogi::engine;
@@ -66,7 +67,12 @@ int main() {
         }
     }
 
-    auto Saver = std::make_unique<SaveWorker>(SInfo.get(), SaveQueue.get(), SearchQueue.get(), NumSelfplayGames);
+    auto Saver = std::make_unique<SaveWorker>(
+            SInfo.get(),
+            SaveQueue.get(),
+            SearchQueue.get(),
+            NumSelfplayGames,
+            SAVE_PATH);
 
     // Launch workers.
     Saver->start();
