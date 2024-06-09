@@ -8,8 +8,10 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-SaveWorker::SaveWorker(FrameQueue* SVQ, FrameQueue* SCQ)
+SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ, std::size_t NumSelfplayGames)
     : worker::Worker(true)
+    , NumSelfplayGamesToStop(NumSelfplayGames)
+    , SInfo(SI)
     , SaveQueue(SVQ)
     , SearchQueue(SCQ) {
 
@@ -29,8 +31,13 @@ bool SaveWorker::doTask() {
         updateStatistics(Task.get());
 
         assert(Task->getPhase() == SelfplayPhase::Save);
-        Task->setPhase(SelfplayPhase::Initialization);
-        SearchQueue->add(std::move(Task));
+        if (Statistics.NumBlackWin + Statistics.NumDraw + Statistics.NumWhiteWin + SInfo->getNumOnGoinggames() < NumSelfplayGamesToStop) {
+            Task->setPhase(SelfplayPhase::Initialization);
+            SearchQueue->add(std::move(Task));
+        } else {
+            Task.reset(nullptr);
+            SInfo->decrementNumOnGoingGames();
+        }
     }
 
     printStatistics();

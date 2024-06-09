@@ -2,8 +2,10 @@
 #include "worker.h"
 #include "evaluationworker.h"
 #include "saveworker.h"
+#include "selfplayinfo.h"
 #include "../allocator/allocator.h"
 
+#include <iostream>
 #include <vector>
 
 #include <nshogi/core/initializer.h>
@@ -16,6 +18,7 @@ int main() {
     constexpr std::size_t NUM_EVALUATION_WORKERS_PER_GPU = 4;
     constexpr std::size_t BATCH_SIZE = 128;
     constexpr const char* WEIGHT_PATH = "./res/model.onnx";
+    constexpr std::size_t NumSelfplayGames = 2048;
 
     using namespace nshogi;
     using namespace nshogi::engine;
@@ -41,6 +44,8 @@ int main() {
         SearchQueue->add(std::move(F));
     }
 
+    auto SInfo = std::make_unique<SelfplayInfo>(NUM_FRAME_POOL);
+
     // Prepare workers.
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
@@ -61,7 +66,7 @@ int main() {
         }
     }
 
-    auto Saver = std::make_unique<SaveWorker>(SaveQueue.get(), SearchQueue.get());
+    auto Saver = std::make_unique<SaveWorker>(SInfo.get(), SaveQueue.get(), SearchQueue.get(), NumSelfplayGames);
 
     // Launch workers.
     Saver->start();
@@ -72,10 +77,25 @@ int main() {
         Worker->start();
     }
 
+    SInfo->waitUntilAllGamesFinished();
+
+    SearchQueue->close();
+    EvaluationQueue->close();
+    SaveQueue->close();
+
     // Wait workers.
     for (auto& Worker : SearchWorkers) {
+        Worker->stop();
         Worker->await();
     }
+    for (auto& Worker : EvaluationWorkers) {
+        Worker->stop();
+        Worker->await();
+    }
+    Saver->stop();
+    Saver->await();
+
+    std::cout << "Selfplay finished." << std::endl;
 
     return 0;
 }

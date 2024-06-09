@@ -2,6 +2,7 @@
 #define NSHOGI_ENGINE_SELFPLAY_SAVEWORKER_H
 
 #include "framequeue.h"
+#include "selfplayinfo.h"
 #include "../worker/worker.h"
 
 #include <chrono>
@@ -12,13 +13,16 @@ namespace selfplay {
 
 class SaveWorker : public worker::Worker {
  public:
-    SaveWorker(FrameQueue*, FrameQueue*);
+    SaveWorker(SelfplayInfo*, FrameQueue*, FrameQueue*, std::size_t NumSelfplayGames);
 
  private:
     bool doTask() override;
     void updateStatistics(Frame*);
     void printStatistics() const;
 
+    const std::size_t NumSelfplayGamesToStop;
+
+    SelfplayInfo* SInfo;
     FrameQueue* SaveQueue;
     FrameQueue* SearchQueue;
 

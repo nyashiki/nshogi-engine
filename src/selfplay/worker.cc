@@ -355,8 +355,6 @@ mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, mcts::Node* N, uint8_t Depth) 
 }
 
 mcts::Edge* Worker::pickUpEdgeToExploreAtRoot(Frame* F, mcts::Node* N) const {
-    constexpr double UNVISITED_BONUS = 1e9;
-
     mcts::Edge* EdgeToExplore = nullptr;
     double ScoreMax = std::numeric_limits<double>::lowest();
 
@@ -372,7 +370,7 @@ mcts::Edge* Worker::pickUpEdgeToExploreAtRoot(Frame* F, mcts::Node* N) const {
         mcts::Node* Child = Edge->getTarget();
 
         const double Score = (Child == nullptr)
-            ? (F->getGumbelNoise().at(I) + Edge->getProbability() + UNVISITED_BONUS)
+            ? std::numeric_limits<double>::max()
             : (F->getGumbelNoise().at(I) + Edge->getProbability() + computeWinRateOfChild(F, Child));
 
         if (Score > ScoreMax) {
