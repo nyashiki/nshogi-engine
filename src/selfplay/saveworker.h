@@ -18,7 +18,7 @@ class SaveWorker : public worker::Worker {
  private:
     bool doTask() override;
     void updateStatistics(Frame*);
-    void printStatistics() const;
+    void printStatistics(bool Force) const;
 
     const std::size_t NumSelfplayGamesToStop;
 

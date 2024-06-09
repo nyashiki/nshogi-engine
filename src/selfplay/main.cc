@@ -13,12 +13,12 @@
 int main() {
     constexpr std::size_t AVAILABLE_MEMORY_MB = 1024;
     constexpr std::size_t NUM_SEARCH_WORKERS = 4;
-    constexpr std::size_t NUM_FRAME_POOL = 1024;
+    constexpr std::size_t NUM_FRAME_POOL = 128;
     constexpr std::size_t NUM_GPUS = 1;
     constexpr std::size_t NUM_EVALUATION_WORKERS_PER_GPU = 4;
     constexpr std::size_t BATCH_SIZE = 128;
     constexpr const char* WEIGHT_PATH = "./res/model.onnx";
-    constexpr std::size_t NumSelfplayGames = 2048;
+    constexpr std::size_t NumSelfplayGames = 128;
 
     using namespace nshogi;
     using namespace nshogi::engine;

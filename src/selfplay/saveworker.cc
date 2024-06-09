@@ -34,13 +34,14 @@ bool SaveWorker::doTask() {
         if (Statistics.NumBlackWin + Statistics.NumDraw + Statistics.NumWhiteWin + SInfo->getNumOnGoinggames() < NumSelfplayGamesToStop) {
             Task->setPhase(SelfplayPhase::Initialization);
             SearchQueue->add(std::move(Task));
+            printStatistics(false);
         } else {
             Task.reset(nullptr);
             SInfo->decrementNumOnGoingGames();
+            printStatistics(true);
         }
     }
 
-    printStatistics();
     return false;
 }
 
@@ -70,12 +71,12 @@ void SaveWorker::updateStatistics(Frame* F) {
     LatestGame = io::sfen::stateToSfen(*F->getState());
 }
 
-void SaveWorker::printStatistics() const {
+void SaveWorker::printStatistics(bool Force) const {
     const auto CurrentTime = std::chrono::steady_clock::now();
     const auto ElapsedFromPrevious = std::chrono::duration_cast<std::chrono::milliseconds>
         (CurrentTime - PreviousPrintTime).count();
 
-    if (ElapsedFromPrevious < 10000) {
+    if (!Force && ElapsedFromPrevious < 10000) {
         return;
     }
 
