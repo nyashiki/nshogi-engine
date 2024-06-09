@@ -9,12 +9,13 @@
 #include <nshogi/core/initializer.h>
 
 int main() {
-    constexpr std::size_t AVAILABLE_MEMORY = 4 * 1024ULL * 1024ULL;
-    constexpr std::size_t NUM_SEARCH_WORKERS = 1;
-    constexpr std::size_t NUM_FRAME_POOL = 1;
+    constexpr std::size_t AVAILABLE_MEMORY_MB = 1024;
+    constexpr std::size_t NUM_SEARCH_WORKERS = 4;
+    constexpr std::size_t NUM_FRAME_POOL = 1024;
     constexpr std::size_t NUM_GPUS = 1;
-    constexpr std::size_t NUM_EVALUATION_WORKERS_PER_GPU = 1;
-    constexpr std::size_t BATCH_SIZE = 1;
+    constexpr std::size_t NUM_EVALUATION_WORKERS_PER_GPU = 4;
+    constexpr std::size_t BATCH_SIZE = 128;
+    constexpr const char* WEIGHT_PATH = "./res/model.onnx";
 
     using namespace nshogi;
     using namespace nshogi::engine;
@@ -23,8 +24,8 @@ int main() {
     core::initializer::initializeAll();
 
     // Setup allocator.
-    allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AVAILABLE_MEMORY));
-    allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AVAILABLE_MEMORY));
+    allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
+    allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
 
     // Prepare queue.
     auto SearchQueue = std::make_unique<FrameQueue>();
@@ -54,6 +55,7 @@ int main() {
                     std::make_unique<EvaluationWorker>(
                         I,
                         BATCH_SIZE,
+                        WEIGHT_PATH,
                         EvaluationQueue.get(),
                         SearchQueue.get()));
         }

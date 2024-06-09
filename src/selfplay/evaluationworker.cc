@@ -35,13 +35,13 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::size_t BSize, FrameQueue* EQ, FrameQueue* SQ)
+EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::size_t BSize, [[ maybe_unused ]] const char* WeightPath, FrameQueue* EQ, FrameQueue* SQ)
     : worker::Worker(true)
     , BatchSize(BSize)
     , EvaluationQueue(EQ)
     , SearchQueue(SQ) {
 
-    prepareInfer();
+    prepareInfer(GPUId, WeightPath);
     allocate();
 
     spawnThread();
@@ -57,7 +57,7 @@ EvaluationWorker::~EvaluationWorker() {
 
 void EvaluationWorker::initializationTask() {
 #if defined(EXECUTOR_TRT)
-    auto TRTInfer = dynamic_cast<infer::TensorRT>(Infer);
+    auto TRTInfer = dynamic_cast<infer::TensorRT*>(Infer.get());
     if (TRTInfer != nullptr) {
         TRTInfer->resetGPU();
     }
@@ -72,7 +72,7 @@ bool EvaluationWorker::doTask() {
         return false;
     }
 
-    for (std::size_t I = 0; I < BatchSize; ++I) {
+    for (std::size_t I = 0; I < Tasks.size(); ++I) {
         evaluate::preset::CustomFeaturesV1::constructAt(
             FeatureBitboards + I * evaluate::preset::CustomFeaturesV1::size(),
             *Tasks.at(I)->getState(),
@@ -81,7 +81,7 @@ bool EvaluationWorker::doTask() {
 
     Evaluator->computeBlocking(FeatureBitboards, BatchSize);
 
-    for (std::size_t I = 0; I < BatchSize; ++I) {
+    for (std::size_t I = 0; I < Tasks.size(); ++I) {
         auto&& F = std::move(Tasks.at(I));
         F->setEvaluation(
                 Evaluator->getPolicy() + 27 * core::NumSquares * I,
@@ -95,7 +95,7 @@ bool EvaluationWorker::doTask() {
     return false;
 }
 
-void EvaluationWorker::prepareInfer() {
+void EvaluationWorker::prepareInfer([[ maybe_unused ]] std::size_t GPUId, [[ maybe_unused ]] const char* WeightPath) {
 #if defined(EXECUTOR_ZERO)
     Infer = std::make_unique<infer::Zero>();
 #elif defined(EXECUTOR_NOTHING)
@@ -103,8 +103,8 @@ void EvaluationWorker::prepareInfer() {
 #elif defined(EXECUTOR_RANDOM)
     Infer = std::make_unique<infer::Random>(0);
 #elif defined(EXECUTOR_TRT)
-    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, GlobalConfig::FeatureType::size());
-    TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
+    auto TRT = std::make_unique<infer::TensorRT>(GPUId, BatchSize, evaluate::preset::CustomFeaturesV1::size());
+    TRT->load(WeightPath, true);
     Infer = std::move(TRT);
 #endif
     Evaluator = std::make_unique<evaluate::Evaluator>(BatchSize, Infer.get());

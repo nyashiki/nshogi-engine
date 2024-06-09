@@ -6,6 +6,7 @@
 
 #include <nshogi/core/movegenerator.h>
 #include <nshogi/core/statebuilder.h>
+#include <nshogi/solver/dfs.h>
 
 namespace nshogi {
 namespace engine {
@@ -154,22 +155,22 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
 
 SelfplayPhase Worker::checkTerminal(Frame* F) const {
     const auto RS = F->getState()->getRepetitionStatus();
-    F->getNodeToEvalute()->setRepetitionStatus(RS);
 
     // Repetition.
-    if (RS == core::RepetitionStatus::WinRepetition ||
-            RS == core::RepetitionStatus::SuperiorRepetition) {
+    if (RS == core::RepetitionStatus::WinRepetition) {
         F->setEvaluation(nullptr, 1.0f, 0.0f);
+        F->getNodeToEvalute()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
-    } else if (RS == core::RepetitionStatus::LossRepetition ||
-            RS == core::RepetitionStatus::InferiorRepetition) {
+    } else if (RS == core::RepetitionStatus::LossRepetition) {
         F->setEvaluation(nullptr, 0.0f, 0.0f);
+        F->getNodeToEvalute()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                 ? F->getStateConfig()->BlackDrawValue
                 : F->getStateConfig()->WhiteDrawValue;
         F->setEvaluation(nullptr, DrawValue, 1.0f);
+        F->getNodeToEvalute()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     }
 
@@ -251,12 +252,10 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
 SelfplayPhase Worker::judge(Frame* F) const {
     const auto RS = F->getState()->getRepetitionStatus();
 
-    if (RS == core::RepetitionStatus::WinRepetition ||
-            RS == core::RepetitionStatus::SuperiorRepetition) {
+    if (RS == core::RepetitionStatus::WinRepetition) {
         F->setWinner(F->getState()->getSideToMove());
         return SelfplayPhase::Save;
-    } else if (RS == core::RepetitionStatus::LossRepetition ||
-            RS == core::RepetitionStatus::InferiorRepetition) {
+    } else if (RS == core::RepetitionStatus::LossRepetition) {
         F->setWinner(~F->getState()->getSideToMove());
         return SelfplayPhase::Save;
     } else if (RS == core::RepetitionStatus::Repetition) {
@@ -277,6 +276,12 @@ SelfplayPhase Worker::judge(Frame* F) const {
 
     if (F->getState()->getPly() >= F->getStateConfig()->MaxPly) {
         F->setWinner(core::NoColor);
+        return SelfplayPhase::Save;
+    }
+
+    const auto CheckmateMove = solver::dfs::solve(F->getState(), 5);
+    if (!CheckmateMove.isNone()) {
+        F->setWinner(F->getState()->getSideToMove());
         return SelfplayPhase::Save;
     }
 

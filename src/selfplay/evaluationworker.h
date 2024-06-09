@@ -12,14 +12,14 @@ namespace selfplay {
 
 class EvaluationWorker : public worker::Worker {
  public:
-    EvaluationWorker(std::size_t GPUId, std::size_t, FrameQueue*, FrameQueue*);
+    EvaluationWorker(std::size_t GPUId, std::size_t, const char* WeightPath, FrameQueue*, FrameQueue*);
     ~EvaluationWorker();
 
  private:
     void initializationTask() override;
     bool doTask() override;
 
-    void prepareInfer();
+    void prepareInfer(std::size_t, const char* WeightPath);
     void allocate();
 
     std::unique_ptr<infer::Infer> Infer;
