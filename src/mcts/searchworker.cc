@@ -439,7 +439,7 @@ bool SearchWorker<Features>::doTask() {
     const int16_t NumMoves = expandLeaf(LeafNode);
     // Check checkmate.
     if (NumMoves == 0) {
-        if (State->getPly() > 0) {
+        if (State->getPly(false) > 0) {
             const auto LastMove = State->getLastMove();
             if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
                 immediateUpdateByWin(LeafNode);
