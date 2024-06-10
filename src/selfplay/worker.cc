@@ -12,11 +12,12 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ)
+Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, std::vector<core::Position>* InitialPositionsToPlay)
     : worker::Worker(true)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
-    , SaveQueue(SFQ) {
+    , SaveQueue(SFQ)
+    , InitialPositions(InitialPositionsToPlay) {
 
     spawnThread();
 }
@@ -60,11 +61,11 @@ bool Worker::doTask() {
 
 SelfplayPhase Worker::initialize(Frame* F) const {
     // Setup a state.
-    if (InitialPositions.size() == 0) {
+    if (InitialPositions == nullptr || InitialPositions->size() == 0) {
         F->setState(std::make_unique<core::State>(core::StateBuilder::getInitialState()));
     } else {
         const core::Position& SampledPosition =
-            InitialPositions.at(MT() % InitialPositions.size());
+            InitialPositions->at(MT() % InitialPositions->size());
         F->setState(std::make_unique<core::State>(
                         core::StateBuilder::newState(SampledPosition)));
     }

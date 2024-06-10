@@ -7,7 +7,7 @@ EXECUTOR ?= random
 CUDA_ENABLED ?= 0
 CUDA_DIR := /opt/cuda/cuda-12.4
 TENSORRT_DIR := /opt/tensorrt/TensorRT-10.0.1.6
-NVCC_ARCH := sm_86
+NVCC_ARCH := arch=compute_86,code=sm_86
 
 OBJDIR = build/$(BUILD)_$(CXX)
 TARGET := $(OBJDIR)/nshogi-engine
@@ -22,17 +22,18 @@ TEST_LINKS := -lcunit
 
 ifeq ($(BUILD), debug)
 	CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -pipe
-	NVCC_FLAGS = -arch=$(NVCC_ARCH)
+	NVCC_FLAGS = --generate-code $(NVCC_ARCH)
 	OPTIM = -g3
 else
 	CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
 	# CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
-	NVCC_FLAGS = -O3 --use_fast_math -arch=$(NVCC_ARCH)
+	NVCC_FLAGS = -O3 --use_fast_math --generate-code $(NVCC_ARCH)
 	OPTIM = -Ofast
 	# OPTIM = -Ofast -g
 endif
 
 SOURCES :=                              \
+	src/argparser.cc                \
 	src/allocator/allocator.cc      \
 	src/allocator/default.cc        \
 	src/mcts/checkmateworker.cc     \
@@ -56,6 +57,7 @@ SELFPLAY_SOURCES :=                      \
 	src/selfplay/frame.cc            \
 	src/selfplay/framequeue.cc       \
 	src/selfplay/saveworker.cc       \
+	src/selfplay/selfplayinfo.cc     \
 	src/selfplay/worker.cc
 
 CUDA_SOURCES :=

@@ -4,22 +4,35 @@
 #include "saveworker.h"
 #include "selfplayinfo.h"
 #include "../allocator/allocator.h"
+#include "../argparser.h"
 
+#include <fstream>
 #include <iostream>
 #include <vector>
 
 #include <nshogi/core/initializer.h>
+#include <nshogi/io/sfen.h>
 
-int main() {
-    constexpr std::size_t AVAILABLE_MEMORY_MB = 1024;
-    constexpr std::size_t NUM_SEARCH_WORKERS = 4;
-    constexpr std::size_t NUM_FRAME_POOL = 128;
-    constexpr std::size_t NUM_GPUS = 1;
-    constexpr std::size_t NUM_EVALUATION_WORKERS_PER_GPU = 4;
-    constexpr std::size_t BATCH_SIZE = 128;
-    constexpr const char* WEIGHT_PATH = "./res/model.onnx";
-    constexpr std::size_t NumSelfplayGames = 128;
-    constexpr const char* SAVE_PATH = "teacher.bin";
+int main(int Argc, char* Argv[]) {
+    nshogi::engine::ArgParser Parser;
+
+    Parser.addOption("model", "Path to the onnx file.");
+    Parser.addOption("batch-size", "128", "Batch size.");
+    Parser.addOption("frame-pool-size", "1024", "Frame pool size.");
+    Parser.addOption("num-gpus", "1", "The number of gpus.");
+    Parser.addOption("num-search-workers", "1", "The number of search workers.");
+    Parser.addOption("num-evaluation-workers-per-gpu", "1", "The number of evaluation workers per gpu.");
+    Parser.addOption("memory-size", "1024", "Memory size (MB).");
+    Parser.addOption("num-selfplay-games", "500000", "The number of selfplay games.");
+    Parser.addOption('o', "out", "out.bin", "The output teacher file.");
+    Parser.addOption("initial-positions", "", "Sfen file that contains sfen positions.");
+
+    Parser.parse(Argc, Argv);
+
+    if (Parser.isSpecified("help")) {
+        Parser.showHelp();
+        return 0;
+    }
 
     using namespace nshogi;
     using namespace nshogi::engine;
@@ -28,6 +41,7 @@ int main() {
     core::initializer::initializeAll();
 
     // Setup allocator.
+    const std::size_t AVAILABLE_MEMORY_MB = (std::size_t)std::stoull(Parser.getOption("memory-size"));
     allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
     allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
 
@@ -40,6 +54,7 @@ int main() {
     auto GC = std::make_unique<mcts::GarbageCollector>(1);
 
     // Prepare empty frames.
+    const std::size_t NUM_FRAME_POOL = (std::size_t)std::stoull(Parser.getOption("frame-pool-size"));
     for (std::size_t I = 0; I < NUM_FRAME_POOL; ++I) {
         auto F = std::make_unique<Frame>(GC.get());
         SearchQueue->add(std::move(F));
@@ -47,13 +62,40 @@ int main() {
 
     auto SInfo = std::make_unique<SelfplayInfo>(NUM_FRAME_POOL);
 
+    // Prepare initial positions.
+    std::unique_ptr<std::vector<core::Position>> InitialPositions;
+    {
+        const std::string INITIAL_POSITIONS_PATH = Parser.getOption("initial-positions");
+        std::ifstream Ifs(INITIAL_POSITIONS_PATH);
+        if (INITIAL_POSITIONS_PATH != "" && !Ifs) {
+            throw std::runtime_error("intiial positions option was specified but failed to open the file.");
+        }
+        if (Ifs) {
+            InitialPositions = std::make_unique<std::vector<core::Position>>();
+
+            std::string Line;
+            while (std::getline(Ifs, Line)) {
+                if (Line == "" || Line[0] == '#') {
+                    continue;
+                }
+                InitialPositions->emplace_back(nshogi::io::sfen::PositionBuilder::newPosition(Line));
+            }
+        }
+    }
+
     // Prepare workers.
+    const std::size_t NUM_SEARCH_WORKERS = (std::size_t)std::stoull(Parser.getOption("num-search-workers"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(
-                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get()));
+                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), InitialPositions.get()));
     }
 
+    const std::size_t NUM_EVALUATION_WORKERS_PER_GPU =
+        (std::size_t)std::stoull(Parser.getOption("num-evaluation-workers-per-gpu"));
+    const std::size_t NUM_GPUS = (std::size_t)std::stoull(Parser.getOption("num-gpus"));
+    const std::size_t BATCH_SIZE = (std::size_t)std::stoull(Parser.getOption("batch-size"));
+    const std::string WEIGHT_PATH = Parser.getOption("model");
     std::vector<std::unique_ptr<worker::Worker>> EvaluationWorkers;
     for (std::size_t I = 0; I < NUM_GPUS; ++I) {
         for (std::size_t J = 0; J < NUM_EVALUATION_WORKERS_PER_GPU; ++J) {
@@ -61,18 +103,20 @@ int main() {
                     std::make_unique<EvaluationWorker>(
                         I,
                         BATCH_SIZE,
-                        WEIGHT_PATH,
+                        WEIGHT_PATH.c_str(),
                         EvaluationQueue.get(),
                         SearchQueue.get()));
         }
     }
 
+    const std::size_t NUM_SELFPLAY_GAMES = (std::size_t)std::stoull(Parser.getOption("num-selfplay-games"));
+    const std::string SAVE_PATH = Parser.getOption("out");
     auto Saver = std::make_unique<SaveWorker>(
             SInfo.get(),
             SaveQueue.get(),
             SearchQueue.get(),
-            NumSelfplayGames,
-            SAVE_PATH);
+            NUM_SELFPLAY_GAMES,
+            SAVE_PATH.c_str());
 
     // Launch workers.
     Saver->start();

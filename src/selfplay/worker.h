@@ -15,7 +15,7 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, std::vector<core::Position>* InitialPositionsToPlay);
 
  private:
     bool doTask() override;
@@ -40,7 +40,7 @@ class Worker : public worker::Worker {
 
     mutable std::mt19937_64 MT;
 
-    std::vector<core::Position> InitialPositions;
+    std::vector<core::Position>* InitialPositions;
 };
 
 } // namespace selfplay
