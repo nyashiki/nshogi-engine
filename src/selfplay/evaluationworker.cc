@@ -57,10 +57,8 @@ EvaluationWorker::~EvaluationWorker() {
 
 void EvaluationWorker::initializationTask() {
 #if defined(EXECUTOR_TRT)
-    auto TRTInfer = dynamic_cast<infer::TensorRT*>(Infer.get());
-    if (TRTInfer != nullptr) {
-        TRTInfer->resetGPU();
-    }
+    auto TRTInfer = reinterpret_cast<infer::TensorRT*>(Infer.get());
+    TRTInfer->resetGPU();
 #endif
 }
 
