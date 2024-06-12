@@ -91,8 +91,8 @@ SelfplayPhase Worker::initialize(Frame* F) const {
     F->setConfig(std::move(Config));
 
     // Other settings.
-    F->setNumPlayouts(16);
-    F->setNumSamplingMove(16);
+    F->setNumPlayouts(32);
+    F->setNumSamplingMove(32);
 
     return SelfplayPhase::RootPreparation;
 }
