@@ -91,8 +91,8 @@ SelfplayPhase Worker::initialize(Frame* F) const {
     F->setConfig(std::move(Config));
 
     // Other settings.
-    F->setNumPlayouts(8);
-    F->setNumSamplingMove(8);
+    F->setNumPlayouts(16);
+    F->setNumSamplingMove(16);
 
     return SelfplayPhase::RootPreparation;
 }
@@ -209,6 +209,12 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         return SelfplayPhase::Backpropagation;
     }
 
+    // Checkmate by search.
+    if (F->getState()->getPly() > F->getRootPly() && isCheckmated(F)) {
+        F->setEvaluation(nullptr, 0.0f, 0.0f);
+        return SelfplayPhase::Backpropagation;
+    }
+
     F->getNodeToEvalute()->expand(LegalMoves);
     return SelfplayPhase::Evaluation;
 }
@@ -298,12 +304,6 @@ SelfplayPhase Worker::judge(Frame* F) const {
         return SelfplayPhase::Save;
     }
 
-    const auto CheckmateMove = solver::dfs::solve(F->getState(), 5);
-    if (!CheckmateMove.isNone()) {
-        F->setWinner(F->getState()->getSideToMove());
-        return SelfplayPhase::Save;
-    }
-
     return SelfplayPhase::RootPreparation;
 }
 
@@ -327,6 +327,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
     //     MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
     // }
 
+    assert(F->getIsTarget().size() > 0);
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         if (!F->getIsTarget().at(I)) {
             continue;
@@ -415,6 +416,26 @@ double Worker::computeWinRateOfChild(Frame* F, mcts::Node* Child) const {
                                 : F->getStateConfig()->WhiteDrawValue;
 
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+}
+
+bool Worker::isCheckmated(Frame* F) const {
+    if (F->getState()->getCheckerBB().isZero()) {
+        return false;
+    }
+
+    const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
+
+    for (core::Move32 Move : Moves) {
+        F->getState()->doMove(Move);
+        const auto CheckmateMove = solver::dfs::solve(F->getState(), 3);
+        F->getState()->undoMove();
+
+        if (CheckmateMove.isNone()) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 } // namespace selfplay

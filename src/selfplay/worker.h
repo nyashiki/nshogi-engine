@@ -33,6 +33,7 @@ class Worker : public worker::Worker {
     mcts::Edge* pickUpEdgeToExplore(Frame*, mcts::Node*, uint8_t Depth) const;
     mcts::Edge* pickUpEdgeToExploreAtRoot(Frame*, mcts::Node*) const;
     double computeWinRateOfChild(Frame* F, mcts::Node* Child) const;
+    bool isCheckmated(Frame* F) const;
 
     FrameQueue* FQueue;
     FrameQueue* EvaluationQueue;

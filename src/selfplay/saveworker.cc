@@ -136,12 +136,9 @@ void SaveWorker::save(Frame* F) {
 
     while (Replay.getPly(false) < F->getState()->getPly(false)) {
         const auto NextMove = F->getState()->getHistoryMove(Replay.getPly(false));
-
-        if (core::MoveGenerator::generateLegalMoves(Replay).size() > 1) {
-            STeacher.setState(Replay);
-            STeacher.setNextMove(NextMove);
-            io::file::simple_teacher::save(Ofs, STeacher);
-        }
+        STeacher.setState(Replay);
+        STeacher.setNextMove(NextMove);
+        io::file::simple_teacher::save(Ofs, STeacher);
 
         Replay.doMove(F->getState()->getHistoryMove(Replay.getPly(false)));
     }
