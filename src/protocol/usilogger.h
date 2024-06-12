@@ -23,7 +23,7 @@ class USILogger : public logger::Logger {
     ~USILogger() = default;
 
     void printPVLog(const logger::PVLog& Log) const override;
-    void printBestMove(const core::Move32& Move) const override;
+    void printBestMove(core::Move32 Move) const override;
 
     void printLog(const char* Message) const override;
 

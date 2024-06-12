@@ -72,7 +72,7 @@ struct Edge {
         Move = M;
     }
 
-    const core::Move16& getMove() const {
+    core::Move16 getMove() const {
         return Move;
     }
 

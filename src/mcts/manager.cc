@@ -53,7 +53,7 @@ void Manager::setIsPonderingEnabled(bool Value) {
     IsPonderingEnabled = Value;
 }
 
-void Manager::thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Lim, void (*CallBack)(const core::Move32&)) {
+void Manager::thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Lim, void (*CallBack)(core::Move32)) {
     WatchdogWorker->stop();
 
     std::cerr << "[thinkNextMove()] await ... " << std::endl;

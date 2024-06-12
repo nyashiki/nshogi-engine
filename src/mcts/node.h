@@ -275,7 +275,7 @@ struct Node {
         return mostPromisingEdgeV1();
     }
 
-    void setSolverResult(const core::Move16& Move) {
+    void setSolverResult(core::Move16 Move) {
         SolverMove.store(Move.value(), std::memory_order_release);
     }
 

@@ -193,7 +193,7 @@ void position(std::istringstream& Stream) {
     State = std::make_unique<nshogi::core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
 }
 
-void go(std::istringstream& Stream, void (*CallBack)(const nshogi::core::Move32& Move)) {
+void go(std::istringstream& Stream, void (*CallBack)(nshogi::core::Move32 Move)) {
     assert(Manager != nullptr);
 
     std::string Token;
@@ -323,7 +323,7 @@ void debug() {
     Option.showOption();
 }
 
-void bestMoveCallBackFunction(const nshogi::core::Move32& Move) {
+void bestMoveCallBackFunction(nshogi::core::Move32 Move) {
     Logger->printBestMove(Move);
 }
 
