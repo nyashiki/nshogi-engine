@@ -354,7 +354,8 @@ SelfplayPhase Worker::transition(Frame* F) const {
 }
 
 double Worker::sampleGumbelNoise() const {
-    std::uniform_real_distribution<double> Distirbution(0.0, 1.0);
+    std::uniform_real_distribution<double> Distirbution(1e-323, 1.0 - 1e-16);
+
     const double U = Distirbution(MT);
     return -std::log(-std::log(U));
 }
