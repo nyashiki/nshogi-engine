@@ -210,9 +210,14 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     }
 
     // Checkmate by search.
-    if (F->getState()->getPly() > F->getRootPly() && isCheckmated(F)) {
-        F->setEvaluation(nullptr, 0.0f, 0.0f);
-        return SelfplayPhase::Backpropagation;
+    if (F->getState()->getPly() > F->getRootPly()) {
+        if (isCheckmated(F)) {
+            F->setEvaluation(nullptr, 0.0f, 0.0f);
+            return SelfplayPhase::Backpropagation;
+        } else if (!solver::dfs::solve(F->getState(), 5).isNone()) {
+            F->setEvaluation(nullptr, 1.0f, 0.0f);
+            return SelfplayPhase::Backpropagation;
+        }
     }
 
     F->getNodeToEvalute()->expand(LegalMoves);
