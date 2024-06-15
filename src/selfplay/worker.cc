@@ -155,7 +155,7 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
 }
 
 SelfplayPhase Worker::checkTerminal(Frame* F) const {
-    const auto RS = F->getState()->getRepetitionStatus();
+    const auto RS = F->getState()->getRepetitionStatus<true>();
 
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition) {
@@ -271,7 +271,7 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
 }
 
 SelfplayPhase Worker::judge(Frame* F) const {
-    const auto RS = F->getState()->getRepetitionStatus();
+    const auto RS = F->getState()->getRepetitionStatus<true>();
 
     if (RS == core::RepetitionStatus::WinRepetition) {
         F->setWinner(F->getState()->getSideToMove());
