@@ -30,9 +30,10 @@ class Worker : public worker::Worker {
 
     double sampleGumbelNoise() const;
     double transformQ(double, uint64_t MaxN) const;
-    mcts::Edge* pickUpEdgeToExplore(Frame*, mcts::Node*, uint8_t Depth) const;
-    mcts::Edge* pickUpEdgeToExploreAtRoot(Frame*, mcts::Node*) const;
-    double computeWinRateOfChild(Frame* F, mcts::Node* Child) const;
+    template <bool IsRoot>
+    mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*) const;
+    mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*, uint8_t Depth) const;
+    double computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Node* Child) const;
     bool isCheckmated(Frame* F) const;
 
     FrameQueue* FQueue;

@@ -89,6 +89,14 @@ uint64_t Frame::getNumPlayouts() const {
     return NumPlayouts;
 }
 
+uint64_t Frame::getSequentialHalvingPlayouts() const {
+    return SequentialHalvingPlayouts;
+}
+
+uint8_t Frame::getSequentialHalvingCount() const {
+    return SequentialHalvingCount;
+}
+
 uint16_t Frame::getNumSamplingMove() const {
     return NumSamplingMove;
 }
@@ -103,6 +111,14 @@ std::vector<bool>& Frame::getIsTarget() {
 
 void Frame::setNumPlayouts(uint64_t N) {
     NumPlayouts = N;
+}
+
+void Frame::setSequentialHalvingPlayouts(uint64_t N) {
+    SequentialHalvingPlayouts = N;
+}
+
+void Frame::setSequentialHalvingCount(uint8_t C) {
+    SequentialHalvingCount = C;
 }
 
 void Frame::setNumSamplingMove(uint16_t M) {

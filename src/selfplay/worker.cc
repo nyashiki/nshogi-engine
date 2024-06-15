@@ -109,6 +109,13 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
         F->getGumbelNoise().at(I) = sampleGumbelNoise();
     }
 
+    const uint64_t InitialSequentialHalvingPlayouts =
+        (uint64_t)(std::floor((double)F->getNumPlayouts() /
+            (std::log2(F->getNumSamplingMove()) * F->getNumSamplingMove())));
+
+    F->setSequentialHalvingPlayouts(std::max((uint64_t)1, InitialSequentialHalvingPlayouts));
+    F->setSequentialHalvingCount(1);
+
     return SelfplayPhase::LeafSelection;
 }
 
@@ -136,7 +143,7 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
             break;
         }
 
-        mcts::Edge* E = pickUpEdgeToExplore(F, Node, Depth);
+        mcts::Edge* E = pickUpEdgeToExplore(F, F->getState()->getSideToMove(), Node, Depth);
         F->getState()->doMove(F->getState()->getMove32FromMove16(E->getMove()));
 
         if (E->getTarget() == nullptr) {
@@ -230,22 +237,78 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         F->getNodeToEvalute()->getWinRatePredicted(),
         F->getNodeToEvalute()->getDrawRatePredicted());
 
+    if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
+        return SelfplayPhase::Transition;
+    }
+
+    uint64_t MinN = std::numeric_limits<uint64_t>::max();
+    uint64_t MaxN = 0;
+    uint16_t NumValidNodes = 0;
+    if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() > 1) {
+        for (uint16_t I = 0; I < F->getSearchTree()->getRoot()->getNumChildren(); ++I) {
+            if (!F->getIsTarget().at(I)) {
+                continue;
+            }
+            ++NumValidNodes;
+
+            const auto Edge = F->getSearchTree()->getRoot()->getEdge(I);
+            const auto Child = Edge->getTarget();
+
+            if (Child == nullptr) {
+                MinN = 0;
+                continue;
+            }
+
+            const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss();
+            MinN = std::min(MinN, ChildVisits);
+            MaxN = std::max(MaxN, ChildVisits);
+        }
+    }
+
+    if (F->getSequentialHalvingPlayouts() == 0) {
+        if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() >= F->getNumPlayouts() + 1) {
+            return SelfplayPhase::Transition;
+        }
+    }
+
     // If the node is root node, extract top m moves sorted by
     // gumbel noise and policy.
-    if (F->getState()->getPly() == F->getRootPly()) {
-        F->getIsTarget().clear();
-        F->getIsTarget().resize(F->getNodeToEvalute()->getNumChildren());
+    if (F->getState()->getPly() == F->getRootPly()
+            || MinN == F->getSequentialHalvingPlayouts()) {
+        if (F->getState()->getPly() == F->getRootPly()) {
+            F->getIsTarget().clear();
+            F->getIsTarget().resize(F->getSearchTree()->getRoot()->getNumChildren());
+        }
 
         // Set top m moves to explore by gumbel noise and policy.
         std::vector<std::pair<double, std::size_t>> ScoreWithIndex(F->getIsTarget().size());
         for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-            const mcts::Edge* Edge = F->getNodeToEvalute()->getEdge(I);
+            mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+            mcts::Node* Child = Edge->getTarget();
+
+            if (F->getState()->getPly() != F->getRootPly() && !F->getIsTarget().at(I)) {
+                continue;
+            }
+
             ScoreWithIndex[I].first = F->getGumbelNoise().at(I) + Edge->getProbability();
+            if (Child != nullptr) {
+                ScoreWithIndex[I].first +=
+                    transformQ(computeWinRateOfChild(F, F->getState()->getSideToMove(), Child), MaxN);
+            }
             ScoreWithIndex[I].second = I;
         }
 
-        const std::size_t NumSort = std::min(
+        std::size_t NumSort = std::min(
                 (std::size_t)F->getNumSamplingMove(), ScoreWithIndex.size());
+        assert(NumSort > 1);
+        if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() > 1
+                && F->getSequentialHalvingCount() > 0) {
+            NumSort = (NumSort + 1) >> F->getSequentialHalvingCount();
+            if (NumSort <= 1) {
+                NumSort = 2;
+            }
+        }
+
         std::partial_sort(
                 ScoreWithIndex.begin(),
                 ScoreWithIndex.begin() + (long)NumSort,
@@ -260,11 +323,24 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         }
     }
 
-    const uint64_t StopPlayout =
-        std::min(F->getNumPlayouts() + 1, (uint64_t)F->getSearchTree()->getRoot()->getNumChildren() + 1);
-    if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() == StopPlayout) {
-        // Add one above as one simulation was used for the root evaluation.
-        return SelfplayPhase::Transition;
+    if (MinN == F->getSequentialHalvingPlayouts()) {
+        const uint16_t Div = (uint16_t)(1 << F->getSequentialHalvingCount());
+        uint16_t MD = F->getNumSamplingMove() / Div;
+        if (MD < 1) {
+            MD = 1;
+        }
+
+        const double D = std::log2((double)F->getNumSamplingMove()) * (double)MD;
+        const uint64_t ExtraVisits =
+            (uint64_t)(std::floor((double)F->getNumPlayouts() / D));
+
+        if (ExtraVisits == 0 || NumValidNodes <= 4) {
+            F->setSequentialHalvingPlayouts(0);
+            F->setSequentialHalvingCount(F->getSequentialHalvingCount() + 1);
+        } else {
+            F->setSequentialHalvingPlayouts(F->getSequentialHalvingPlayouts() + ExtraVisits);
+            F->setSequentialHalvingCount(F->getSequentialHalvingCount() + 1);
+        }
     }
 
     return SelfplayPhase::LeafSelection;
@@ -317,20 +393,27 @@ SelfplayPhase Worker::transition(Frame* F) const {
         F->getState()->undoMove();
     }
 
+    if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
+        const mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(0);
+        F->getState()->doMove(F->getState()->getMove32FromMove16(Edge->getMove()));
+        return SelfplayPhase::Judging;
+    }
+
     double ScoreMax = std::numeric_limits<double>::lowest();
     mcts::Edge* ScoreMaxEdge = nullptr;
 
     uint64_t MaxN = 1;
-
-    // for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-    //     if (!F->getIsTarget().at(I)) {
-    //         continue;
-    //     }
-    //     mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
-    //     mcts::Node* Child = Edge->getTarget();
-    //     assert(Child != nullptr);
-    //     MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
-    // }
+    for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
+        if (!F->getIsTarget().at(I)) {
+            continue;
+        }
+        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Node* Child = Edge->getTarget();
+        assert(Child != nullptr);
+        if (Child != nullptr) {
+            MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
+        }
+    }
 
     assert(F->getIsTarget().size() > 0);
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
@@ -345,7 +428,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
         const double Score =
             F->getGumbelNoise().at(I)
             + Edge->getProbability()
-            + transformQ(computeWinRateOfChild(F, Child), MaxN);
+            + transformQ(computeWinRateOfChild(F, F->getState()->getSideToMove(), Child), MaxN);
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -372,19 +455,26 @@ double Worker::transformQ(double Q, uint64_t MaxN) const {
     return (C_VISIT + (double)MaxN) * C_SCALE * Q;
 }
 
-mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, mcts::Node* N, uint8_t Depth) const {
-    if (Depth == 0) {
-        return pickUpEdgeToExploreAtRoot(F, N);
-    }
-
-    throw std::runtime_error("Not implemented yet.");
-}
-
-mcts::Edge* Worker::pickUpEdgeToExploreAtRoot(Frame* F, mcts::Node* N) const {
+template<>
+mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color SideToMove, mcts::Node* N) const {
     mcts::Edge* EdgeToExplore = nullptr;
     double ScoreMax = std::numeric_limits<double>::lowest();
 
     const uint16_t NumChildren = N->getNumChildren();
+
+    uint64_t MaxN = 0;
+    for (std::size_t I = 0; I < NumChildren; ++I) {
+        if (!F->getIsTarget().at(I)) {
+            continue;
+        }
+
+        mcts::Edge* Edge = N->getEdge(I);
+        mcts::Node* Child = Edge->getTarget();
+        if (Child != nullptr) {
+            MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
+        }
+    }
+
     for (std::size_t I = 0; I < NumChildren; ++I) {
         if (!F->getIsTarget().at(I)) {
             // This edge is disabled (i.e., this node was not
@@ -395,9 +485,10 @@ mcts::Edge* Worker::pickUpEdgeToExploreAtRoot(Frame* F, mcts::Node* N) const {
         mcts::Edge* Edge = N->getEdge(I);
         mcts::Node* Child = Edge->getTarget();
 
-        const double Score = (Child == nullptr)
-            ? std::numeric_limits<double>::max()
-            : (F->getGumbelNoise().at(I) + Edge->getProbability() + computeWinRateOfChild(F, Child));
+        const double Score =
+            (Child == nullptr || (Child->getVisitsAndVirtualLoss() < F->getSequentialHalvingPlayouts()))
+                ? std::numeric_limits<double>::max()
+                : (F->getGumbelNoise().at(I) + Edge->getProbability() + transformQ(computeWinRateOfChild(F, SideToMove, Child), MaxN));
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -409,7 +500,39 @@ mcts::Edge* Worker::pickUpEdgeToExploreAtRoot(Frame* F, mcts::Node* N) const {
     return EdgeToExplore;
 }
 
-double Worker::computeWinRateOfChild(Frame* F, mcts::Node* Child) const {
+template<>
+mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove, mcts::Node* N) const {
+    double ScoreMax = std::numeric_limits<double>::lowest();
+    mcts::Edge* EdgeToExplore = nullptr;
+    const uint16_t NumChildren = N->getNumChildren();
+
+    const double C = 1.25 * std::sqrt((double)N->getVisitsAndVirtualLoss());
+
+    for (std::size_t I = 0; I < NumChildren; ++I) {
+        mcts::Edge* Edge = N->getEdge(I);
+        mcts::Node* Child = Edge->getTarget();
+
+        const double Score = (Child == nullptr)
+            ? (C * Edge->getProbability())
+            : (C * Edge->getProbability() / ((double)(1 + Child->getVisitsAndVirtualLoss()))
+                    + computeWinRateOfChild(F, SideToMove, Child));
+
+        if (Score > ScoreMax) {
+            ScoreMax = Score;
+            EdgeToExplore = Edge;
+        }
+    }
+
+    return EdgeToExplore;
+}
+
+mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove, mcts::Node* N, uint8_t Depth) const {
+    return (Depth == 0)
+        ? pickUpEdgeToExplore<true>(F, SideToMove, N)
+        : pickUpEdgeToExplore<false>(F, SideToMove, N);
+}
+
+double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Node* Child) const {
     const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss() & mcts::Node::VisitMask;
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
@@ -417,7 +540,7 @@ double Worker::computeWinRateOfChild(Frame* F, mcts::Node* Child) const {
     const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVisits;
     const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
 
-    const double DrawValue = (F->getState()->getSideToMove() == core::Black)
+    const double DrawValue = (SideToMove == core::Black)
                                 ? F->getStateConfig()->BlackDrawValue
                                 : F->getStateConfig()->WhiteDrawValue;
 

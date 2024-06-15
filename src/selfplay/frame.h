@@ -36,10 +36,14 @@ struct Frame {
     void setEvaluation(const float* Policy, float WinRate, float DrawRate);
 
     uint64_t getNumPlayouts() const;
+    uint64_t getSequentialHalvingPlayouts() const;
+    uint8_t getSequentialHalvingCount() const;
     uint16_t getNumSamplingMove() const;
     std::vector<double>& getGumbelNoise();
     std::vector<bool>& getIsTarget();
     void setNumPlayouts(uint64_t);
+    void setSequentialHalvingPlayouts(uint64_t);
+    void setSequentialHalvingCount(uint8_t);
     void setNumSamplingMove(uint16_t);
 
  private:
@@ -63,6 +67,8 @@ struct Frame {
 
     // Gumbel.
     uint64_t NumPlayouts; // n in the paper.
+    uint64_t SequentialHalvingPlayouts;
+    uint8_t SequentialHalvingCount;
     uint16_t NumSamplingMove;  // m in the paper.
     std::vector<double> GumbelNoise;
     std::vector<bool> IsTarget;
