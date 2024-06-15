@@ -163,7 +163,7 @@ void isready() {
 
     Manager->setIsPonderingEnabled(GlobalConfig::getConfig().getPonderingEnabled());
 
-    StateConfig->Rule = core::Declare27_ER;
+    StateConfig->Rule = core::ER_Declare27;
     StateConfig->MaxPly = (uint16_t)Option.getIntOption("USI_MaxPly");
     StateConfig->BlackDrawValue = GlobalConfig::getConfig().getBlackDrawValue();
     StateConfig->WhiteDrawValue = GlobalConfig::getConfig().getWhiteDrawValue();

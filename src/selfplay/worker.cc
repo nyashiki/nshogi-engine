@@ -79,7 +79,7 @@ SelfplayPhase Worker::initialize(Frame* F) const {
     Config->MaxPly = (uint16_t)MaxPlyDistribution(MT);
 
     uint64_t R = MT() % 4;
-    Config->Rule = core::EndingRule::Declare27_ER;
+    Config->Rule = core::EndingRule::ER_Declare27;
     if (R < 2) {
         Config->BlackDrawValue = 0.5f;
         Config->WhiteDrawValue = 0.5f;
@@ -176,7 +176,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     }
 
     // Declaration.
-    if (F->getStateConfig()->Rule == core::EndingRule::Declare27_ER) {
+    if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27) {
         if (F->getState()->canDeclare()) {
             F->setEvaluation(nullptr, 1.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
@@ -284,7 +284,7 @@ SelfplayPhase Worker::judge(Frame* F) const {
         return SelfplayPhase::Save;
     }
 
-    if (F->getStateConfig()->Rule == core::EndingRule::Declare27_ER &&
+    if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27 &&
             F->getState()->canDeclare()) {
         F->setWinner(F->getState()->getSideToMove());
         return SelfplayPhase::Save;

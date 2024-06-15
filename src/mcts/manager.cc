@@ -288,7 +288,7 @@ void Manager::stopWorkers() {
 }
 
 core::Move32 Manager::getBestmove(Node* Root) {
-    if ((StateConfig->Rule & core::Declare27_ER) != 0) {
+    if ((StateConfig->Rule & core::ER_Declare27) != 0) {
         if (CurrentState->canDeclare()) {
             return core::Move32::MoveWin();
         }
