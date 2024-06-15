@@ -237,6 +237,10 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         F->getNodeToEvalute()->getWinRatePredicted(),
         F->getNodeToEvalute()->getDrawRatePredicted());
 
+    while (F->getState()->getPly() > F->getRootPly()) {
+        F->getState()->undoMove();
+    }
+
     if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
         return SelfplayPhase::Transition;
     }

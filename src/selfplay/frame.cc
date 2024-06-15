@@ -1,6 +1,7 @@
 #include "frame.h"
 
 #include <nshogi/ml/common.h>
+#include <nshogi/ml/math.h>
 
 namespace nshogi {
 namespace engine {
@@ -82,6 +83,11 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
             ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge(I)->getMove());
         LegalPolicyLogits[I] = Policy[MoveIndex];
     }
+
+    if (NodeToEvaluate != SearchTree->getRoot()) {
+        ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+    }
+
     NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
 }
 
