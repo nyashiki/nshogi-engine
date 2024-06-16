@@ -14,6 +14,7 @@ enum class SelfplayPhase : uint8_t {
     LeafTerminalChecking,
     Evaluation,
     Backpropagation,
+    SequentialHalving,
     Judging,
     Transition,
     Save,

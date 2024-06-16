@@ -25,6 +25,7 @@ class Worker : public worker::Worker {
     SelfplayPhase selectLeaf(Frame*) const;
     SelfplayPhase checkTerminal(Frame*) const;
     SelfplayPhase backpropagate(Frame*) const;
+    SelfplayPhase sequentialHalving(Frame*) const;
     SelfplayPhase judge(Frame*) const;
     SelfplayPhase transition(Frame*) const;
 
@@ -35,6 +36,9 @@ class Worker : public worker::Worker {
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*, uint8_t Depth) const;
     double computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Node* Child) const;
     bool isCheckmated(Frame* F) const;
+    void sampleTopMMoves(Frame*) const;
+    uint16_t executeSequentialHalving(Frame*) const;
+    void updateSequentialHalvingSchedule(Frame*, uint16_t NumValidChilds) const;
 
     FrameQueue* FQueue;
     FrameQueue* EvaluationQueue;
