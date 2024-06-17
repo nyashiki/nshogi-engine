@@ -166,6 +166,7 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
 SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // This node has been already evaluated.
     if (F->getNodeToEvalute()->getVisitsAndVirtualLoss() > 0) {
+        assert(F->getNodeToEvalute() != F->getSearchTree()->getRoot());
         return SelfplayPhase::Backpropagation;
     }
 
@@ -248,6 +249,7 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         F->getState()->undoMove();
     }
 
+    assert(F->getSearchTree()->getRoot()->getNumChildren() > 0);
     return SelfplayPhase::SequentialHalving;
 }
 
@@ -258,35 +260,40 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
         return SelfplayPhase::Transition;
     }
 
-    uint64_t MinN = std::numeric_limits<uint64_t>::max();
-    for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
-        mcts::Node* Child = Edge->getTarget();
-        if (!F->getIsTarget().at(I)) {
-            continue;
-        }
-
-        if (Child == nullptr) {
-            MinN = 0;
-            break;
-        }
-
-        MinN = std::min(MinN, Child->getVisitsAndVirtualLoss());
-    }
-
     // If the node is root node, extract top m moves sorted by
     // gumbel noise and policy.
     if (F->getNodeToEvalute() == F->getSearchTree()->getRoot()) {
+        assert(F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() == 1);
         sampleTopMMoves(F);
-    } else if (MinN >= F->getSequentialHalvingPlayouts()) {
-        // The number of simulation exceeds the requirement, stop searching at this node
-        // and proceed to a next state.
-        if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() >= F->getNumPlayouts() + 1) {
-            return SelfplayPhase::Transition;
+    } else {
+        assert(F->getSearchTree()->getRoot()->getNumChildren() == F->getIsTarget().size());
+        uint64_t MinN = std::numeric_limits<uint64_t>::max();
+        for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
+            if (!F->getIsTarget().at(I)) {
+                continue;
+            }
+
+            mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+            mcts::Node* Child = Edge->getTarget();
+
+            if (Child == nullptr) {
+                MinN = 0;
+                break;
+            }
+
+            MinN = std::min(MinN, Child->getVisitsAndVirtualLoss());
         }
 
-        const uint16_t NumValidChilds = executeSequentialHalving(F);
-        updateSequentialHalvingSchedule(F, NumValidChilds);
+        if (MinN >= F->getSequentialHalvingPlayouts()) {
+            // The number of simulation exceeds the requirement, stop searching at this node
+            // and proceed to a next state.
+            if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() >= F->getNumPlayouts() + 1) {
+                return SelfplayPhase::Transition;
+            }
+
+            const uint16_t NumValidChilds = executeSequentialHalving(F);
+            updateSequentialHalvingSchedule(F, NumValidChilds);
+        }
     }
 
     return SelfplayPhase::LeafSelection;
@@ -554,23 +561,26 @@ void Worker::sampleTopMMoves(Frame* F) const {
 uint16_t Worker::executeSequentialHalving(Frame* F) const {
     uint64_t MaxN = 0;
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
-        mcts::Node* Child = Edge->getTarget();
         if (!F->getIsTarget().at(I)) {
             continue;
         }
+
+        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Node* Child = Edge->getTarget();
 
         assert(Child != nullptr);
         MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
     }
 
+    assert(F->getSearchTree()->getRoot()->getNumChildren() == F->getIsTarget().size());
     std::vector<std::pair<double, std::size_t>> ScoreWithIndex(F->getIsTarget().size());
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
-        mcts::Node* Child = Edge->getTarget();
         if (!F->getIsTarget().at(I)) {
             continue;
         }
+
+        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Node* Child = Edge->getTarget();
 
         assert(Child != nullptr);
         ScoreWithIndex[I].first = F->getGumbelNoise().at(I)
