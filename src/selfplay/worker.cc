@@ -12,13 +12,14 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay)
+Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay, SelfplayInfo* SI)
     : worker::Worker(true)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
     , SaveQueue(SFQ)
     , EvalCache(EC)
-    , InitialPositions(InitialPositionsToPlay) {
+    , InitialPositions(InitialPositionsToPlay)
+    , SInfo(SI) {
 
     spawnThread();
 }
@@ -244,9 +245,11 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     if (EvalCache->load(*F->getState(), &EvalInfo)) {
         if (EvalInfo.NumMoves == LegalMoves.size()) {
             F->setEvaluation<true>(EvalInfo.Policy, EvalInfo.WinRate, EvalInfo.DrawRate);
+            SInfo->incremanteCacheHit();
             return SelfplayPhase::Backpropagation;
         }
     }
+    SInfo->incremateCacheMiss();
 
     return SelfplayPhase::Evaluation;
 }
