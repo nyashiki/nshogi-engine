@@ -3,6 +3,7 @@
 
 #include "phase.h"
 #include "../mcts/tree.h"
+#include "../mcts/evalcache.h"
 #include <vector>
 #include <memory>
 
@@ -33,6 +34,8 @@ struct Frame {
     void setNodeToEvaluate(mcts::Node*);
     void setRootPly(uint16_t);
 
+    void setEvaluationCache(mcts::EvalCache*);
+    template <bool Aggregated>
     void setEvaluation(const float* Policy, float WinRate, float DrawRate);
 
     uint64_t getNumPlayouts() const;
@@ -64,6 +67,7 @@ struct Frame {
     std::unique_ptr<mcts::Tree> SearchTree;
     mcts::Node* NodeToEvaluate;
     std::unique_ptr<float[]> LegalPolicyLogits;
+    mcts::EvalCache* EvalCache;
 
     // Gumbel.
     uint64_t NumPlayouts; // n in the paper.

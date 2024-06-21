@@ -74,14 +74,28 @@ void Frame::setRootPly(uint16_t Ply) {
     RootPly = Ply;
 }
 
+void Frame::setEvaluationCache(mcts::EvalCache* EC) {
+    EvalCache = EC;
+}
+
+template<bool Aggregated>
 void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
     const uint16_t NumChildren = NodeToEvaluate->getNumChildren();
     assert(Policy != nullptr || NumChildren == 0);
 
     for (uint16_t I = 0; I < NumChildren; ++I) {
-        const std::size_t MoveIndex =
-            ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge(I)->getMove());
-        LegalPolicyLogits[I] = Policy[MoveIndex];
+        if constexpr (Aggregated) {
+            LegalPolicyLogits[I] = Policy[I];
+        } else {
+            const std::size_t MoveIndex =
+                ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge(I)->getMove());
+            LegalPolicyLogits[I] = Policy[MoveIndex];
+        }
+    }
+
+    if constexpr (!Aggregated) {
+        assert(EvalCache != nullptr);
+        EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(), WinRate, DrawRate);
     }
 
     if (NodeToEvaluate != SearchTree->getRoot()) {
@@ -130,6 +144,11 @@ void Frame::setSequentialHalvingCount(uint8_t C) {
 void Frame::setNumSamplingMove(uint16_t M) {
     NumSamplingMove = M;
 }
+
+template
+void Frame::setEvaluation<false>(const float* Policy, float WinRate, float DrawRate);
+template
+void Frame::setEvaluation<true>(const float* Policy, float WinRate, float DrawRate);
 
 } // namespace selfplay
 } // namespace engine

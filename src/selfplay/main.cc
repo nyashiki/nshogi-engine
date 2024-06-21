@@ -53,10 +53,15 @@ int main(int Argc, char* Argv[]) {
     // Prepare garbage collectors.
     auto GC = std::make_unique<mcts::GarbageCollector>(1);
 
+    // Prepare evaluation cache.
+    const std::size_t EVALCACHE_MEMORY_MB = 1024;
+    auto EvalCache = std::make_unique<mcts::EvalCache>(EVALCACHE_MEMORY_MB);
+
     // Prepare empty frames.
     const std::size_t NUM_FRAME_POOL = (std::size_t)std::stoull(Parser.getOption("frame-pool-size"));
     for (std::size_t I = 0; I < NUM_FRAME_POOL; ++I) {
         auto F = std::make_unique<Frame>(GC.get());
+        F->setEvaluationCache(EvalCache.get());
         SearchQueue->add(std::move(F));
     }
 
@@ -88,7 +93,7 @@ int main(int Argc, char* Argv[]) {
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(
-                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), InitialPositions.get()));
+                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), EvalCache.get(), InitialPositions.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU =

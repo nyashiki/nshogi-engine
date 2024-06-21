@@ -82,7 +82,7 @@ bool EvaluationWorker::doTask() {
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         auto&& F = std::move(Tasks.at(I));
-        F->setEvaluation(
+        F->setEvaluation<false>(
                 Evaluator->getPolicy() + 27 * core::NumSquares * I,
                 Evaluator->getWinRate()[I],
                 Evaluator->getDrawRate()[I]);

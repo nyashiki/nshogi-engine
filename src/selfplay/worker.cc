@@ -12,11 +12,12 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, std::vector<core::Position>* InitialPositionsToPlay)
+Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay)
     : worker::Worker(true)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
     , SaveQueue(SFQ)
+    , EvalCache(EC)
     , InitialPositions(InitialPositionsToPlay) {
 
     spawnThread();
@@ -174,18 +175,18 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition) {
-        F->setEvaluation(nullptr, 1.0f, 0.0f);
+        F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
         F->getNodeToEvalute()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::LossRepetition) {
-        F->setEvaluation(nullptr, 0.0f, 0.0f);
+        F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
         F->getNodeToEvalute()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                 ? F->getStateConfig()->BlackDrawValue
                 : F->getStateConfig()->WhiteDrawValue;
-        F->setEvaluation(nullptr, DrawValue, 1.0f);
+        F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
         F->getNodeToEvalute()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     }
@@ -193,7 +194,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // Declaration.
     if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27) {
         if (F->getState()->canDeclare()) {
-            F->setEvaluation(nullptr, 1.0f, 0.0f);
+            F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
         }
     }
@@ -206,12 +207,12 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
             // Check if the last move is a checkmate by dropping a pawn.
             const auto LastMove = F->getState()->getLastMove();
             if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
-                F->setEvaluation(nullptr, 1.0f, 0.0f);
+                F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
                 return SelfplayPhase::Backpropagation;
             }
         }
 
-        F->setEvaluation(nullptr, 0.0f, 0.0f);
+        F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     }
 
@@ -220,22 +221,33 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                 ? F->getStateConfig()->BlackDrawValue
                 : F->getStateConfig()->WhiteDrawValue;
-        F->setEvaluation(nullptr, DrawValue, 1.0f);
+        F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
         return SelfplayPhase::Backpropagation;
     }
 
     // Checkmate by search.
     if (F->getState()->getPly() > F->getRootPly()) {
         if (isCheckmated(F)) {
-            F->setEvaluation(nullptr, 0.0f, 0.0f);
+            F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
         } else if (!solver::dfs::solve(F->getState(), 5).isNone()) {
-            F->setEvaluation(nullptr, 1.0f, 0.0f);
+            F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
         }
     }
 
     F->getNodeToEvalute()->expand(LegalMoves);
+
+    // Check evaluation cache.
+    assert(EvalCache != nullptr);
+    mcts::EvalCache::EvalInfo EvalInfo;
+    if (EvalCache->load(*F->getState(), &EvalInfo)) {
+        if (EvalInfo.NumMoves == LegalMoves.size()) {
+            F->setEvaluation<true>(EvalInfo.Policy, EvalInfo.WinRate, EvalInfo.DrawRate);
+            return SelfplayPhase::Backpropagation;
+        }
+    }
+
     return SelfplayPhase::Evaluation;
 }
 

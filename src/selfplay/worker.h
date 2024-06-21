@@ -3,6 +3,7 @@
 
 #include "framequeue.h"
 #include "../worker/worker.h"
+#include "../mcts/evalcache.h"
 
 #include <random>
 #include <vector>
@@ -15,7 +16,7 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, std::vector<core::Position>* InitialPositionsToPlay);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay);
 
  private:
     bool doTask() override;
@@ -43,6 +44,8 @@ class Worker : public worker::Worker {
     FrameQueue* FQueue;
     FrameQueue* EvaluationQueue;
     FrameQueue* SaveQueue;
+
+    mcts::EvalCache* EvalCache;
 
     mutable std::mt19937_64 MT;
 
