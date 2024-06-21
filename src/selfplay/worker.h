@@ -2,6 +2,7 @@
 #define NSHOGI_ENGINE_SELFPLAY_WORKER_H
 
 #include "framequeue.h"
+#include "selfplayinfo.h"
 #include "../worker/worker.h"
 #include "../mcts/evalcache.h"
 
@@ -16,7 +17,7 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay, SelfplayInfo*);
 
  private:
     bool doTask() override;
@@ -50,6 +51,8 @@ class Worker : public worker::Worker {
     mutable std::mt19937_64 MT;
 
     std::vector<core::Position>* InitialPositions;
+
+    SelfplayInfo* SInfo;
 };
 
 } // namespace selfplay

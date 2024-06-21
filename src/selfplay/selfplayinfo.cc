@@ -9,7 +9,9 @@ namespace selfplay {
 SelfplayInfo::SelfplayInfo(std::size_t OnGoingGames)
     : NumOnGoingGames(OnGoingGames)
     , AverageBatchSize(0)
-    , InferenceCount(0) {
+    , InferenceCount(0)
+    , NumCacheHit(0)
+    , NumCacheMiss(0) {
 }
 
 void SelfplayInfo::decrementNumOnGoingGames() {
@@ -41,6 +43,22 @@ void SelfplayInfo::putBatchSizeStatistics(std::size_t BatchSize) {
 double SelfplayInfo::getAverageBatchSize() const {
     std::lock_guard<std::mutex> Lock(MutexInference);
     return AverageBatchSize;
+}
+
+void SelfplayInfo::incremanteCacheHit() {
+    NumCacheHit.fetch_add(1, std::memory_order_relaxed);
+}
+
+void SelfplayInfo::incremateCacheMiss() {
+    NumCacheMiss.fetch_add(1, std::memory_order_relaxed);
+}
+
+double SelfplayInfo::getCacheHitRatio() const {
+    const uint64_t CH = NumCacheHit.load(std::memory_order_relaxed);
+    const uint64_t CM = NumCacheMiss.load(std::memory_order_relaxed);
+    const uint64_t N = CH + CM;
+
+    return (N == 0) ? 0.0 : ((double)CH / (double)N);
 }
 
 } // namespace selfplay

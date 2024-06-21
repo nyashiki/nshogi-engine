@@ -23,6 +23,7 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("num-search-workers", "1", "The number of search workers.");
     Parser.addOption("num-evaluation-workers-per-gpu", "1", "The number of evaluation workers per gpu.");
     Parser.addOption("memory-size", "1024", "Memory size (MB).");
+    Parser.addOption("evaluation-cache-memory-size", "1024", "Evaluation cache memory size (MB).");
     Parser.addOption("num-selfplay-games", "500000", "The number of selfplay games.");
     Parser.addOption('o', "out", "out.bin", "The output teacher file.");
     Parser.addOption("initial-positions", "", "Sfen file that contains sfen positions.");
@@ -54,7 +55,7 @@ int main(int Argc, char* Argv[]) {
     auto GC = std::make_unique<mcts::GarbageCollector>(1);
 
     // Prepare evaluation cache.
-    const std::size_t EVALCACHE_MEMORY_MB = 1024;
+    const std::size_t EVALCACHE_MEMORY_MB = (std::size_t)std::stoull(Parser.getOption("evaluation-cache-memory-size"));;
     auto EvalCache = std::make_unique<mcts::EvalCache>(EVALCACHE_MEMORY_MB);
 
     // Prepare empty frames.
@@ -93,7 +94,7 @@ int main(int Argc, char* Argv[]) {
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(
-                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), EvalCache.get(), InitialPositions.get()));
+                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), EvalCache.get(), InitialPositions.get(), SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU =
