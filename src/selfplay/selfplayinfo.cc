@@ -7,7 +7,9 @@ namespace engine {
 namespace selfplay {
 
 SelfplayInfo::SelfplayInfo(std::size_t OnGoingGames)
-    : NumOnGoingGames(OnGoingGames) {
+    : NumOnGoingGames(OnGoingGames)
+    , AverageBatchSize(0)
+    , InferenceCount(0) {
 }
 
 void SelfplayInfo::decrementNumOnGoingGames() {
@@ -27,6 +29,18 @@ void SelfplayInfo::waitUntilAllGamesFinished() {
 std::size_t SelfplayInfo::getNumOnGoinggames() const {
     std::lock_guard<std::mutex> Lock(Mutex);
     return NumOnGoingGames;
+}
+
+void SelfplayInfo::putBatchSizeStatistics(std::size_t BatchSize) {
+    std::lock_guard<std::mutex> Lock(MutexInference);
+    AverageBatchSize =
+        (AverageBatchSize * (double)InferenceCount + (double)BatchSize) / (double)(InferenceCount + 1);
+    ++InferenceCount;
+}
+
+double SelfplayInfo::getAverageBatchSize() const {
+    std::lock_guard<std::mutex> Lock(MutexInference);
+    return AverageBatchSize;
 }
 
 } // namespace selfplay

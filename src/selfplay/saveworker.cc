@@ -123,6 +123,9 @@ void SaveWorker::printStatistics(bool Force) const {
     std::printf("        - Average ply: %.3lf\n", Statistics.AveragePly);
     std::printf("        - Average ply (draw): %.3lf\n", Statistics.AveragePlyDraw);
     std::printf("\n");
+    std::printf("    Evaluation statisitcs:\n");
+    std::printf("        - Average batch size: %.3lf\n", SInfo->getAverageBatchSize());
+    std::printf("\n");
     std::printf("    Latest game:\n");
     std::printf("        %s\n", LatestGame.c_str());
 }

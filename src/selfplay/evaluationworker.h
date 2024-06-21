@@ -2,6 +2,7 @@
 #define NSHOGI_ENGINE_SELFPLAY_EVALUATIONWORKER_H
 
 #include "framequeue.h"
+#include "selfplayinfo.h"
 #include "../worker/worker.h"
 #include "../infer/infer.h"
 #include "../evaluate/evaluator.h"
@@ -12,7 +13,7 @@ namespace selfplay {
 
 class EvaluationWorker : public worker::Worker {
  public:
-    EvaluationWorker(std::size_t GPUId, std::size_t, const char* WeightPath, FrameQueue*, FrameQueue*);
+    EvaluationWorker(std::size_t GPUId, std::size_t, const char* WeightPath, FrameQueue*, FrameQueue*, SelfplayInfo*);
     ~EvaluationWorker();
 
  private:
@@ -27,6 +28,7 @@ class EvaluationWorker : public worker::Worker {
     const std::size_t BatchSize;
     FrameQueue* EvaluationQueue;
     FrameQueue* SearchQueue;
+    SelfplayInfo* SInfo;
 
     ml::FeatureBitboard* FeatureBitboards;
 };

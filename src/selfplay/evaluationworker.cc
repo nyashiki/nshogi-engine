@@ -35,11 +35,12 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::size_t BSize, [[ maybe_unused ]] const char* WeightPath, FrameQueue* EQ, FrameQueue* SQ)
+EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::size_t BSize, [[ maybe_unused ]] const char* WeightPath, FrameQueue* EQ, FrameQueue* SQ, SelfplayInfo* SI)
     : worker::Worker(true)
     , BatchSize(BSize)
     , EvaluationQueue(EQ)
-    , SearchQueue(SQ) {
+    , SearchQueue(SQ)
+    , SInfo(SI) {
 
     prepareInfer(GPUId, WeightPath);
     allocate();
@@ -77,7 +78,7 @@ bool EvaluationWorker::doTask() {
             *Tasks.at(I)->getStateConfig());
     }
 
-    Evaluator->computeBlocking(FeatureBitboards, BatchSize);
+    Evaluator->computeBlocking(FeatureBitboards, Tasks.size());
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         auto&& F = std::move(Tasks.at(I));
@@ -90,6 +91,7 @@ bool EvaluationWorker::doTask() {
         SearchQueue->add(std::move(F));
     }
 
+    SInfo->putBatchSizeStatistics(Tasks.size());
     return false;
 }
 

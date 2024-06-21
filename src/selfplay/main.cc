@@ -105,7 +105,8 @@ int main(int Argc, char* Argv[]) {
                         BATCH_SIZE,
                         WEIGHT_PATH.c_str(),
                         EvaluationQueue.get(),
-                        SearchQueue.get()));
+                        SearchQueue.get(),
+                        SInfo.get()));
         }
     }
 
