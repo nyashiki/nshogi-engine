@@ -66,7 +66,7 @@ void EvaluationWorker::initializationTask() {
 bool EvaluationWorker::doTask() {
     auto Tasks = EvaluationQueue->get(BatchSize);
 
-    if (BatchSize == 0) {
+    if (Tasks.size() == 0) {
         std::this_thread::yield();
         return false;
     }
