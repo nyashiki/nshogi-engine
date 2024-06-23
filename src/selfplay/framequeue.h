@@ -15,7 +15,7 @@ class FrameQueue {
  public:
     FrameQueue();
     void add(std::unique_ptr<Frame>&&);
-    auto get(std::size_t) -> std::vector<std::unique_ptr<Frame>>;
+    auto get(std::size_t, bool Wait = true) -> std::vector<std::unique_ptr<Frame>>;
     auto getAll() -> std::queue<std::unique_ptr<Frame>>;
     void close();
 

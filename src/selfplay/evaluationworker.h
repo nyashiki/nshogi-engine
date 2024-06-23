@@ -31,6 +31,7 @@ class EvaluationWorker : public worker::Worker {
     SelfplayInfo* SInfo;
 
     ml::FeatureBitboard* FeatureBitboards;
+    std::vector<std::unique_ptr<Frame>> Tasks;
 };
 
 } // namespace selfplay

@@ -18,35 +18,21 @@ void FrameQueue::add(std::unique_ptr<Frame>&& F) {
     CV.notify_one();
 }
 
-std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size) {
+std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait) {
     std::vector<std::unique_ptr<Frame>> Buffer;
 
-    while (Buffer.size() < Size) {
-        std::unique_ptr<Frame> F;
-        bool IsQueueEmpty = false;
-        bool StopByClosed = false;
-        {
-            std::unique_lock<std::mutex> Lock(Mutex);
+    {
+        std::unique_lock<std::mutex> Lock(Mutex);
 
+        if (Wait) {
             CV.wait(Lock, [this]() {
                 return !Queue.empty() || IsClosed;
             });
-
-            if (!Queue.empty()) {
-                F = std::move(Queue.front());
-                Queue.pop();
-            }
-
-            IsQueueEmpty = Queue.empty();
-            StopByClosed = IsClosed;
         }
 
-        if (F != nullptr) {
-            Buffer.emplace_back(std::move(F));
-        }
-
-        if (IsQueueEmpty || StopByClosed) {
-            break;
+        while (!Queue.empty() && Buffer.size() < Size) {
+            Buffer.emplace_back(std::move(Queue.front()));
+            Queue.pop();
         }
     }
 

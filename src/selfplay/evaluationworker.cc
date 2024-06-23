@@ -43,6 +43,7 @@ EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::si
     , SInfo(SI) {
 
     prepareInfer(GPUId, WeightPath);
+    Tasks.reserve(BatchSize);
     allocate();
 
     spawnThread();
@@ -64,10 +65,23 @@ void EvaluationWorker::initializationTask() {
 }
 
 bool EvaluationWorker::doTask() {
-    auto Tasks = EvaluationQueue->get(BatchSize);
+    Tasks.clear();
+
+    for (uint8_t Counter = 0; Counter < 128; ++Counter) {
+        auto Ts = EvaluationQueue->get(BatchSize - Tasks.size(), false);
+
+        for (auto&& T : Ts) {
+            Tasks.emplace_back(std::move(T));
+        }
+
+        if (Tasks.size() == BatchSize) {
+            break;
+        }
+
+        std::this_thread::yield();
+    }
 
     if (Tasks.size() == 0) {
-        std::this_thread::yield();
         return false;
     }
 
