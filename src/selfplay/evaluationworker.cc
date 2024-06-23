@@ -43,7 +43,6 @@ EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::si
     , SInfo(SI) {
 
     prepareInfer(GPUId, WeightPath);
-    Tasks.reserve(BatchSize);
     allocate();
 
     spawnThread();
@@ -65,16 +64,12 @@ void EvaluationWorker::initializationTask() {
 }
 
 bool EvaluationWorker::doTask() {
-    Tasks.clear();
+    const std::size_t MAX_TRIAL = 4 * BatchSize;
 
-    for (uint8_t Counter = 0; Counter < 128; ++Counter) {
-        auto Ts = EvaluationQueue->get(BatchSize - Tasks.size(), false);
+    for (std::size_t Counter = 0; Counter < MAX_TRIAL; ++Counter) {
+        Tasks = EvaluationQueue->get(BatchSize, false, Counter == MAX_TRIAL - 1);
 
-        for (auto&& T : Ts) {
-            Tasks.emplace_back(std::move(T));
-        }
-
-        if (Tasks.size() == BatchSize) {
+        if (Tasks.size() > 0) {
             break;
         }
 

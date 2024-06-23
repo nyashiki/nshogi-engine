@@ -18,7 +18,7 @@ void FrameQueue::add(std::unique_ptr<Frame>&& F) {
     CV.notify_one();
 }
 
-std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait) {
+std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait, bool AcceptShortage) {
     std::vector<std::unique_ptr<Frame>> Buffer;
 
     {
@@ -30,9 +30,11 @@ std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait)
             });
         }
 
-        while (!Queue.empty() && Buffer.size() < Size) {
-            Buffer.emplace_back(std::move(Queue.front()));
-            Queue.pop();
+        if (AcceptShortage || Queue.size() >= Size) {
+            while (!Queue.empty() && Buffer.size() < Size) {
+                Buffer.emplace_back(std::move(Queue.front()));
+                Queue.pop();
+            }
         }
     }
 
