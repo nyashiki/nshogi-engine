@@ -18,6 +18,19 @@ void FrameQueue::add(std::unique_ptr<Frame>&& F) {
     CV.notify_one();
 }
 
+void FrameQueue::add(std::vector<std::unique_ptr<Frame>>& Fs) {
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        if (!IsClosed) {
+            for (auto&& F : Fs) {
+                Queue.push(std::move(F));
+            }
+        }
+    }
+    CV.notify_one();
+}
+
+
 std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait, bool AcceptShortage) {
     std::vector<std::unique_ptr<Frame>> Buffer;
 

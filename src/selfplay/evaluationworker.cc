@@ -90,17 +90,17 @@ bool EvaluationWorker::doTask() {
     Evaluator->computeBlocking(FeatureBitboards, Tasks.size());
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
-        auto&& F = std::move(Tasks.at(I));
-        F->setEvaluation<false>(
+        Tasks.at(I)->setEvaluation<false>(
                 Evaluator->getPolicy() + 27 * core::NumSquares * I,
                 Evaluator->getWinRate()[I],
                 Evaluator->getDrawRate()[I]);
 
-        F->setPhase(SelfplayPhase::Backpropagation);
-        SearchQueue->add(std::move(F));
+        Tasks.at(I)->setPhase(SelfplayPhase::Backpropagation);
     }
 
     SInfo->putBatchSizeStatistics(Tasks.size());
+    SearchQueue->add(Tasks);
+
     return false;
 }
 

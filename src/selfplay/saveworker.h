@@ -41,6 +41,8 @@ class SaveWorker : public worker::Worker {
         double AveragePly = 0.0;
         double AveragePlyDraw = 0.0;
     } Statistics;
+
+    std::vector<std::unique_ptr<Frame>> TasksToAdd;
 };
 
 } // namespace selfpaly

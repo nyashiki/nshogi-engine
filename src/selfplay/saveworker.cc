@@ -31,6 +31,8 @@ SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ, std::
 }
 
 bool SaveWorker::doTask() {
+    TasksToAdd.clear();
+
     auto Tasks = SaveQueue->getAll();
 
     while (!Tasks.empty()) {
@@ -43,13 +45,17 @@ bool SaveWorker::doTask() {
         assert(Task->getPhase() == SelfplayPhase::Save);
         if (Statistics.NumBlackWin + Statistics.NumDraw + Statistics.NumWhiteWin + SInfo->getNumOnGoinggames() < NumSelfplayGamesToStop) {
             Task->setPhase(SelfplayPhase::Initialization);
-            SearchQueue->add(std::move(Task));
+            TasksToAdd.emplace_back(std::move(Task));
             printStatistics(false);
         } else {
             Task.reset(nullptr);
             SInfo->decrementNumOnGoingGames();
             printStatistics(true);
         }
+    }
+
+    if (TasksToAdd.size() > 0) {
+        SearchQueue->add(TasksToAdd);
     }
 
     return false;
