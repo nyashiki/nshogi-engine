@@ -147,6 +147,10 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
             break;
         }
 
+        if (F->getState()->getPly() >= F->getStateConfig()->MaxPly) {
+            break;
+        }
+
         mcts::Edge* E = pickUpEdgeToExplore(F, F->getState()->getSideToMove(), Node, Depth);
         F->getState()->doMove(F->getState()->getMove32FromMove16(E->getMove()));
 
