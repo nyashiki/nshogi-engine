@@ -371,27 +371,6 @@ SelfplayPhase Worker::transition(Frame* F) const {
         return SelfplayPhase::Judging;
     }
 
-    if (F->getState()->getPly(false) < 30) {
-        std::vector<mcts::Edge*> Edges;
-        std::vector<double> Probabilities;
-
-        for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-            mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
-            mcts::Node* Child = Edge->getTarget();
-            if (Child != nullptr) {
-                Edges.push_back(Edge);
-                Probabilities.push_back((double)Child->getVisitsAndVirtualLoss());
-            }
-        }
-
-        assert(Edges.size() > 0);
-        std::discrete_distribution<std::size_t> Distribution(Probabilities.begin(), Probabilities.end());
-        const std::size_t RandomIndex = Distribution(MT);
-
-        F->getState()->doMove(F->getState()->getMove32FromMove16(Edges[RandomIndex]->getMove()));
-        return SelfplayPhase::Judging;
-    }
-
     double ScoreMax = std::numeric_limits<double>::lowest();
     mcts::Edge* ScoreMaxEdge = nullptr;
 
