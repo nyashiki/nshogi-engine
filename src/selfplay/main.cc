@@ -27,6 +27,7 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("num-selfplay-games", "500000", "The number of selfplay games.");
     Parser.addOption('o', "out", "out.bin", "The output teacher file.");
     Parser.addOption("initial-positions", "", "Sfen file that contains sfen positions.");
+    Parser.addOption("use-shogi816k", "Use shogi816k positions.");
 
     Parser.parse(Argc, Argv);
 
@@ -70,8 +71,14 @@ int main(int Argc, char* Argv[]) {
 
     // Prepare initial positions.
     std::unique_ptr<std::vector<core::Position>> InitialPositions;
+    const bool USE_SHOGI816K = Parser.isSpecified("use-shogi816k");
     {
         const std::string INITIAL_POSITIONS_PATH = Parser.getOption("initial-positions");
+
+        if (INITIAL_POSITIONS_PATH != "" && USE_SHOGI816K) {
+            throw std::runtime_error("You can't specify --initial-positions and --use-shogi816k at the same time.");
+        }
+
         std::ifstream Ifs(INITIAL_POSITIONS_PATH);
         if (INITIAL_POSITIONS_PATH != "" && !Ifs) {
             throw std::runtime_error("intiial positions option was specified but failed to open the file.");
@@ -94,7 +101,7 @@ int main(int Argc, char* Argv[]) {
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(
-                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), EvalCache.get(), InitialPositions.get(), SInfo.get()));
+                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), EvalCache.get(), InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU =

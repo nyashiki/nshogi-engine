@@ -12,13 +12,14 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay, SelfplayInfo* SI)
+Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo* SI)
     : worker::Worker(true)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
     , SaveQueue(SFQ)
     , EvalCache(EC)
     , InitialPositions(InitialPositionsToPlay)
+    , USE_SHOGI816K(UseShogi816k)
     , SInfo(SI) {
 
     spawnThread();
@@ -63,9 +64,11 @@ bool Worker::doTask() {
     return false;
 }
 
-SelfplayPhase Worker::initialize(Frame* F) const {
+SelfplayPhase Worker::initialize(Frame* F) {
     // Setup a state.
-    if (InitialPositions == nullptr || InitialPositions->size() == 0) {
+    if (USE_SHOGI816K) {
+        F->setState(std::make_unique<core::State>(core::StateBuilder::newState(PositionBuilder.build())));
+    } else if (InitialPositions == nullptr || InitialPositions->size() == 0) {
         F->setState(std::make_unique<core::State>(core::StateBuilder::getInitialState()));
     } else {
         const core::Position& SampledPosition =

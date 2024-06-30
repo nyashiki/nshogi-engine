@@ -3,6 +3,7 @@
 
 #include "framequeue.h"
 #include "selfplayinfo.h"
+#include "shogi816k.h"
 #include "../worker/worker.h"
 #include "../mcts/evalcache.h"
 
@@ -17,12 +18,12 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay, SelfplayInfo*);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo*);
 
  private:
     bool doTask() override;
 
-    SelfplayPhase initialize(Frame*) const;
+    SelfplayPhase initialize(Frame*);
     SelfplayPhase prepareRoot(Frame*) const;
     SelfplayPhase selectLeaf(Frame*) const;
     SelfplayPhase checkTerminal(Frame*) const;
@@ -51,6 +52,9 @@ class Worker : public worker::Worker {
     mutable std::mt19937_64 MT;
 
     std::vector<core::Position>* InitialPositions;
+
+    const bool USE_SHOGI816K;
+    PositionBuilderShogi816k PositionBuilder;
 
     SelfplayInfo* SInfo;
 };
