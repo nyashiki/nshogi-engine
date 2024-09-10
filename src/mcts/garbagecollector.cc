@@ -44,6 +44,16 @@ void GarbageCollector::addGarbage(std::unique_ptr<Node>&& Node) {
     Cv.notify_one();
 }
 
+void GarbageCollector::addGarbages(std::vector<std::unique_ptr<Node>>&& Nodes) {
+    {
+        std::lock_guard<std::mutex> Lock(Mtx);
+        for (auto&& Node : Nodes) {
+            Garbages.push(std::move(Node));
+        }
+    }
+    Cv.notify_all();
+}
+
 void GarbageCollector::mainLoop() {
     while (true) {
         std::queue<std::unique_ptr<Node>> NodesToProcess;

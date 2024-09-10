@@ -21,6 +21,7 @@ class GarbageCollector {
     ~GarbageCollector();
 
     void addGarbage(std::unique_ptr<Node>&& Node);
+    void addGarbages(std::vector<std::unique_ptr<Node>>&& Nodes);
 
  private:
     std::mutex Mtx;
