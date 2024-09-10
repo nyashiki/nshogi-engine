@@ -95,12 +95,15 @@ bool EvaluateWorker<Features>::doTask() {
 
     if (BatchSize == 0) {
         std::this_thread::yield();
+        // As the batch size is zero, there is no tasks to do, so
+        // return false to notify this thread can be stopped.
         return false;
     }
 
     if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD && BatchSize < BatchSizeMax / 2) {
         ++SequentialSkip;
         std::this_thread::yield();
+        // There are tasks to do so return true not to stop this worker.
         return true;
     }
 
@@ -114,6 +117,7 @@ bool EvaluateWorker<Features>::doTask() {
     PendingHashes.clear();
     SequentialSkip = 0;
 
+    // There may be tasks (a next batch) to do so return true not to stop this worker.
     return true;
 }
 
@@ -164,6 +168,8 @@ void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
         const float WinRate = *(Evaluator->getWinRate() + I);
         const float DrawRate = *(Evaluator->getDrawRate() + I);
 
+        assert(WinRate >= 0.0f && WinRate <= 1.0f);
+        assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
         feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate, DrawRate, PendingHashes[I]);
     }
 }
