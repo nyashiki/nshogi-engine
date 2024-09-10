@@ -177,14 +177,19 @@ void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
 template <typename Features>
 void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
-    for (uint16_t I = 0; I < NumChildren; ++I) {
-        const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
-        LegalPolicy[I] = Policy[MoveIndex];
+    if (NumChildren == 1) {
+        constexpr float P[] = { 1.0 };
+        N->setEvaluation(P, WinRate, DrawRate);
+    } else {
+        for (uint16_t I = 0; I < NumChildren; ++I) {
+            const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
+            LegalPolicy[I] = Policy[MoveIndex];
+        }
+        ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
+        N->setEvaluation(LegalPolicy, WinRate, DrawRate);
+        N->sort();
     }
 
-    ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
-    N->setEvaluation(LegalPolicy, WinRate, DrawRate);
-    N->sort();
     N->updateAncestors(WinRate, DrawRate);
 
     if (ECache != nullptr) {
