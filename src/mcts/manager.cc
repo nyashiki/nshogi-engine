@@ -202,6 +202,11 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     // Start thinking.
     std::cerr << "[doSupervisorWork()] start workers ..." << std::endl;
+    assert(EQueue->count() == 0);
+    EQueue->open();
+    if (CQueue != nullptr) {
+        CQueue->open();
+    }
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
         SearchWorker->start();
@@ -284,8 +289,14 @@ void Manager::stopWorkers() {
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->stop();
     }
+
+    EQueue->close();
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->stop();
+    }
+
+    if (CQueue != nullptr) {
+        CQueue->close();
     }
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->stop();

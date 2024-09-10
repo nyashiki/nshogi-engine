@@ -8,7 +8,29 @@ namespace mcts {
 
 template <typename Features>
 EvaluationQueue<Features>::EvaluationQueue(std::size_t MaxSize)
-    : MaxQueueSize(MaxSize) {
+    : MaxQueueSize(MaxSize)
+    , IsOpen(false) {
+}
+
+template <typename Features>
+void EvaluationQueue<Features>::open() {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    IsOpen = true;
+}
+
+template <typename Features>
+void EvaluationQueue<Features>::close() {
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        IsOpen = false;
+    }
+    CV.notify_all();
+}
+
+template <typename Features>
+std::size_t EvaluationQueue<Features>::count() {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    return Queue.size();
 }
 
 template <typename Features>
