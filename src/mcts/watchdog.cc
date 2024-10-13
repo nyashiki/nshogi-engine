@@ -1,5 +1,4 @@
 #include "watchdog.h"
-#include "../globalconfig.h"
 
 #include <chrono>
 #include <cmath>
@@ -8,9 +7,10 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Watchdog::Watchdog(std::shared_ptr<logger::Logger> Logger)
+Watchdog::Watchdog(const Context* C, std::shared_ptr<logger::Logger> Logger)
     : worker::Worker(false)
     , StopSearchingCallback(nullptr)
+    , PContext(C)
     , PLogger(std::move(Logger)) {
     spawnThread();
 }
@@ -50,7 +50,7 @@ bool Watchdog::doTask() {
             static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>
                     (CurrentTime - LogTimePrevious).count());
 
-        if (LogElapsed >= GlobalConfig::getConfig().getLogMargin()) {
+        if (LogElapsed >= PContext->getLogMargin()) {
             dumpPVLog(NumNodesAtStarted, Elapsed);
             LogTimePrevious = CurrentTime;
         }
@@ -104,7 +104,7 @@ bool Watchdog::isRootSolved() const {
 
 bool Watchdog::checkMemoryBudget() const {
     const auto& NodeAllocator = allocator::getNodeAllocator();
-    const double Factor = GlobalConfig::getConfig().getMemoryLimitFactor();
+    const double Factor = PContext->getMemoryLimitFactor();
 
     if (NodeAllocator.getTotal() > 0 &&
             (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * Factor) {
@@ -131,7 +131,7 @@ bool Watchdog::checkThinkingTimeBudget(uint32_t Elapsed) const {
         + Limit->ByoyomiMilliSeconds
         + Limit->IncreaseMilliSeconds;
 
-    return Elapsed + GlobalConfig::getConfig().getThinkingTimeMargin() >= Budget;
+    return Elapsed + PContext->getThinkingTimeMargin() >= Budget;
 }
 
 bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {

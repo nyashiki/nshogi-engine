@@ -7,8 +7,9 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::size_t EvalCacheMB, std::shared_ptr<logger::Logger> Logger)
-    : PLogger(std::move(Logger))
+Manager::Manager(const Context* C, std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::size_t EvalCacheMB, std::shared_ptr<logger::Logger> Logger)
+    : PContext(C)
+    , PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
     , HasInterruptReceived(false)
     , IsPonderingEnabled(false)
@@ -108,7 +109,7 @@ void Manager::interrupt() {
 
 void Manager::setupGarbageCollector() {
     GC = std::make_unique<GarbageCollector>(
-        GlobalConfig::getConfig().getNumGarbageCollectorThreads());
+        PContext->getNumGarbageCollectorThreads());
 }
 
 void Manager::setupMutexPool() {
@@ -120,7 +121,7 @@ void Manager::setupSearchTree() {
 }
 
 void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU) {
-    EQueue = std::make_unique<EvaluationQueue<GlobalConfig::FeatureType>>(
+    EQueue = std::make_unique<EvaluationQueue<global_config::FeatureType>>(
             BatchSize * NumGPUs * NumEvaluationWorkersPerGPU * 2);
 }
 
@@ -128,15 +129,15 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
             EvaluateWorkers.emplace_back(
-                    std::make_unique<EvaluateWorker<GlobalConfig::FeatureType>>(
-                        I, BatchSize, EQueue.get(), ECache.get()));
+                    std::make_unique<EvaluateWorker<global_config::FeatureType>>(
+                        PContext, I, BatchSize, EQueue.get(), ECache.get()));
         }
     }
 }
 
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
-        SearchWorkers.emplace_back(std::make_unique<SearchWorker<GlobalConfig::FeatureType>>(
+        SearchWorkers.emplace_back(std::make_unique<SearchWorker<global_config::FeatureType>>(
             EQueue.get(), CQueue.get(), MtxPool.get(), ECache.get()));
     }
 }
@@ -192,7 +193,7 @@ void Manager::setupSupervisor() {
 }
 
 void Manager::setupWatchDog() {
-    WatchdogWorker = std::make_unique<Watchdog>(PLogger);
+    WatchdogWorker = std::make_unique<Watchdog>(PContext, PLogger);
     WatchdogWorker->setStopSearchingCallback(std::bind(&Manager::watchdogStopCallback, this));
 }
 

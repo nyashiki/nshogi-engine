@@ -1,5 +1,4 @@
 #include "evaluateworker.h"
-#include "../evaluate/preset.h"
 #include "../globalconfig.h"
 
 #ifdef CUDA_ENABLED
@@ -41,8 +40,9 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-EvaluateWorker<Features>::EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
+EvaluateWorker<Features>::EvaluateWorker(const Context* C, std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
     : worker::Worker(true)
+    , PContext(C)
     , BatchSizeMax(BatchSize)
     , EQueue(EQ)
     , ECache(EC)
@@ -80,8 +80,8 @@ void EvaluateWorker<Features>::initializationTask() {
 #elif defined(EXECUTOR_RANDOM)
     Infer = std::make_unique<infer::Random>(0);
 #elif defined(EXECUTOR_TRT)
-    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, GlobalConfig::FeatureType::size());
-    TRT->load(GlobalConfig::getConfig().getWeightPath(), true);
+    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, global_config::FeatureType::size());
+    TRT->load(PContext->getWeightPath(), true);
     TRT->resetGPU();
     Infer = std::move(TRT);
 #endif

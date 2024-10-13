@@ -11,8 +11,9 @@
 #include "tree.h"
 #include "watchdog.h"
 #include "../limit.h"
-#include "../globalconfig.h"
 #include "../evaluate/preset.h"
+#include "../context.h"
+#include "../globalconfig.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -25,6 +26,7 @@ namespace mcts {
 class Manager {
  public:
     Manager(
+        const Context*,
         std::size_t BatchSize,
         std::size_t NumGPUs,
         std::size_t NumSearchWorkers,
@@ -61,14 +63,16 @@ class Manager {
 
     void watchdogStopCallback();
 
+    const Context* PContext;
+
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
-    std::unique_ptr<EvaluationQueue<GlobalConfig::FeatureType>> EQueue;
+    std::unique_ptr<EvaluationQueue<global_config::FeatureType>> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
-    std::vector<std::unique_ptr<SearchWorker<GlobalConfig::FeatureType>>> SearchWorkers;
-    std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;
+    std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>> SearchWorkers;
+    std::vector<std::unique_ptr<EvaluateWorker<global_config::FeatureType>>> EvaluateWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::shared_ptr<logger::Logger> PLogger;

@@ -6,6 +6,7 @@
 #include "../limit.h"
 #include "../worker/worker.h"
 #include "../logger/logger.h"
+#include "../context.h"
 
 #include <functional>
 #include <memory>
@@ -20,7 +21,7 @@ namespace mcts {
 
 class Watchdog : public worker::Worker {
  public:
-    Watchdog(std::shared_ptr<logger::Logger>);
+    Watchdog(const Context*, std::shared_ptr<logger::Logger>);
     ~Watchdog();
 
     void updateRoot(const core::State*, const core::StateConfig*, Node*);
@@ -49,6 +50,7 @@ class Watchdog : public worker::Worker {
 
     std::function<void()> StopSearchingCallback;
 
+    const Context* PContext;
     std::shared_ptr<logger::Logger> PLogger;
 };
 
