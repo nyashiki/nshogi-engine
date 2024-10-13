@@ -262,6 +262,10 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
                 // Start pondering.
                 std::cerr << "[doSupervisorWork()] start pondering ..." << std::endl;
+                EQueue->open();
+                if (CQueue != nullptr) {
+                    CQueue->open();
+                }
                 for (const auto& SearchWorker : SearchWorkers) {
                     SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNodePondering);
                     SearchWorker->start();
