@@ -109,6 +109,12 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             break;
         }
 
+        // If the ply of the state is equal to (or greater than) the max ply,
+        // the game result is draw.
+        if (State->getPly() >= Config.MaxPly) {
+            break;
+        }
+
         // If `getPlyToTerminalSolved()` returns a non-zero value,
         // it means the game theoretical value has already been solved and therefore
         // we don't have to search this node furthermore.

@@ -19,7 +19,7 @@ class Tree {
  public:
     Tree(GarbageCollector* GCollector, logger::Logger* Logger);
 
-    Node* updateRoot(const nshogi::core::State& State);
+    Node* updateRoot(const nshogi::core::State& State, bool ReUse = true);
 
     Node* getRoot() const;
     const core::State* getRootState() const;

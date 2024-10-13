@@ -48,7 +48,7 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
     std::cout << std::endl;
 }
 
-void USILogger::printBestMove(const core::Move32& Move) const {
+void USILogger::printBestMove(core::Move32 Move) const {
     std::lock_guard<std::mutex> Lock(Mtx);
     std::cout << "bestmove " << nshogi::io::sfen::move32ToSfen(Move) << std::endl;
 }

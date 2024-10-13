@@ -8,7 +8,29 @@ namespace mcts {
 
 template <typename Features>
 EvaluationQueue<Features>::EvaluationQueue(std::size_t MaxSize)
-    : MaxQueueSize(MaxSize) {
+    : MaxQueueSize(MaxSize)
+    , IsOpen(false) {
+}
+
+template <typename Features>
+void EvaluationQueue<Features>::open() {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    IsOpen = true;
+}
+
+template <typename Features>
+void EvaluationQueue<Features>::close() {
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        IsOpen = false;
+    }
+    CV.notify_all();
+}
+
+template <typename Features>
+std::size_t EvaluationQueue<Features>::count() {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    return Queue.size();
 }
 
 template <typename Features>
@@ -18,23 +40,26 @@ void EvaluationQueue<Features>::add(const core::State& State, const core::StateC
     std::unique_lock<std::mutex> Lock(Mutex);
 
     CV.wait(Lock, [this]() {
-        return Queue.size() < MaxQueueSize;
+        return Queue.size() < MaxQueueSize || !IsOpen;
     });
 
-    Queue.emplace(State.getSideToMove(), N, std::move(FSC), State.getHash());
+    if (IsOpen) {
+        Queue.emplace(State.getSideToMove(), N, std::move(FSC), State.getHash());
+    }
 }
 
 template <typename Features>
 auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>, std::vector<uint64_t>> {
-    std::vector<core::Color> SideToMoves;
-    std::vector<Node*> Nodes;
-    std::vector<Features> FeatureStacks;
-    std::vector<uint64_t> Hashes;
+    std::tuple<
+        std::vector<core::Color>,
+        std::vector<Node*>,
+        std::vector<Features>,
+        std::vector<uint64_t>> T;
 
-    SideToMoves.reserve(NumElements);
-    Nodes.reserve(NumElements);
-    FeatureStacks.reserve(NumElements);
-    Hashes.reserve(NumElements);
+    std::get<0>(T).reserve(NumElements);
+    std::get<1>(T).reserve(NumElements);
+    std::get<2>(T).reserve(NumElements);
+    std::get<3>(T).reserve(NumElements);
 
     {
         std::lock_guard<std::mutex> Lock(Mutex);
@@ -42,20 +67,15 @@ auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::
             auto Element = std::move(Queue.front());
             Queue.pop();
 
-            SideToMoves.emplace_back(std::get<0>(Element));
-            Nodes.emplace_back(std::get<1>(Element));
-            FeatureStacks.emplace_back(std::move(std::get<2>(Element)));
-            Hashes.emplace_back(std::get<3>(Element));
+            std::get<0>(T).emplace_back(std::get<0>(Element));
+            std::get<1>(T).emplace_back(std::get<1>(Element));
+            std::get<2>(T).emplace_back(std::move(std::get<2>(Element)));
+            std::get<3>(T).emplace_back(std::get<3>(Element));
         }
     }
 
     CV.notify_all();
-
-    return std::make_tuple(
-            std::move(SideToMoves),
-            std::move(Nodes),
-            std::move(FeatureStacks),
-            std::move(Hashes));
+    return T;
 }
 
 template class EvaluationQueue<evaluate::preset::SimpleFeatures>;

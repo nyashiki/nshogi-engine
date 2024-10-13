@@ -14,8 +14,8 @@ Tree::Tree(GarbageCollector* GCollector, logger::Logger* Logger)
     , PLogger(Logger) {
 }
 
-Node* Tree::updateRoot(const nshogi::core::State& State) {
-    if (Root == nullptr) {
+Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
+    if (Root == nullptr || !ReUse) {
         return createNewRoot(State);
     }
 
@@ -31,6 +31,7 @@ Node* Tree::updateRoot(const nshogi::core::State& State) {
         }
     }
 
+    std::vector<std::unique_ptr<Node>> Garbages;
     for (; Ply < State.getPly(); ++Ply) {
         const auto Move = State.getHistoryMove(Ply);
         const auto Move16 = core::Move16(Move);
@@ -49,7 +50,7 @@ Node* Tree::updateRoot(const nshogi::core::State& State) {
                 }
 
                 NextRoot->resetParent(nullptr);
-                GC->addGarbage(std::move(Root));
+                Garbages.emplace_back(std::move(Root));
 
                 Root = std::move(NextRoot);
                 RootState->doMove(Move);
@@ -58,6 +59,7 @@ Node* Tree::updateRoot(const nshogi::core::State& State) {
         }
 
         if (!IsFound || Root == nullptr) {
+            GC->addGarbages(std::move(Garbages));
             return createNewRoot(State);
         }
     }
@@ -66,10 +68,12 @@ Node* Tree::updateRoot(const nshogi::core::State& State) {
 
     if (Root->getRepetitionStatus() != core::RepetitionStatus::NoRepetition) {
         PLogger->printLog("But it has repetition so create a new one.");
+        GC->addGarbages(std::move(Garbages));
         return createNewRoot(State);
     }
 
     assert(Root->getParent() == nullptr);
+    GC->addGarbages(std::move(Garbages));
     return Root.get();
 }
 

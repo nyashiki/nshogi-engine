@@ -37,10 +37,13 @@ class CheckmateQueue {
  public:
     CheckmateQueue();
 
+    void open();
+    void close();
     void add(Node*, const core::Position&);
     auto getAll() -> std::queue<std::unique_ptr<CheckmateTask>>;
 
  private:
+    bool IsOpen;
     std::mutex Mutex;
     std::queue<std::unique_ptr<CheckmateTask>> Queue;
 

@@ -53,7 +53,7 @@ void Manager::setIsPonderingEnabled(bool Value) {
     IsPonderingEnabled = Value;
 }
 
-void Manager::thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Lim, void (*CallBack)(const core::Move32&)) {
+void Manager::thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Lim, void (*CallBack)(core::Move32)) {
     WatchdogWorker->stop();
 
     std::cerr << "[thinkNextMove()] await ... " << std::endl;
@@ -202,6 +202,11 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     // Start thinking.
     std::cerr << "[doSupervisorWork()] start workers ..." << std::endl;
+    assert(EQueue->count() == 0);
+    EQueue->open();
+    if (CQueue != nullptr) {
+        CQueue->open();
+    }
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
         SearchWorker->start();
@@ -238,37 +243,46 @@ void Manager::doSupervisorWork(bool CallCallback) {
     WatchdogWorker->await();
     std::cerr << "[doSupervisorWork()] await watchdog ... ok." << std::endl;
 
-    if (CallCallback) {
-        const auto Bestmove = getBestmove(RootNode);
+    // Update the root node here for the garbage collectors
+    // to release the previous root node.
+    const auto Bestmove = getBestmove(RootNode);
+    CurrentState->doMove(Bestmove);
+    SearchTree->updateRoot(*CurrentState);
 
+    if (CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
         if (IsPonderingEnabled && !Bestmove.isNone() && !Bestmove.isWin() && !HasInterruptReceived.load() && !checkMemoryBudgetForPondering()) {
-            CurrentState->doMove(Bestmove);
-            Node* RootNodePondering = SearchTree->updateRoot(*CurrentState);
-            Limit = std::make_unique<engine::Limit>(NoLimit);
+            Node* RootNodePondering = SearchTree->getRoot();
+            if (RootNodePondering->getPlyToTerminalSolved() == 0) {
+                Limit = std::make_unique<engine::Limit>(NoLimit);
 
-            PLogger->setIsInverse(true);
+                PLogger->setIsInverse(true);
 
-            // Start pondering.
-            std::cerr << "[doSupervisorWork()] start pondering ..." << std::endl;
-            for (const auto& SearchWorker : SearchWorkers) {
-                SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNodePondering);
-                SearchWorker->start();
+                // Start pondering.
+                std::cerr << "[doSupervisorWork()] start pondering ..." << std::endl;
+                EQueue->open();
+                if (CQueue != nullptr) {
+                    CQueue->open();
+                }
+                for (const auto& SearchWorker : SearchWorkers) {
+                    SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNodePondering);
+                    SearchWorker->start();
+                }
+                for (const auto& EvaluateWorker : EvaluateWorkers) {
+                    EvaluateWorker->start();
+                }
+                for (const auto& CheckmateWorker : CheckmateWorkers) {
+                    CheckmateWorker->start();
+                }
+
+                WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNodePondering);
+                WatchdogWorker->setLimit(*Limit);
+                WatchdogWorker->start();
+
+                std::cerr << "[doSupervisorWork()] start pondering ... ok." << std::endl;
             }
-            for (const auto& EvaluateWorker : EvaluateWorkers) {
-                EvaluateWorker->start();
-            }
-            for (const auto& CheckmateWorker : CheckmateWorkers) {
-                CheckmateWorker->start();
-            }
-
-            WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNodePondering);
-            WatchdogWorker->setLimit(*Limit);
-            WatchdogWorker->start();
-
-            std::cerr << "[doSupervisorWork()] start pondering ... ok." << std::endl;
         }
 
         BestmoveCallback(Bestmove);
@@ -279,8 +293,14 @@ void Manager::stopWorkers() {
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->stop();
     }
+
+    EQueue->close();
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->stop();
+    }
+
+    if (CQueue != nullptr) {
+        CQueue->close();
     }
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->stop();
@@ -288,7 +308,7 @@ void Manager::stopWorkers() {
 }
 
 core::Move32 Manager::getBestmove(Node* Root) {
-    if ((StateConfig->Rule & core::Declare27_ER) != 0) {
+    if ((StateConfig->Rule & core::ER_Declare27) != 0) {
         if (CurrentState->canDeclare()) {
             return core::Move32::MoveWin();
         }

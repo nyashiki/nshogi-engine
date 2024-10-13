@@ -36,7 +36,7 @@ class Manager {
 
     void setIsPonderingEnabled(bool Value);
 
-    void thinkNextMove(const core::State&, const core::StateConfig&, const engine::Limit&, void (*CallBack)(const core::Move32&));
+    void thinkNextMove(const core::State&, const core::StateConfig&, const engine::Limit&, void (*CallBack)(core::Move32));
     void interrupt();
 
  private:
@@ -83,7 +83,7 @@ class Manager {
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
-    void (*BestmoveCallback)(const core::Move32&);
+    void (*BestmoveCallback)(core::Move32);
     bool IsPonderingEnabled;
 
     bool IsExiting;

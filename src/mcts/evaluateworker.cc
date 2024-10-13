@@ -2,12 +2,6 @@
 #include "../evaluate/preset.h"
 #include "../globalconfig.h"
 
-#ifdef EXECUTOR_TRT
-
-#include "../infer/trt.h"
-
-#endif
-
 #ifdef CUDA_ENABLED
 
 #include <cuda_runtime.h>
@@ -101,12 +95,15 @@ bool EvaluateWorker<Features>::doTask() {
 
     if (BatchSize == 0) {
         std::this_thread::yield();
+        // As the batch size is zero, there is no tasks to do, so
+        // return false to notify this thread can be stopped.
         return false;
     }
 
     if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD && BatchSize < BatchSizeMax / 2) {
         ++SequentialSkip;
         std::this_thread::yield();
+        // There are tasks to do so return true not to stop this worker.
         return true;
     }
 
@@ -120,6 +117,7 @@ bool EvaluateWorker<Features>::doTask() {
     PendingHashes.clear();
     SequentialSkip = 0;
 
+    // There may be tasks (a next batch) to do so return true not to stop this worker.
     return true;
 }
 
@@ -170,6 +168,8 @@ void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
         const float WinRate = *(Evaluator->getWinRate() + I);
         const float DrawRate = *(Evaluator->getDrawRate() + I);
 
+        assert(WinRate >= 0.0f && WinRate <= 1.0f);
+        assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
         feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate, DrawRate, PendingHashes[I]);
     }
 }
@@ -177,14 +177,19 @@ void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
 template <typename Features>
 void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
-    for (uint16_t I = 0; I < NumChildren; ++I) {
-        const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
-        LegalPolicy[I] = Policy[MoveIndex];
+    if (NumChildren == 1) {
+        constexpr float P[] = { 1.0 };
+        N->setEvaluation(P, WinRate, DrawRate);
+    } else {
+        for (uint16_t I = 0; I < NumChildren; ++I) {
+            const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
+            LegalPolicy[I] = Policy[MoveIndex];
+        }
+        ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
+        N->setEvaluation(LegalPolicy, WinRate, DrawRate);
+        N->sort();
     }
 
-    ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
-    N->setEvaluation(LegalPolicy, WinRate, DrawRate);
-    N->sort();
     N->updateAncestors(WinRate, DrawRate);
 
     if (ECache != nullptr) {

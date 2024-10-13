@@ -71,6 +71,10 @@ struct Node {
         VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
+    inline void incrementVisits() {
+        VisitsAndVirtualLoss.fetch_add(1, std::memory_order_release);
+    }
+
     inline void incrementVisitsAndDecrementVirtualLoss() {
         constexpr uint64_t Value = (0xffffffffffffffffULL << VirtualLossShift) | 0b1ULL;
         VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
@@ -111,6 +115,9 @@ struct Node {
 
     inline int16_t expand(const nshogi::core::MoveList& MoveList) {
         assert(Edges == nullptr);
+        assert(MoveList.size() > 0);
+        assert((VisitsAndVirtualLoss & VisitMask) == 0);
+        assert((VisitsAndVirtualLoss >> VirtualLossShift) == 1);
 
         Edges = std::make_unique<Edge[]>(MoveList.size());
 
@@ -130,6 +137,7 @@ struct Node {
     inline void setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         if (Policy != nullptr) {
             for (std::size_t I = 0; I < getNumChildren(); ++I) {
+                assert(Policy[I] >= 0.0f && Policy[I] <= 1.0f);
                 Edges[I].setProbability(Policy[I]);
             }
         }
@@ -145,6 +153,7 @@ struct Node {
                   });
     }
 
+    template <bool DecrementVirtualLoss = true>
     inline void updateAncestors(float WinRate, float DrawRate) {
         const float FlipWinRate = 1.0f - WinRate;
         bool Flip = false;
@@ -155,7 +164,11 @@ struct Node {
             N->addWinRate(Flip ? FlipWinRate : WinRate);
             N->addDrawRate(DrawRate);
 
-            N->incrementVisitsAndDecrementVirtualLoss();
+            if constexpr (DecrementVirtualLoss) {
+                N->incrementVisitsAndDecrementVirtualLoss();
+            } else {
+                N->incrementVisits();
+            }
 
             Flip = !Flip;
             N = N->getParent();
@@ -265,7 +278,7 @@ struct Node {
         return mostPromisingEdgeV1();
     }
 
-    void setSolverResult(const core::Move16& Move) {
+    void setSolverResult(core::Move16 Move) {
         SolverMove.store(Move.value(), std::memory_order_release);
     }
 
