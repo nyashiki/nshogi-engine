@@ -13,6 +13,8 @@
 #include "commands/getready.h"
 #include "commands/setposition.h"
 #include "commands/think.h"
+#include "commands/stop.h"
+#include "../mcts/manager.h"
 #include "../logger/logger.h"
 #include "../contextmanager.h"
 
@@ -27,26 +29,27 @@ class Executor {
     Executor(std::shared_ptr<logger::Logger> Logger);
     ~Executor();
 
-    void pushCommand(std::unique_ptr<ICommand>&& Command);
+    void pushCommand(std::shared_ptr<ICommand> Command, bool blocking = false);
 
     const Context* getContext() const;
 
  private:
     void mainLoop();
-    void executeCommand(std::unique_ptr<ICommand>&& Command);
+    void executeCommand(std::shared_ptr<ICommand> Command);
 
     void executeCommand(const commands::Noop* Command);
-    void executeCommand(std::unique_ptr<commands::IConfig>&& Command);
+    void executeCommand(const commands::IConfig* Command);
     void executeCommand(const commands::GetReady* Command);
     void executeCommand(const commands::SetPosition* Command);
     void executeCommand(const commands::Think* Command);
+    void executeCommand(const commands::Stop* Command);
 
     void setConfig(const commands::BoolConfig* Config);
     void setConfig(const commands::IntegerConfig* Config);
     void setConfig(const commands::DoubleConfig* Config);
     void setConfig(const commands::StringConfig* Config);
 
-    std::deque<std::unique_ptr<ICommand>> CommandQueue;
+    std::deque<std::shared_ptr<ICommand>> CommandQueue;
     std::thread Worker;
 
     bool IsExiting;
@@ -54,11 +57,13 @@ class Executor {
     std::condition_variable CV;
 
     ContextManager CManager;
-    std::queue<std::unique_ptr<commands::IConfig>> Configs;
 
     std::unique_ptr<core::State> State;
+    std::unique_ptr<core::StateConfig> StateConfig;
 
-    std::shared_ptr<logger::Logger> pLogger;
+    std::unique_ptr<mcts::Manager> Manager;
+
+    std::shared_ptr<logger::Logger> PLogger;
 };
 
 } // namespace command

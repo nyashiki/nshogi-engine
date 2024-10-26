@@ -57,7 +57,9 @@ SOURCES :=                                  \
 	src/command/commands/noop.cc        \
 	src/command/commands/config.cc      \
 	src/command/commands/getready.cc    \
-	src/command/commands/setposition.cc
+	src/command/commands/setposition.cc \
+	src/command/commands/think.cc       \
+	src/command/commands/stop.cc
 
 SELFPLAY_SOURCES :=                      \
 	src/selfplay/evaluationworker.cc \

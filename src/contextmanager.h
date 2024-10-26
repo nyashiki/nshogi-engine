@@ -10,6 +10,8 @@ namespace engine {
 
 class ContextManager {
  public:
+    ContextManager();
+
     const Context* getContext() const;
 
     void setPonderingEnabled(bool Value);
@@ -36,18 +38,18 @@ class ContextManager {
 
     void setWeightPath(const std::string& Path);
 
-    void setIsBookEnabled(bool Value);
+    void setBookEnabled(bool Value);
 
     void setBlackDrawValue(float DrawValue);
 
     void setWhiteDrawValue(float DrawValue);
 
-    void setIsRepetitionBookAllowed(bool Value);
+    void setRepetitionBookAllowed(bool Value);
 
     void setBookPath(const std::string& Path);
 
  private:
-    std::unique_ptr<Context> Context_;
+    const std::unique_ptr<Context> Context_;
 
 };
 

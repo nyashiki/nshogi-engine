@@ -3,6 +3,10 @@
 namespace nshogi {
 namespace engine {
 
+ContextManager::ContextManager()
+    : Context_(std::make_unique<Context>()) {
+}
+
 const Context* ContextManager::getContext() const {
     return Context_.get();
 }
@@ -55,7 +59,7 @@ void ContextManager::setWeightPath(const std::string& Path) {
     Context_->WeightPath = Path;
 }
 
-void ContextManager::setIsBookEnabled(bool Value) {
+void ContextManager::setBookEnabled(bool Value) {
     Context_->IsBookEnabled = Value;
 }
 
@@ -67,7 +71,7 @@ void ContextManager::setWhiteDrawValue(float DrawValue) {
     Context_->WhiteDrawValue = DrawValue;
 }
 
-void ContextManager::setIsRepetitionBookAllowed(bool Value) {
+void ContextManager::setRepetitionBookAllowed(bool Value) {
     Context_->IsRepetitionBookAllowed = Value;
 }
 

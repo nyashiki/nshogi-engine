@@ -25,20 +25,12 @@ namespace mcts {
 
 class Manager {
  public:
-    Manager(
-        const Context*,
-        std::size_t BatchSize,
-        std::size_t NumGPUs,
-        std::size_t NumSearchWorkers,
-        std::size_t NumEvaluationWorkersPerGPU,
-        std::size_t NumCheckmateWorkers,
-        std::size_t EvalCacheMB,
-        std::shared_ptr<logger::Logger> Logger);
+    Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
     void setIsPonderingEnabled(bool Value);
 
-    void thinkNextMove(const core::State&, const core::StateConfig&, const engine::Limit&, void (*CallBack)(core::Move32));
+    void thinkNextMove(const core::State&, const core::StateConfig&, const engine::Limit&, std::function<void(core::Move32)> Callback);
     void interrupt();
 
  private:
@@ -87,7 +79,7 @@ class Manager {
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
-    void (*BestmoveCallback)(core::Move32);
+    std::function<void(core::Move32)> BestMoveCallback;
     bool IsPonderingEnabled;
 
     bool IsExiting;
