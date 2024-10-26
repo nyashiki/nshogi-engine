@@ -87,7 +87,7 @@ void Executor::executeCommand(std::shared_ptr<ICommand> Command) {
     Command->setDone();
 }
 
-void Executor::executeCommand(const commands::Noop* Command) {
+void Executor::executeCommand(const commands::Noop*) {
 }
 
 void Executor::executeCommand(const commands::IConfig* Command) {
@@ -102,14 +102,13 @@ void Executor::executeCommand(const commands::IConfig* Command) {
     }
 }
 
-void Executor::executeCommand(const commands::GetReady* Command) {
+void Executor::executeCommand(const commands::GetReady*) {
     const std::size_t AvailableMemory = CManager.getContext()->getAvailableMemoryMB() * 1024ULL * 1024ULL;
     nshogi::engine::allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AvailableMemory));
     nshogi::engine::allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AvailableMemory));
 
     Manager = std::make_unique<mcts::Manager>(CManager.getContext(), PLogger);
-    Manager->setIsPonderingEnabled(false);
-    // TODO: Ponder.
+    Manager->setIsPonderingEnabled(CManager.getContext()->getPonderingEnabled());
 }
 
 void Executor::executeCommand(const commands::SetPosition* Command) {
@@ -117,10 +116,11 @@ void Executor::executeCommand(const commands::SetPosition* Command) {
 }
 
 void Executor::executeCommand(const commands::Think* Command) {
-    Manager->thinkNextMove(*State, *StateConfig, *Command->limit(), Command->callback());
+    const Limit* MyLimit = State->getSideToMove() == core::Black ? &Command->limit()[0] : &Command->limit()[1];
+    Manager->thinkNextMove(*State, *StateConfig, *MyLimit, Command->callback());
 }
 
-void Executor::executeCommand(const commands::Stop* Command) {
+void Executor::executeCommand(const commands::Stop*) {
     Manager->interrupt();
 }
 
