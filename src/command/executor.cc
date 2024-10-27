@@ -103,10 +103,6 @@ void Executor::executeCommand(const commands::IConfig* Command) {
 }
 
 void Executor::executeCommand(const commands::GetReady*) {
-    const std::size_t AvailableMemory = CManager.getContext()->getAvailableMemoryMB() * 1024ULL * 1024ULL;
-    nshogi::engine::allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AvailableMemory));
-    nshogi::engine::allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AvailableMemory));
-
     Manager = std::make_unique<mcts::Manager>(CManager.getContext(), PLogger);
     Manager->setIsPonderingEnabled(CManager.getContext()->getPonderingEnabled());
 }

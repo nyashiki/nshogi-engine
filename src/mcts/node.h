@@ -2,6 +2,7 @@
 #define NSHOGI_ENGINE_MCTS_NODE_H
 
 #include "edge.h"
+#include "pointer.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -9,7 +10,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
-#include <memory>
 #include "../allocator/allocator.h"
 #include "../math/fixedpoint.h"
 #include <nshogi/core/movelist.h>
@@ -62,8 +62,12 @@ struct Node {
         return NumChildren;
     }
 
-    inline Edge* getEdge(std::size_t I) {
-        return &Edges[I];
+    inline Pointer<Edge>& getEdge() {
+        return Edges;
+    }
+
+    inline const Pointer<Edge>& getEdge() const {
+        return Edges;
     }
 
     inline void incrementVirtualLoss() {
@@ -85,7 +89,7 @@ struct Node {
         VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
-    inline uint64_t getVisitsAndVirtualLoss() {
+    inline uint64_t getVisitsAndVirtualLoss() const {
         return VisitsAndVirtualLoss.load(std::memory_order_acquire);
     }
 
@@ -113,14 +117,13 @@ struct Node {
         return DrawRatePredicted;
     }
 
-    inline int16_t expand(const nshogi::core::MoveList& MoveList) {
+    inline int16_t expand(const nshogi::core::MoveList& MoveList, allocator::Allocator* Allocator) {
         assert(Edges == nullptr);
         assert(MoveList.size() > 0);
         assert((VisitsAndVirtualLoss & VisitMask) == 0);
         assert((VisitsAndVirtualLoss >> VirtualLossShift) == 1);
 
-        Edges = std::make_unique<Edge[]>(MoveList.size());
-
+        Edges.mallocArray(Allocator, MoveList.size());
         if (Edges == nullptr) {
             // There is no available memory.
             return -1;
@@ -201,11 +204,11 @@ struct Node {
         const auto SMove = getSolverResult();
 
         uint32_t MostVisitedCount = 0;
-        Edge* MostVisitedEdge = getEdge(0);
+        Edge* MostVisitedEdge = &getEdge()[0];
 
         for (uint16_t I = 0; I < NumChildren_; ++I) {
-            Edge* E = getEdge(I);
-            Node* Child = E->getTarget();
+            Edge* E = &getEdge()[I];
+            const Node* Child = E->getTarget();
 
             if (SMove == E->getMove()) {
                 return E;
@@ -245,11 +248,11 @@ struct Node {
         const auto SMove = getSolverResult();
 
         double ScoreMax = 0;
-        Edge* ScoreMaxEdge = getEdge(0);
+        Edge* ScoreMaxEdge = &getEdge()[0];
 
         for (uint16_t I = 0; I < NumChildren_; ++I) {
-            Edge* E = getEdge(I);
-            Node* Child = E->getTarget();
+            Edge* E = &getEdge()[I];
+            const Node* Child = E->getTarget();
 
             if (SMove == E->getMove()) {
                 return E;
@@ -286,21 +289,10 @@ struct Node {
         return core::Move16::fromValue(SolverMove.load(std::memory_order_acquire));
     }
 
-    void* operator new(std::size_t Size) {
-        return allocator::getNodeAllocator().malloc(Size);
-    }
-
-    void operator delete(void* Ptr) noexcept {
-        return allocator::getNodeAllocator().free(Ptr);
-    }
-
-    void* operator new[](std::size_t) = delete;
-    void operator delete[](void*) = delete;
-
  private:
     Node* Parent;
     uint16_t NumChildren;
-    std::unique_ptr<Edge[]> Edges;
+    Pointer<Edge> Edges;
 
     // Variables updated in search iteration.
     std::atomic<uint64_t> VisitsAndVirtualLoss;

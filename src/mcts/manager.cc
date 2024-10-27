@@ -14,6 +14,7 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     , HasInterruptReceived(false)
     , IsPonderingEnabled(false)
     , IsExiting(false) {
+    setupAllocator();
     setupGarbageCollector();
     setupMutexPool();
     setupSearchTree();
@@ -48,6 +49,11 @@ Manager::~Manager() {
     for (auto& SearchWorker : SearchWorkers) {
         SearchWorker.reset(nullptr);
     }
+
+    // SearchTree's destructor must be called before
+    // GarbageCollector is released. Hence,
+    // call the destructor explicitly here.
+    SearchTree.reset(nullptr);
 }
 
 void Manager::setIsPonderingEnabled(bool Value) {
@@ -107,9 +113,15 @@ void Manager::interrupt() {
     WatchdogWorker->await();
 }
 
+void Manager::setupAllocator() {
+    NodeAllocator.resize((std::size_t)(0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+    EdgeAllocator.resize((std::size_t)(0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+}
+
 void Manager::setupGarbageCollector() {
     GC = std::make_unique<GarbageCollector>(
-        PContext->getNumGarbageCollectorThreads());
+        PContext->getNumGarbageCollectorThreads(),
+        &NodeAllocator, &EdgeAllocator);
 }
 
 void Manager::setupMutexPool() {
@@ -117,7 +129,7 @@ void Manager::setupMutexPool() {
 }
 
 void Manager::setupSearchTree() {
-    SearchTree = std::make_unique<Tree>(GC.get(), PLogger.get());
+    SearchTree = std::make_unique<Tree>(GC.get(), &NodeAllocator, PLogger.get());
 }
 
 void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU) {
@@ -138,7 +150,7 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker<global_config::FeatureType>>(
-            EQueue.get(), CQueue.get(), MtxPool.get(), ECache.get()));
+            &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(), MtxPool.get(), ECache.get()));
     }
 }
 
@@ -193,7 +205,7 @@ void Manager::setupSupervisor() {
 }
 
 void Manager::setupWatchDog() {
-    WatchdogWorker = std::make_unique<Watchdog>(PContext, PLogger);
+    WatchdogWorker = std::make_unique<Watchdog>(PContext, &NodeAllocator, &EdgeAllocator, PLogger);
     WatchdogWorker->setStopSearchingCallback(std::bind(&Manager::watchdogStopCallback, this));
 }
 
@@ -327,15 +339,12 @@ core::Move32 Manager::getBestmove(Node* Root) {
 }
 
 bool Manager::checkMemoryBudgetForPondering() {
-    const auto& NodeAllocator = allocator::getNodeAllocator();
-
     if (NodeAllocator.getTotal() > 0 &&
             (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * 0.6) {
         PLogger->printLog("Pondering has been skipped due to little memory budget (Node).");
         return true;
     }
 
-    const auto& EdgeAllocator = allocator::getEdgeAllocator();
     if (EdgeAllocator.getTotal() > 0 &&
             (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * 0.6) {
         PLogger->printLog("Pondering has been skipped due to little memory budget (Edge).");

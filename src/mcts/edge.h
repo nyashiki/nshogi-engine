@@ -4,6 +4,7 @@
 #include <memory>
 #include <cassert>
 
+#include "pointer.h"
 #include "../allocator/allocator.h"
 #include <nshogi/core/types.h>
 
@@ -47,7 +48,7 @@ struct Edge {
         return Probability;
     }
 
-    void setTarget(std::unique_ptr<Node>&& T) {
+    void setTarget(Pointer<Node>&& T) {
         assert(Target == nullptr);
         assert(Ready == false);
 
@@ -55,7 +56,7 @@ struct Edge {
         Ready.store(true, std::memory_order_release);
     }
 
-    Node* getTarget() const {
+    Node* getTarget() {
         if (Ready.load(std::memory_order_acquire)) {
             assert(Target != nullptr);
             return Target.get();
@@ -64,7 +65,7 @@ struct Edge {
         return nullptr;
     }
 
-    std::unique_ptr<Node>&& getTargetWithOwner() {
+    Pointer<Node>&& getTargetWithOwner() {
         return std::move(Target);
     }
 
@@ -76,19 +77,8 @@ struct Edge {
         return Move;
     }
 
-    void* operator new(std::size_t) = delete;
-    void operator delete(void*) = delete;
-
-    void* operator new[](std::size_t Size) {
-        return allocator::getEdgeAllocator().malloc(Size);
-    }
-
-    void operator delete[](void* Ptr) noexcept {
-        allocator::getEdgeAllocator().free(Ptr);
-    }
-
  private:
-    std::unique_ptr<Node> Target;
+    Pointer<Node> Target;
     float Probability;
     core::Move16 Move;
     std::atomic<bool> Ready;

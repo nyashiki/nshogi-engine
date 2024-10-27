@@ -22,8 +22,10 @@ void cancelVirtualLoss(Node* N) {
 } // namespace
 
 template <typename Features>
-SearchWorker<Features>::SearchWorker(EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP, EvalCache* EC)
+SearchWorker<Features>::SearchWorker(allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, EvaluationQueue<Features>* EQ, CheckmateQueue* CQ, MutexPool<lock::SpinLock>* MP, EvalCache* EC)
     : worker::Worker(true)
+    , NA(NodeAllocator)
+    , EA(EdgeAllocator)
     , EQueue(EQ)
     , CQueue(CQ)
     , MtxPool(MP)
@@ -148,7 +150,8 @@ Node* SearchWorker<Features>::collectOneLeaf() {
                 }
             }
 
-            auto NewNode = std::make_unique<Node>(CurrentNode);
+            Pointer<Node> NewNode;
+            NewNode.malloc(NA, CurrentNode);
 
             if (NewNode == nullptr) {
                 // If there is no available memory, it has failed to allocate a new node.
@@ -186,7 +189,7 @@ int16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
         return 0;
     }
 
-    return LeafNode->expand(Moves);
+    return LeafNode->expand(Moves, EA);
 }
 
 template <typename Feature>
@@ -243,7 +246,7 @@ Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren, b
         // their prior, we can simply select 0-th edge if the virtual loss is zero.
         // If the virtual loss is not zero, we simply choose `virtual-loss`-th element.
         if (CurrentVirtualLoss < NumChildren) {
-            return N->getEdge(CurrentVirtualLoss);
+            return &N->getEdge()[CurrentVirtualLoss];
         } else {
             // When the virtual loss is larger than or equal to the number of children,
             // all children will be extracted so nothing to do here.
@@ -266,7 +269,7 @@ Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren, b
     Edge* LongestLossEdge = nullptr;
 
     for (uint16_t I = 0; I < NumChildren; ++I) {
-        auto* const Edge = N->getEdge(I);
+        auto* const Edge = &N->getEdge()[I];
         auto* const Child = Edge->getTarget();
 
         // The child is not visited yet.

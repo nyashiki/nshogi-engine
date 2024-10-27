@@ -7,10 +7,12 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Watchdog::Watchdog(const Context* C, std::shared_ptr<logger::Logger> Logger)
+Watchdog::Watchdog(const Context* C, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, std::shared_ptr<logger::Logger> Logger)
     : worker::Worker(false)
     , StopSearchingCallback(nullptr)
     , PContext(C)
+    , NA(NodeAllocator)
+    , EA(EdgeAllocator)
     , PLogger(std::move(Logger)) {
     spawnThread();
 }
@@ -103,18 +105,16 @@ bool Watchdog::isRootSolved() const {
 }
 
 bool Watchdog::checkMemoryBudget() const {
-    const auto& NodeAllocator = allocator::getNodeAllocator();
     const double Factor = PContext->getMemoryLimitFactor();
 
-    if (NodeAllocator.getTotal() > 0 &&
-            (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * Factor) {
+    if (NA->getTotal() > 0 &&
+            (double)NA->getUsed() > (double)NA->getTotal() * Factor) {
         PLogger->printLog("Memory limit (Node).");
         return true;
     }
 
-    const auto& EdgeAllocator = allocator::getEdgeAllocator();
-    if (EdgeAllocator.getTotal() > 0 &&
-            (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * Factor) {
+    if (EA->getTotal() > 0 &&
+            (double)EA->getUsed() > (double)EA->getTotal() * Factor) {
         PLogger->printLog("Memory limit (Edge).");
         return true;
     }
@@ -149,7 +149,7 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
 
     std::vector<double> Visits(NumChildren, 0.0);
     for (uint16_t I = 0; I < NumChildren; ++I) {
-        Edge* E = Root->getEdge(I);
+        Edge* E = &Root->getEdge()[I];
         Node* Child = E->getTarget();
 
         if (Child != nullptr) {
@@ -181,7 +181,7 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
                 break;
             }
 
-            const double Predicted = Root->getEdge(I)->getProbability();
+            const double Predicted = Root->getEdge()[I].getProbability();
             const double KLD = VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
 
             KLDivergence += KLD;

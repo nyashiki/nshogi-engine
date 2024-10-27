@@ -1,6 +1,8 @@
 #ifndef NSHOGI_ENGINE_MCTS_MANAGER_H
 #define NSHOGI_ENGINE_MCTS_MANAGER_H
 
+#include "../allocator/fixed_allocator.h"
+#include "../allocator/segregated_free_list.h"
 #include "evaluateworker.h"
 #include "searchworker.h"
 #include "evaluatequeue.h"
@@ -34,6 +36,7 @@ class Manager {
     void interrupt();
 
  private:
+    void setupAllocator();
     void setupGarbageCollector();
     void setupMutexPool();
     void setupSearchTree();
@@ -56,6 +59,8 @@ class Manager {
     void watchdogStopCallback();
 
     const Context* PContext;
+    allocator::FixedAllocator<sizeof(Node)> NodeAllocator;
+    allocator::SegregatedFreeListAllocator EdgeAllocator;
 
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;

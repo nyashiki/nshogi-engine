@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <mutex>
 #include <iostream>
 
@@ -10,7 +9,9 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-GarbageCollector::GarbageCollector(std::size_t NumWorkers) {
+GarbageCollector::GarbageCollector(std::size_t NumWorkers, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator)
+    : NA(NodeAllocator)
+    , EA(EdgeAllocator) {
     if (NumWorkers <= 0) {
         std::cerr << "NumWorkers must be greater or equal than 1." << std::endl;
         std::exit(1);
@@ -36,7 +37,7 @@ GarbageCollector::~GarbageCollector() {
     }
 }
 
-void GarbageCollector::addGarbage(std::unique_ptr<Node>&& Node) {
+void GarbageCollector::addGarbage(Pointer<Node>&& Node) {
     {
         std::lock_guard<std::mutex> Lock(Mtx);
         Garbages.push(std::move(Node));
@@ -44,7 +45,7 @@ void GarbageCollector::addGarbage(std::unique_ptr<Node>&& Node) {
     Cv.notify_one();
 }
 
-void GarbageCollector::addGarbages(std::vector<std::unique_ptr<Node>>&& Nodes) {
+void GarbageCollector::addGarbages(std::vector<Pointer<Node>>&& Nodes) {
     {
         std::lock_guard<std::mutex> Lock(Mtx);
         for (auto&& Node : Nodes) {
@@ -56,7 +57,7 @@ void GarbageCollector::addGarbages(std::vector<std::unique_ptr<Node>>&& Nodes) {
 
 void GarbageCollector::mainLoop() {
     while (true) {
-        std::queue<std::unique_ptr<Node>> NodesToProcess;
+        std::queue<Pointer<Node>> NodesToProcess;
         {
             std::unique_lock<std::mutex> Lock(Mtx);
 
@@ -78,8 +79,11 @@ void GarbageCollector::mainLoop() {
             // To avoid stack-overflow, manually expand the children.
             const uint16_t NumChildren = NodeToProcess->getNumChildren();
             for (uint16_t I = 0; I < NumChildren; ++I) {
-                NodesToProcess.push(std::move(NodeToProcess->getEdge(I)->getTargetWithOwner()));
+                NodesToProcess.push(std::move(NodeToProcess->getEdge()[I].getTargetWithOwner()));
             }
+
+            NodeToProcess->getEdge().destroy(EA);
+            NodeToProcess.destroy(NA);
         }
 
         if (ToExit) {

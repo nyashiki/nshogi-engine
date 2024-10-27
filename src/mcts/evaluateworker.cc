@@ -182,7 +182,7 @@ void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const
         N->setEvaluation(P, WinRate, DrawRate);
     } else {
         for (uint16_t I = 0; I < NumChildren; ++I) {
-            const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge(I)->getMove());
+            const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
             LegalPolicy[I] = Policy[MoveIndex];
         }
         ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
