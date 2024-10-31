@@ -82,8 +82,8 @@ void GarbageCollector::mainLoop() {
                 NodesToProcess.push(std::move(NodeToProcess->getEdge()[I].getTargetWithOwner()));
             }
 
-            NodeToProcess->getEdge().destroy(EA);
-            NodeToProcess.destroy(NA);
+            NodeToProcess->getEdge().destroy(EA, NumChildren);
+            NodeToProcess.destroy(NA, 1);
         }
 
         if (ToExit) {

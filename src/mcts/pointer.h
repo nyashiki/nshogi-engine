@@ -18,8 +18,7 @@ class Pointer {
     }
 
     Pointer(Pointer&& Other) noexcept
-        : P(Other.P)
-        , S(Other.S) {
+        : P(Other.P) {
         Other.P = nullptr;
     }
 
@@ -33,8 +32,6 @@ class Pointer {
             assert(P == nullptr);
 
             P = Other.P;
-            S = Other.S;
-
             Other.P = nullptr;
         }
 
@@ -83,7 +80,6 @@ class Pointer {
         }
 
         new (P) T(Args...);
-        S = 1;
 
         return P;
     }
@@ -99,14 +95,13 @@ class Pointer {
         for (std::size_t I = 0; I < Size; ++I) {
             new (&P[I]) T();
         }
-        S = Size;
 
         return P;
     }
 
-    void destroy(allocator::Allocator* Allocator) {
+    void destroy(allocator::Allocator* Allocator, std::size_t Size) {
         if (P != nullptr) {
-            for (std::size_t I = 0; I < S; ++I) {
+            for (std::size_t I = 0; I < Size; ++I) {
                 P[I].~T();
             }
             Allocator->free(P);
@@ -116,7 +111,6 @@ class Pointer {
 
  private:
     T* P;
-    std::size_t S;
 };
 
 } // namespace mcts
