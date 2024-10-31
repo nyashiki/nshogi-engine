@@ -1,4 +1,5 @@
 #include "worker.h"
+#include "../mcts/pointer.h"
 
 #include <limits>
 #include <stdexcept>
@@ -12,11 +13,13 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo* SI)
+Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, mcts::EvalCache* EC, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo* SI)
     : worker::Worker(true)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
     , SaveQueue(SFQ)
+    , NA(NodeAllocator)
+    , EA(EdgeAllocator)
     , EvalCache(EC)
     , InitialPositions(InitialPositionsToPlay)
     , USE_SHOGI816K(UseShogi816k)
@@ -158,7 +161,8 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
         F->getState()->doMove(F->getState()->getMove32FromMove16(E->getMove()));
 
         if (E->getTarget() == nullptr) {
-            auto NewNode = std::make_unique<mcts::Node>(Node);
+            mcts::Pointer<mcts::Node> NewNode;
+            NewNode.malloc(NA, Node);
             assert(NewNode != nullptr);
 
             E->setTarget(std::move(NewNode));
@@ -244,7 +248,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         }
     }
 
-    F->getNodeToEvalute()->expand(LegalMoves);
+    F->getNodeToEvalute()->expand(LegalMoves, EA);
 
     // Check evaluation cache.
     assert(EvalCache != nullptr);
@@ -295,7 +299,7 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
                 continue;
             }
 
-            mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+            mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
             mcts::Node* Child = Edge->getTarget();
 
             if (Child == nullptr) {
@@ -369,7 +373,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
     }
 
     if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
-        const mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(0);
+        const mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[0];
         F->getState()->doMove(F->getState()->getMove32FromMove16(Edge->getMove()));
         return SelfplayPhase::Judging;
     }
@@ -382,7 +386,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
         if (!F->getIsTarget().at(I)) {
             continue;
         }
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
         assert(Child != nullptr);
         if (Child != nullptr) {
@@ -396,7 +400,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
             continue;
         }
 
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
         assert(Child != nullptr);
 
@@ -443,7 +447,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color SideToMove, 
             continue;
         }
 
-        mcts::Edge* Edge = N->getEdge(I);
+        mcts::Edge* Edge = &N->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
         if (Child != nullptr) {
             MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
@@ -457,7 +461,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color SideToMove, 
             continue;
         }
 
-        mcts::Edge* Edge = N->getEdge(I);
+        mcts::Edge* Edge = &N->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
         const double Score =
@@ -484,7 +488,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
     const double C = 1.25 * std::sqrt((double)N->getVisitsAndVirtualLoss());
 
     for (std::size_t I = 0; I < NumChildren; ++I) {
-        mcts::Edge* Edge = N->getEdge(I);
+        mcts::Edge* Edge = &N->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
         const double Score = (Child == nullptr)
@@ -557,7 +561,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
 
     std::vector<std::pair<double, std::size_t>> ScoreWithIndex(F->getIsTarget().size());
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
 
         ScoreWithIndex[I].first = F->getGumbelNoise().at(I) + Edge->getProbability();
         ScoreWithIndex[I].second = I;
@@ -587,7 +591,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
             continue;
         }
 
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
         assert(Child != nullptr);
@@ -601,7 +605,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
             continue;
         }
 
-        mcts::Edge* Edge = F->getSearchTree()->getRoot()->getEdge(I);
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
         assert(Child != nullptr);

@@ -2,6 +2,7 @@
 #define NSHOGI_ENGINE_SELFPLAY_FRAME_H
 
 #include "phase.h"
+#include "../allocator/allocator.h"
 #include "../mcts/tree.h"
 #include "../mcts/evalcache.h"
 #include <vector>
@@ -16,7 +17,7 @@ namespace selfplay {
 
 struct Frame {
  public:
-    Frame(mcts::GarbageCollector*);
+    Frame(mcts::GarbageCollector*, allocator::Allocator* NodeAllocator);
 
     SelfplayPhase getPhase() const;
     core::State* getState();

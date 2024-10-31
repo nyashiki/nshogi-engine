@@ -3,7 +3,8 @@
 #include "evaluationworker.h"
 #include "saveworker.h"
 #include "selfplayinfo.h"
-#include "../allocator/allocator.h"
+#include "../allocator/fixed_allocator.h"
+#include "../allocator/segregated_free_list.h"
 #include "../argparser.h"
 
 #include <fstream>
@@ -43,9 +44,12 @@ int main(int Argc, char* Argv[]) {
     core::initializer::initializeAll();
 
     // Setup allocator.
+    auto NodeAllocator = std::make_unique<allocator::FixedAllocator<sizeof(mcts::Node)>>();
+    auto EdgeAllocator = std::make_unique<allocator::SegregatedFreeListAllocator>();
+
     const std::size_t AVAILABLE_MEMORY_MB = (std::size_t)std::stoull(Parser.getOption("memory-size"));
-    allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
-    allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
+    NodeAllocator->resize((std::size_t)(0.1 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
+    EdgeAllocator->resize((std::size_t)(0.9 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
 
     // Prepare queue.
     auto SearchQueue = std::make_unique<FrameQueue>();
@@ -53,7 +57,7 @@ int main(int Argc, char* Argv[]) {
     auto SaveQueue = std::make_unique<FrameQueue>();
 
     // Prepare garbage collectors.
-    auto GC = std::make_unique<mcts::GarbageCollector>(1);
+    auto GC = std::make_unique<mcts::GarbageCollector>(1, NodeAllocator.get(), EdgeAllocator.get());
 
     // Prepare evaluation cache.
     const std::size_t EVALCACHE_MEMORY_MB = (std::size_t)std::stoull(Parser.getOption("evaluation-cache-memory-size"));;
@@ -62,7 +66,7 @@ int main(int Argc, char* Argv[]) {
     // Prepare empty frames.
     const std::size_t NUM_FRAME_POOL = (std::size_t)std::stoull(Parser.getOption("frame-pool-size"));
     for (std::size_t I = 0; I < NUM_FRAME_POOL; ++I) {
-        auto F = std::make_unique<Frame>(GC.get());
+        auto F = std::make_unique<Frame>(GC.get(), NodeAllocator.get());
         F->setEvaluationCache(EvalCache.get());
         SearchQueue->add(std::move(F));
     }
@@ -101,7 +105,7 @@ int main(int Argc, char* Argv[]) {
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(
-                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), EvalCache.get(), InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
+                std::make_unique<Worker>(SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(), NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(), InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU =
