@@ -117,7 +117,9 @@ void Executor::executeCommand(const commands::Think* Command) {
 }
 
 void Executor::executeCommand(const commands::Stop*) {
-    Manager->interrupt();
+    if (Manager != nullptr) {
+        Manager->interrupt();
+    }
 }
 
 void Executor::setConfig(const commands::BoolConfig* Config) {
