@@ -643,9 +643,9 @@ void Worker::updateSequentialHalvingSchedule(Frame* F, uint16_t NumValidChilds) 
     if (ExtraVisits == 0 || NumValidChilds <= 2) {
         // Use all left simulation budgets to identify the best move.
         assert(F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() > 0);
-        assert(F->getNumPlayouts() > F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss());
+        assert(F->getNumPlayouts() + 1 > F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss());
         const uint64_t LeftPlayouts =
-            F->getNumPlayouts() - (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() - 1);
+            F->getNumPlayouts() + 1 - F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss();
         F->setSequentialHalvingPlayouts(F->getSequentialHalvingPlayouts() + (LeftPlayouts + 1) / 2);
         F->setSequentialHalvingCount(F->getSequentialHalvingCount() + 1);
     } else {
