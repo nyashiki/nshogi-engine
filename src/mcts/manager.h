@@ -1,6 +1,8 @@
 #ifndef NSHOGI_ENGINE_MCTS_MANAGER_H
 #define NSHOGI_ENGINE_MCTS_MANAGER_H
 
+#include "../allocator/fixed_allocator.h"
+#include "../allocator/segregated_free_list.h"
 #include "evaluateworker.h"
 #include "searchworker.h"
 #include "evaluatequeue.h"
@@ -11,8 +13,9 @@
 #include "tree.h"
 #include "watchdog.h"
 #include "../limit.h"
-#include "../globalconfig.h"
 #include "../evaluate/preset.h"
+#include "../context.h"
+#include "../globalconfig.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -24,22 +27,16 @@ namespace mcts {
 
 class Manager {
  public:
-    Manager(
-        std::size_t BatchSize,
-        std::size_t NumGPUs,
-        std::size_t NumSearchWorkers,
-        std::size_t NumEvaluationWorkersPerGPU,
-        std::size_t NumCheckmateWorkers,
-        std::size_t EvalCacheMB,
-        std::shared_ptr<logger::Logger> Logger);
+    Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
     void setIsPonderingEnabled(bool Value);
 
-    void thinkNextMove(const core::State&, const core::StateConfig&, const engine::Limit&, void (*CallBack)(core::Move32));
+    void thinkNextMove(const core::State&, const core::StateConfig&, engine::Limit, std::function<void(core::Move32)> Callback);
     void interrupt();
 
  private:
+    void setupAllocator();
     void setupGarbageCollector();
     void setupMutexPool();
     void setupSearchTree();
@@ -61,14 +58,18 @@ class Manager {
 
     void watchdogStopCallback();
 
+    const Context* PContext;
+    allocator::FixedAllocator<sizeof(Node)> NodeAllocator;
+    allocator::SegregatedFreeListAllocator EdgeAllocator;
+
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
-    std::unique_ptr<EvaluationQueue<GlobalConfig::FeatureType>> EQueue;
+    std::unique_ptr<EvaluationQueue<global_config::FeatureType>> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
-    std::vector<std::unique_ptr<SearchWorker<GlobalConfig::FeatureType>>> SearchWorkers;
-    std::vector<std::unique_ptr<EvaluateWorker<GlobalConfig::FeatureType>>> EvaluateWorkers;
+    std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>> SearchWorkers;
+    std::vector<std::unique_ptr<EvaluateWorker<global_config::FeatureType>>> EvaluateWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::shared_ptr<logger::Logger> PLogger;
@@ -83,7 +84,7 @@ class Manager {
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
-    void (*BestmoveCallback)(core::Move32);
+    std::function<void(core::Move32)> BestMoveCallback;
     bool IsPonderingEnabled;
 
     bool IsExiting;

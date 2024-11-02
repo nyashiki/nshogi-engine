@@ -1,5 +1,4 @@
 #include "usilogger.h"
-#include "../globalconfig.h"
 
 #include <cstdint>
 #include <cmath>

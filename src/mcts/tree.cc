@@ -9,9 +9,14 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Tree::Tree(GarbageCollector* GCollector, logger::Logger* Logger)
+Tree::Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator, logger::Logger* Logger)
     : GC(GCollector)
+    , NA(NodeAllocator)
     , PLogger(Logger) {
+}
+
+Tree::~Tree() {
+    GC->addGarbage(std::move(Root));
 }
 
 Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
@@ -31,7 +36,7 @@ Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
         }
     }
 
-    std::vector<std::unique_ptr<Node>> Garbages;
+    std::vector<Pointer<Node>> Garbages;
     for (; Ply < State.getPly(); ++Ply) {
         const auto Move = State.getHistoryMove(Ply);
         const auto Move16 = core::Move16(Move);
@@ -39,11 +44,11 @@ Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
         bool IsFound = false;
 
         for (uint16_t I = 0; I < Root->getNumChildren(); ++I) {
-            Edge* E = Root->getEdge(I);
+            Edge* E = &Root->getEdge()[I];
 
             if (E->getMove() == Move16) {
                 IsFound = true;
-                std::unique_ptr<Node> NextRoot = E->getTargetWithOwner();
+                Pointer<Node> NextRoot = std::move(E->getTargetWithOwner());
 
                 if (NextRoot == nullptr) {
                     return createNewRoot(State);
@@ -77,7 +82,7 @@ Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
     return Root.get();
 }
 
-Node* Tree::getRoot() const {
+Node* Tree::getRoot() {
     return Root.get();
 }
 
@@ -95,7 +100,7 @@ Node* Tree::createNewRoot(const nshogi::core::State& State) {
         PLogger->printLog("Throwed the previous root away.");
     }
 
-    Root = std::make_unique<Node>(nullptr);
+    Root.malloc(NA, nullptr);
 
     if (Root == nullptr) {
         throw std::runtime_error("Failed to allocate a root node.");

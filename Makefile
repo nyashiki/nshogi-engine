@@ -32,25 +32,34 @@ else
 	# OPTIM = -Ofast -g
 endif
 
-SOURCES :=                              \
-	src/argparser.cc                \
-	src/allocator/allocator.cc      \
-	src/allocator/default.cc        \
-	src/mcts/checkmateworker.cc     \
-	src/mcts/checkmatequeue.cc      \
-	src/mcts/garbagecollector.cc    \
-	src/mcts/manager.cc             \
-	src/mcts/evaluatequeue.cc       \
-	src/mcts/evaluateworker.cc      \
-	src/mcts/searchworker.cc        \
-	src/mcts/tree.cc                \
-	src/mcts/mutexpool.cc           \
-	src/mcts/evalcache.cc           \
-	src/mcts/watchdog.cc            \
-	src/worker/worker.cc            \
-	src/evaluate/batch.cc           \
-	src/protocol/usi.cc             \
-	src/protocol/usilogger.cc
+SOURCES :=                                  \
+	src/argparser.cc                    \
+	src/context.cc                      \
+	src/contextmanager.cc               \
+	src/allocator/allocator.cc          \
+	src/allocator/default.cc            \
+	src/mcts/checkmateworker.cc         \
+	src/mcts/checkmatequeue.cc          \
+	src/mcts/garbagecollector.cc        \
+	src/mcts/manager.cc                 \
+	src/mcts/evaluatequeue.cc           \
+	src/mcts/evaluateworker.cc          \
+	src/mcts/searchworker.cc            \
+	src/mcts/tree.cc                    \
+	src/mcts/mutexpool.cc               \
+	src/mcts/evalcache.cc               \
+	src/mcts/watchdog.cc                \
+	src/worker/worker.cc                \
+	src/evaluate/batch.cc               \
+	src/protocol/usi.cc                 \
+	src/protocol/usilogger.cc           \
+	src/command/executor.cc             \
+	src/command/commands/noop.cc        \
+	src/command/commands/config.cc      \
+	src/command/commands/getready.cc    \
+	src/command/commands/setposition.cc \
+	src/command/commands/think.cc       \
+	src/command/commands/stop.cc
 
 SELFPLAY_SOURCES :=                      \
 	src/selfplay/evaluationworker.cc \

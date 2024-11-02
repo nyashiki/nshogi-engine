@@ -17,19 +17,22 @@ namespace mcts {
 
 class Tree {
  public:
-    Tree(GarbageCollector* GCollector, logger::Logger* Logger);
+    Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator, logger::Logger* Logger);
+    ~Tree();
 
     Node* updateRoot(const nshogi::core::State& State, bool ReUse = true);
 
-    Node* getRoot() const;
+    Node* getRoot();
     const core::State* getRootState() const;
 
  private:
     Node* createNewRoot(const nshogi::core::State& State);
 
-    std::unique_ptr<Node> Root;
+    Pointer<Node> Root;
     std::unique_ptr<core::State> RootState;
     GarbageCollector* GC;
+
+    allocator::Allocator* NA;
     logger::Logger* PLogger;
 };
 

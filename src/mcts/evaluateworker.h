@@ -7,6 +7,7 @@
 #include "../evaluate/evaluator.h"
 #include "../infer/infer.h"
 #include "../worker/worker.h"
+#include "../context.h"
 
 #include <nshogi/ml/featurebitboard.h>
 #include <nshogi/ml/common.h>
@@ -22,7 +23,7 @@ namespace mcts {
 template <typename Features>
 class EvaluateWorker : public worker::Worker {
  public:
-    EvaluateWorker(std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>*, EvalCache*);
+    EvaluateWorker(const Context*, std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>*, EvalCache*);
     ~EvaluateWorker();
 
  private:
@@ -35,6 +36,8 @@ class EvaluateWorker : public worker::Worker {
     void doInference(std::size_t BatchSize);
     void feedResults(std::size_t BatchSize);
     void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate, uint64_t Hash);
+
+    const Context* PContext;
 
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;

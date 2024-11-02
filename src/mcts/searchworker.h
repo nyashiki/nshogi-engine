@@ -20,7 +20,7 @@ namespace mcts {
 template <typename Features>
 class SearchWorker : public worker::Worker {
  public:
-    SearchWorker(EvaluationQueue<Features>*, CheckmateQueue*, MutexPool<lock::SpinLock>*, EvalCache*);
+    SearchWorker(allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, EvaluationQueue<Features>*, CheckmateQueue*, MutexPool<lock::SpinLock>*, EvalCache*);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -49,6 +49,8 @@ class SearchWorker : public worker::Worker {
     Node* RootNode;
     uint16_t RootPly;
 
+    allocator::Allocator* NA;
+    allocator::Allocator* EA;
     EvaluationQueue<Features>* EQueue;
     CheckmateQueue* CQueue;
     MutexPool<lock::SpinLock>* MtxPool;

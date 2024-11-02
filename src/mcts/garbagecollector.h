@@ -1,15 +1,15 @@
 #ifndef NSHOGI_ENGINE_MCTS_GARBAGECOLLECTOR_H
 #define NSHOGI_ENGINE_MCTS_GARBAGECOLLECTOR_H
 
+#include "node.h"
+#include "pointer.h"
+
 #include <cstddef>
 #include <thread>
-#include <memory>
 #include <vector>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-
-#include "node.h"
 
 namespace nshogi {
 namespace engine {
@@ -17,11 +17,11 @@ namespace mcts {
 
 class GarbageCollector {
  public:
-    GarbageCollector(std::size_t NumWorkers);
+    GarbageCollector(std::size_t NumWorkers, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator);
     ~GarbageCollector();
 
-    void addGarbage(std::unique_ptr<Node>&& Node);
-    void addGarbages(std::vector<std::unique_ptr<Node>>&& Nodes);
+    void addGarbage(Pointer<Node>&& Node);
+    void addGarbages(std::vector<Pointer<Node>>&& Nodes);
 
  private:
     std::mutex Mtx;
@@ -31,7 +31,10 @@ class GarbageCollector {
     void mainLoop();
 
     std::vector<std::thread> Workers;
-    std::queue<std::unique_ptr<Node>> Garbages;
+    std::queue<Pointer<Node>> Garbages;
+
+    allocator::Allocator* NA;
+    allocator::Allocator* EA;
 };
 
 } // namespace mcts

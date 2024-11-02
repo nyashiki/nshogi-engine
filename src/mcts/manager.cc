@@ -7,21 +7,23 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Manager::Manager(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumSearchWorkers, std::size_t NumEvaluationWorkersPerGPU, std::size_t NumCheckmateWorkers, std::size_t EvalCacheMB, std::shared_ptr<logger::Logger> Logger)
-    : PLogger(std::move(Logger))
+Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
+    : PContext(C)
+    , PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
     , HasInterruptReceived(false)
     , IsPonderingEnabled(false)
     , IsExiting(false) {
+    setupAllocator();
     setupGarbageCollector();
     setupMutexPool();
     setupSearchTree();
-    setupCheckmateQueue(NumCheckmateWorkers);
-    setupCheckmateWorkers(NumCheckmateWorkers);
-    setupEvalCache(EvalCacheMB);
-    setupEvaluationQueue(BatchSize, NumGPUs, NumEvaluationWorkersPerGPU);
-    setupEvaluationWorkers(BatchSize, NumGPUs, NumEvaluationWorkersPerGPU);
-    setupSearchWorkers(NumSearchWorkers);
+    setupCheckmateQueue(PContext->getNumCheckmateSearchThreads());
+    setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
+    setupEvalCache(PContext->getEvalCacheMemoryMB());
+    setupEvaluationQueue(PContext->getBatchSize(), PContext->getNumGPUs(), PContext->getNumEvaluationThreadsPerGPU());
+    setupEvaluationWorkers(PContext->getBatchSize(), PContext->getNumGPUs(), PContext->getNumEvaluationThreadsPerGPU());
+    setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
     setupWatchDog();
 }
@@ -47,13 +49,18 @@ Manager::~Manager() {
     for (auto& SearchWorker : SearchWorkers) {
         SearchWorker.reset(nullptr);
     }
+
+    // SearchTree's destructor must be called before
+    // GarbageCollector is released. Hence,
+    // call the destructor explicitly here.
+    SearchTree.reset(nullptr);
 }
 
 void Manager::setIsPonderingEnabled(bool Value) {
     IsPonderingEnabled = Value;
 }
 
-void Manager::thinkNextMove(const core::State& State, const core::StateConfig& Config, const engine::Limit& Lim, void (*CallBack)(core::Move32)) {
+void Manager::thinkNextMove(const core::State& State, const core::StateConfig& Config, engine::Limit Lim, std::function<void(core::Move32)> Callback) {
     WatchdogWorker->stop();
 
     std::cerr << "[thinkNextMove()] await ... " << std::endl;
@@ -80,7 +87,7 @@ void Manager::thinkNextMove(const core::State& State, const core::StateConfig& C
         CurrentState = std::make_unique<core::State>(State.clone());
         StateConfig = std::make_unique<core::StateConfig>(Config);
         Limit = std::make_unique<engine::Limit>(Lim);
-        BestmoveCallback = CallBack;
+        BestMoveCallback = Callback;
         WakeUpSupervisor = true;
         PLogger->setIsInverse(false);
     }
@@ -106,9 +113,15 @@ void Manager::interrupt() {
     WatchdogWorker->await();
 }
 
+void Manager::setupAllocator() {
+    NodeAllocator.resize((std::size_t)(0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+    EdgeAllocator.resize((std::size_t)(0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+}
+
 void Manager::setupGarbageCollector() {
     GC = std::make_unique<GarbageCollector>(
-        GlobalConfig::getConfig().getNumGarbageCollectorThreads());
+        PContext->getNumGarbageCollectorThreads(),
+        &NodeAllocator, &EdgeAllocator);
 }
 
 void Manager::setupMutexPool() {
@@ -116,11 +129,11 @@ void Manager::setupMutexPool() {
 }
 
 void Manager::setupSearchTree() {
-    SearchTree = std::make_unique<Tree>(GC.get(), PLogger.get());
+    SearchTree = std::make_unique<Tree>(GC.get(), &NodeAllocator, PLogger.get());
 }
 
 void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU) {
-    EQueue = std::make_unique<EvaluationQueue<GlobalConfig::FeatureType>>(
+    EQueue = std::make_unique<EvaluationQueue<global_config::FeatureType>>(
             BatchSize * NumGPUs * NumEvaluationWorkersPerGPU * 2);
 }
 
@@ -128,16 +141,16 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
             EvaluateWorkers.emplace_back(
-                    std::make_unique<EvaluateWorker<GlobalConfig::FeatureType>>(
-                        I, BatchSize, EQueue.get(), ECache.get()));
+                    std::make_unique<EvaluateWorker<global_config::FeatureType>>(
+                        PContext, I, BatchSize, EQueue.get(), ECache.get()));
         }
     }
 }
 
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
-        SearchWorkers.emplace_back(std::make_unique<SearchWorker<GlobalConfig::FeatureType>>(
-            EQueue.get(), CQueue.get(), MtxPool.get(), ECache.get()));
+        SearchWorkers.emplace_back(std::make_unique<SearchWorker<global_config::FeatureType>>(
+            &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(), MtxPool.get(), ECache.get()));
     }
 }
 
@@ -192,7 +205,7 @@ void Manager::setupSupervisor() {
 }
 
 void Manager::setupWatchDog() {
-    WatchdogWorker = std::make_unique<Watchdog>(PLogger);
+    WatchdogWorker = std::make_unique<Watchdog>(PContext, &NodeAllocator, &EdgeAllocator, PLogger);
     WatchdogWorker->setStopSearchingCallback(std::bind(&Manager::watchdogStopCallback, this));
 }
 
@@ -245,15 +258,15 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
-    const auto Bestmove = getBestmove(RootNode);
-    CurrentState->doMove(Bestmove);
+    const auto BestMove = getBestmove(RootNode);
+    CurrentState->doMove(BestMove);
     SearchTree->updateRoot(*CurrentState);
 
     if (CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (IsPonderingEnabled && !Bestmove.isNone() && !Bestmove.isWin() && !HasInterruptReceived.load() && !checkMemoryBudgetForPondering()) {
+        if (IsPonderingEnabled && !BestMove.isNone() && !BestMove.isWin() && !HasInterruptReceived.load() && !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {
                 Limit = std::make_unique<engine::Limit>(NoLimit);
@@ -285,7 +298,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
             }
         }
 
-        BestmoveCallback(Bestmove);
+        if (BestMoveCallback != nullptr) {
+            BestMoveCallback(BestMove);
+        }
     }
 }
 
@@ -324,15 +339,12 @@ core::Move32 Manager::getBestmove(Node* Root) {
 }
 
 bool Manager::checkMemoryBudgetForPondering() {
-    const auto& NodeAllocator = allocator::getNodeAllocator();
-
     if (NodeAllocator.getTotal() > 0 &&
             (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * 0.6) {
         PLogger->printLog("Pondering has been skipped due to little memory budget (Node).");
         return true;
     }
 
-    const auto& EdgeAllocator = allocator::getEdgeAllocator();
     if (EdgeAllocator.getTotal() > 0 &&
             (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * 0.6) {
         PLogger->printLog("Pondering has been skipped due to little memory budget (Edge).");

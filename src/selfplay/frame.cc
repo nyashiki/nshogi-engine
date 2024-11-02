@@ -7,9 +7,9 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Frame::Frame(mcts::GarbageCollector* GC)
+Frame::Frame(mcts::GarbageCollector* GC, allocator::Allocator* NodeAllocator)
     : Phase(SelfplayPhase::Initialization) {
-    setSearchTree(std::make_unique<mcts::Tree>(GC, nullptr));
+    setSearchTree(std::make_unique<mcts::Tree>(GC, NodeAllocator, nullptr));
     allocatePolicyArray();
     GumbelNoise.resize(600);
 }
@@ -88,7 +88,7 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
             LegalPolicyLogits[I] = Policy[I];
         } else {
             const std::size_t MoveIndex =
-                ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge(I)->getMove());
+                ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge()[I].getMove());
             LegalPolicyLogits[I] = Policy[MoveIndex];
         }
     }

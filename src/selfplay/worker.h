@@ -4,6 +4,7 @@
 #include "framequeue.h"
 #include "selfplayinfo.h"
 #include "shogi816k.h"
+#include "../allocator/allocator.h"
 #include "../worker/worker.h"
 #include "../mcts/evalcache.h"
 
@@ -18,7 +19,7 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo*);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo*);
 
  private:
     bool doTask() override;
@@ -46,6 +47,9 @@ class Worker : public worker::Worker {
     FrameQueue* FQueue;
     FrameQueue* EvaluationQueue;
     FrameQueue* SaveQueue;
+
+    allocator::Allocator* NA;
+    allocator::Allocator* EA;
 
     mcts::EvalCache* EvalCache;
 
