@@ -183,7 +183,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         return SelfplayPhase::Backpropagation;
     }
 
-    const auto RS = F->getState()->getRepetitionStatus<true>();
+    const auto RS = F->getState()->getRepetitionStatus(true);
 
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition) {
@@ -326,7 +326,7 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
 }
 
 SelfplayPhase Worker::judge(Frame* F) const {
-    const auto RS = F->getState()->getRepetitionStatus<true>();
+    const auto RS = F->getState()->getRepetitionStatus(true);
 
     if (RS == core::RepetitionStatus::WinRepetition) {
         F->setWinner(F->getState()->getSideToMove());
@@ -528,7 +528,7 @@ double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Nod
 }
 
 bool Worker::isCheckmated(Frame* F) const {
-    if (F->getState()->getCheckerBB().isZero()) {
+    if (!F->getState()->isInCheck()) {
         return false;
     }
 
