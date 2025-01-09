@@ -10,7 +10,6 @@
 #include <sstream>
 #include <cstdio>
 
-#include <nshogi/book/book.h>
 #include <nshogi/core/state.h>
 #include <nshogi/core/types.h>
 #include <nshogi/core/stateconfig.h>
@@ -157,15 +156,6 @@ void isready() {
                 Option.getFileNameOption(USI_OPTION_BOOK_PATH)));
 
     Executor->pushCommand(std::make_shared<GetReady>(), true);
-
-    // const std::size_t AvailableMemory = GlobalConfig::getConfig().getAvailableMemoryMB() * 1024ULL * 1024ULL;
-    // nshogi::engine::allocator::getNodeAllocator().resize((std::size_t)(0.1 * (double)AvailableMemory));
-    // nshogi::engine::allocator::getEdgeAllocator().resize((std::size_t)(0.9 * (double)AvailableMemory));
-
-    // StateConfig->Rule = core::ER_Declare27;
-    // StateConfig->MaxPly = (uint16_t)Option.getIntOption("USI_MaxPly");
-    // StateConfig->BlackDrawValue = GlobalConfig::getConfig().getBlackDrawValue();
-    // StateConfig->WhiteDrawValue = GlobalConfig::getConfig().getWhiteDrawValue();
 
     // Logger.setScoreFormatType(USILogger::ScoreFormatType::WinDraw);
     Logger->printRawMessage("readyok");
