@@ -45,11 +45,11 @@ double SelfplayInfo::getAverageBatchSize() const {
     return AverageBatchSize;
 }
 
-void SelfplayInfo::incremanteCacheHit() {
+void SelfplayInfo::incrementCacheHit() {
     NumCacheHit.fetch_add(1, std::memory_order_relaxed);
 }
 
-void SelfplayInfo::incremateCacheMiss() {
+void SelfplayInfo::incrementCacheMiss() {
     NumCacheMiss.fetch_add(1, std::memory_order_relaxed);
 }
 

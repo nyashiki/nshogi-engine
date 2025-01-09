@@ -256,11 +256,11 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     if (EvalCache->load(*F->getState(), &EvalInfo)) {
         if (EvalInfo.NumMoves == LegalMoves.size()) {
             F->setEvaluation<true>(EvalInfo.Policy, EvalInfo.WinRate, EvalInfo.DrawRate);
-            SInfo->incremanteCacheHit();
+            SInfo->incrementCacheHit();
             return SelfplayPhase::Backpropagation;
         }
     }
-    SInfo->incremateCacheMiss();
+    SInfo->incrementCacheMiss();
 
     return SelfplayPhase::Evaluation;
 }

@@ -21,8 +21,8 @@ class SelfplayInfo {
     void putBatchSizeStatistics(std::size_t BatchSize);
     double getAverageBatchSize() const;
 
-    void incremanteCacheHit();
-    void incremateCacheMiss();
+    void incrementCacheHit();
+    void incrementCacheMiss();
     double getCacheHitRatio() const;
 
  private:
