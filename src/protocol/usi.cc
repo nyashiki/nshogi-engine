@@ -139,6 +139,9 @@ void isready() {
                 Configurable::ThinkingTimeMargin,
                 Option.getIntOption(USI_OPTION_THINKING_TIME_MARGIN)));
 
+    Executor->pushCommand(std::make_shared<IntegerConfig>(
+                Configurable::MaxPly,
+                Option.getIntOption(USI_OPTION_MAX_PLY)));
     Executor->pushCommand(std::make_shared<DoubleConfig>(
                 Configurable::BlackDrawValue,
                 (double)Option.getIntOption(USI_OPTION_BLACK_DRAW_VALUE) / 100.0));
