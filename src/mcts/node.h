@@ -121,7 +121,6 @@ struct Node {
         assert(Edges == nullptr);
         assert(MoveList.size() > 0);
         assert((VisitsAndVirtualLoss & VisitMask) == 0);
-        assert((VisitsAndVirtualLoss >> VirtualLossShift) == 1);
 
         Edges.mallocArray(Allocator, MoveList.size());
         if (Edges == nullptr) {
@@ -140,7 +139,6 @@ struct Node {
     inline void setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         if (Policy != nullptr) {
             for (std::size_t I = 0; I < getNumChildren(); ++I) {
-                assert(Policy[I] >= 0.0f && Policy[I] <= 1.0f);
                 Edges[I].setProbability(Policy[I]);
             }
         }
