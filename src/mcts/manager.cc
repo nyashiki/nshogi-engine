@@ -340,13 +340,13 @@ core::Move32 Manager::getBestmove(Node* Root) {
 
 bool Manager::checkMemoryBudgetForPondering() {
     if (NodeAllocator.getTotal() > 0 &&
-            (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * 0.6) {
+            (double)NodeAllocator.getUsed() > (double)NodeAllocator.getTotal() * 0.8) {
         PLogger->printLog("Pondering has been skipped due to little memory budget (Node).");
         return true;
     }
 
     if (EdgeAllocator.getTotal() > 0 &&
-            (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * 0.6) {
+            (double)EdgeAllocator.getUsed() > (double)EdgeAllocator.getTotal() * 0.8) {
         PLogger->printLog("Pondering has been skipped due to little memory budget (Edge).");
         return true;
     }

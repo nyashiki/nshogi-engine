@@ -63,7 +63,7 @@ class Context {
     uint32_t LogMargin = 800;
 
     std::size_t AvailableMemoryMB = 8 * 1024;
-    double MemoryLimitFactor = 0.7;
+    double MemoryLimitFactor = 0.8;
     std::size_t NumGarbageCollectorThreads = 2;
 
     std::size_t EvalCacheMemoryMB = 8 * 1024;
