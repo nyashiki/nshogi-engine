@@ -49,10 +49,10 @@ bool Worker::doTask() {
             Task->setPhase(backpropagate(Task.get()));
         } else if (Task->getPhase() == SelfplayPhase::SequentialHalving) {
             Task->setPhase(sequentialHalving(Task.get()));
-        } else if (Task->getPhase() == SelfplayPhase::Judging) {
-            Task->setPhase(judge(Task.get()));
         } else if (Task->getPhase() == SelfplayPhase::Transition) {
             Task->setPhase(transition(Task.get()));
+        } else if (Task->getPhase() == SelfplayPhase::Judging) {
+            Task->setPhase(judge(Task.get()));
         }
 
         if (Task->getPhase() == SelfplayPhase::Evaluation) {
