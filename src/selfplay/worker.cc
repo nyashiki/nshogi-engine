@@ -8,6 +8,7 @@
 #include <nshogi/core/movegenerator.h>
 #include <nshogi/core/statebuilder.h>
 #include <nshogi/solver/dfs.h>
+#include <nshogi/ml/math.h>
 
 namespace nshogi {
 namespace engine {
@@ -481,20 +482,65 @@ mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color SideToMove, 
 
 template<>
 mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove, mcts::Node* N) const {
-    double ScoreMax = std::numeric_limits<double>::lowest();
-    mcts::Edge* EdgeToExplore = nullptr;
     const uint16_t NumChildren = N->getNumChildren();
+    const uint64_t Visits = N->getVisitsAndVirtualLoss();
 
-    const double C = 1.25 * std::sqrt((double)N->getVisitsAndVirtualLoss());
+    uint64_t MaxN = 0;
+    const double WinRateOfNode = computeWinRate(F, SideToMove, N);
+    std::vector<double> CompletedQ(NumChildren, WinRateOfNode);
+    if (Visits > 1) {
+        std::vector<float> Policy(NumChildren);
+        for (std::size_t I = 0; I < NumChildren; ++I) {
+            mcts::Edge* Edge = &N->getEdge()[I];
+            Policy[I] = Edge->getProbability();
+        }
+        ml::math::softmax_(Policy.data(), NumChildren, 1.0f);
 
+        double Divisor = 0.0;
+        double Factor = 0.0;
+        for (std::size_t I = 0; I < NumChildren; ++I) {
+            mcts::Edge* Edge = &N->getEdge()[I];
+            mcts::Node* Child = Edge->getTarget();
+
+            if (Child != nullptr) {
+                MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
+
+                const double WinRateOfChild = computeWinRateOfChild(F, SideToMove, Child);
+                Divisor += Policy[I];
+                Factor += Policy[I] * WinRateOfChild;
+                CompletedQ[I] = WinRateOfChild;
+            }
+        }
+        assert(Divisor > 0);
+        const double Offset = (double)(Visits - 1) / Divisor * Factor;
+
+        for (std::size_t I = 0; I < NumChildren; ++I) {
+            mcts::Edge* Edge = &N->getEdge()[I];
+            mcts::Node* Child = Edge->getTarget();
+
+            if (Child == nullptr) {
+                CompletedQ[I] = (WinRateOfNode + Offset) / (double)Visits;
+            }
+        }
+    }
+
+    std::vector<double> ImprovedPolicy(NumChildren);
+    for (std::size_t I = 0; I < NumChildren; ++I) {
+        mcts::Edge* Edge = &N->getEdge()[I];
+        ImprovedPolicy[I] = Edge->getProbability() + transformQ(CompletedQ[I], MaxN);
+    }
+    ml::math::softmax_(ImprovedPolicy.data(), NumChildren, 1.0);
+
+    mcts::Edge* EdgeToExplore = nullptr;
+    double ScoreMax = std::numeric_limits<double>::lowest();
     for (std::size_t I = 0; I < NumChildren; ++I) {
         mcts::Edge* Edge = &N->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
         const double Score = (Child == nullptr)
-            ? (C * Edge->getProbability())
-            : (C * Edge->getProbability() / ((double)(1 + Child->getVisitsAndVirtualLoss()))
-                    + computeWinRateOfChild(F, SideToMove, Child));
+            ? ImprovedPolicy[I]
+            : (ImprovedPolicy[I] -
+                    (double)(Child->getVisitsAndVirtualLoss() / Visits));
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -504,12 +550,51 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
 
     assert(EdgeToExplore != nullptr);
     return EdgeToExplore;
+
+    // double ScoreMax = std::numeric_limits<double>::lowest();
+    // mcts::Edge* EdgeToExplore = nullptr;
+    // const uint16_t NumChildren = N->getNumChildren();
+
+    // const double C = 1.25 * std::sqrt((double)N->getVisitsAndVirtualLoss());
+
+    // for (std::size_t I = 0; I < NumChildren; ++I) {
+    //     mcts::Edge* Edge = &N->getEdge()[I];
+    //     mcts::Node* Child = Edge->getTarget();
+
+    //     const double Score = (Child == nullptr)
+    //         ? (C * Edge->getProbability())
+    //         : (C * Edge->getProbability() / ((double)(1 + Child->getVisitsAndVirtualLoss()))
+    //                 + computeWinRateOfChild(F, SideToMove, Child));
+
+    //     if (Score > ScoreMax) {
+    //         ScoreMax = Score;
+    //         EdgeToExplore = Edge;
+    //     }
+    // }
+
+    // assert(EdgeToExplore != nullptr);
+    // return EdgeToExplore;
 }
 
 mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove, mcts::Node* N, uint8_t Depth) const {
     return (Depth == 0)
         ? pickUpEdgeToExplore<true>(F, SideToMove, N)
         : pickUpEdgeToExplore<false>(F, SideToMove, N);
+}
+
+double Worker::computeWinRate(Frame* F, core::Color SideToMove, mcts::Node* Node) const {
+    const uint64_t Visits = Node->getVisitsAndVirtualLoss();
+    const double WinRateAccumulated = Node->getWinRateAccumulated();
+    const double DrawRateAccumulated = Node->getDrawRateAccumulated();
+
+    const double WinRate = WinRateAccumulated / (double)Visits;
+    const double DrawRate = DrawRateAccumulated / (double)Visits;
+
+    const double DrawValue = (SideToMove == core::Black)
+                                ? F->getStateConfig()->BlackDrawValue
+                                : F->getStateConfig()->WhiteDrawValue;
+
+    return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
 }
 
 double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Node* Child) const {

@@ -98,9 +98,9 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(), WinRate, DrawRate);
     }
 
-    if (NodeToEvaluate != SearchTree->getRoot()) {
-        ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
-    }
+    // if (NodeToEvaluate != SearchTree->getRoot()) {
+    //     ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+    // }
 
     NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
 }
