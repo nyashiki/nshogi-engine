@@ -36,7 +36,6 @@ SOURCES :=                                  \
 	src/argparser.cc                    \
 	src/context.cc                      \
 	src/contextmanager.cc               \
-	src/allocator/allocator.cc          \
 	src/allocator/default.cc            \
 	src/mcts/checkmateworker.cc         \
 	src/mcts/checkmatequeue.cc          \
