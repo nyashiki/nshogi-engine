@@ -38,6 +38,7 @@ class Worker : public worker::Worker {
     template <bool IsRoot>
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*) const;
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*, uint8_t Depth) const;
+    double computeWinRate(Frame* F, core::Color SideToMove, mcts::Node* Child) const;
     double computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Node* Child) const;
     bool isCheckmated(Frame* F) const;
     void sampleTopMMoves(Frame*) const;
