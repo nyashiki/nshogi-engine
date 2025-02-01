@@ -487,21 +487,25 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
 
     uint64_t MaxN = 0;
     const double WinRateOfNode = computeWinRate(F, SideToMove, N);
-    std::vector<double> CompletedQ(NumChildren, WinRateOfNode);
+    double CompletedQ[600];
+    for (std::size_t I = 0; I < NumChildren; ++I) {
+        CompletedQ[I] = WinRateOfNode;
+    }
+
+    mcts::Node* Children[600];
     if (Visits > 1) {
-        std::vector<float> Policy(NumChildren);
+        float Policy[600];
         for (std::size_t I = 0; I < NumChildren; ++I) {
             mcts::Edge* Edge = &N->getEdge()[I];
             Policy[I] = Edge->getProbability();
+            Children[I] = Edge->getTarget();
         }
-        ml::math::softmax_(Policy.data(), NumChildren, 1.0f);
+        ml::math::softmax_(Policy, NumChildren, 1.0f);
 
         double Divisor = 0.0;
         double Factor = 0.0;
         for (std::size_t I = 0; I < NumChildren; ++I) {
-            mcts::Edge* Edge = &N->getEdge()[I];
-            mcts::Node* Child = Edge->getTarget();
-
+            mcts::Node* Child = Children[I];
             if (Child != nullptr) {
                 MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
 
@@ -515,29 +519,27 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
         const double Offset = (double)(Visits - 1) / Divisor * Factor;
 
         for (std::size_t I = 0; I < NumChildren; ++I) {
-            mcts::Edge* Edge = &N->getEdge()[I];
-            mcts::Node* Child = Edge->getTarget();
-
+            mcts::Node* Child = Children[I];
             if (Child == nullptr) {
                 CompletedQ[I] = (WinRateOfNode + Offset) / (double)Visits;
             }
         }
     }
 
-    std::vector<double> ImprovedPolicy(NumChildren);
+    double ImprovedPolicy[600];
     for (std::size_t I = 0; I < NumChildren; ++I) {
         mcts::Edge* Edge = &N->getEdge()[I];
         ImprovedPolicy[I] = Edge->getProbability() + transformQ(CompletedQ[I], MaxN);
     }
-    ml::math::softmax_(ImprovedPolicy.data(), NumChildren, 1.0);
+    ml::math::softmax_(ImprovedPolicy, NumChildren, 1.0);
 
     mcts::Edge* EdgeToExplore = nullptr;
     double ScoreMax = std::numeric_limits<double>::lowest();
     for (std::size_t I = 0; I < NumChildren; ++I) {
         mcts::Edge* Edge = &N->getEdge()[I];
-        mcts::Node* Child = Edge->getTarget();
+        mcts::Node* Child = Children[I];
 
-        const double Score = (Child == nullptr)
+        const double Score = (Visits == 1 || Child == nullptr)
             ? ImprovedPolicy[I]
             : (ImprovedPolicy[I] -
                     (double)(Child->getVisitsAndVirtualLoss() / Visits));
@@ -550,30 +552,6 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
 
     assert(EdgeToExplore != nullptr);
     return EdgeToExplore;
-
-    // double ScoreMax = std::numeric_limits<double>::lowest();
-    // mcts::Edge* EdgeToExplore = nullptr;
-    // const uint16_t NumChildren = N->getNumChildren();
-
-    // const double C = 1.25 * std::sqrt((double)N->getVisitsAndVirtualLoss());
-
-    // for (std::size_t I = 0; I < NumChildren; ++I) {
-    //     mcts::Edge* Edge = &N->getEdge()[I];
-    //     mcts::Node* Child = Edge->getTarget();
-
-    //     const double Score = (Child == nullptr)
-    //         ? (C * Edge->getProbability())
-    //         : (C * Edge->getProbability() / ((double)(1 + Child->getVisitsAndVirtualLoss()))
-    //                 + computeWinRateOfChild(F, SideToMove, Child));
-
-    //     if (Score > ScoreMax) {
-    //         ScoreMax = Score;
-    //         EdgeToExplore = Edge;
-    //     }
-    // }
-
-    // assert(EdgeToExplore != nullptr);
-    // return EdgeToExplore;
 }
 
 mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove, mcts::Node* N, uint8_t Depth) const {
@@ -644,7 +622,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
         return;
     }
 
-    std::vector<std::pair<double, std::size_t>> ScoreWithIndex(F->getIsTarget().size());
+    std::pair<double, std::size_t> ScoreWithIndex[600];
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
 
@@ -656,9 +634,9 @@ void Worker::sampleTopMMoves(Frame* F) const {
     std::size_t NumSort = (std::size_t)F->getNumSamplingMove();
 
     std::partial_sort(
-            ScoreWithIndex.begin(),
-            ScoreWithIndex.begin() + (long)NumSort,
-            ScoreWithIndex.end(),
+            ScoreWithIndex,
+            ScoreWithIndex + (long)NumSort,
+            ScoreWithIndex + (long)F->getIsTarget().size(),
             [](const std::pair<double, std::size_t>& Elem1,
                const std::pair<double, std::size_t>& Elem2) {
                 return Elem1.first > Elem2.first;
@@ -684,9 +662,10 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     }
 
     assert(F->getSearchTree()->getRoot()->getNumChildren() == F->getIsTarget().size());
-    std::vector<std::pair<double, std::size_t>> ScoreWithIndex(F->getIsTarget().size());
+    std::pair<double, std::size_t> ScoreWithIndex[600];
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         if (!F->getIsTarget().at(I)) {
+            ScoreWithIndex[I].first = std::numeric_limits<double>::lowest();
             continue;
         }
 
@@ -701,15 +680,15 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     }
 
     std::size_t NumSort = std::min(
-            (std::size_t)F->getNumSamplingMove(), ScoreWithIndex.size());
+            (std::size_t)F->getNumSamplingMove(), F->getIsTarget().size());
     assert(NumSort > 1);
     assert(F->getSequentialHalvingCount() > 0);
     NumSort = std::max((uint64_t)2, (NumSort + 1) >> F->getSequentialHalvingCount());
 
     std::partial_sort(
-            ScoreWithIndex.begin(),
-            ScoreWithIndex.begin() + (long)NumSort,
-            ScoreWithIndex.end(),
+            ScoreWithIndex,
+            ScoreWithIndex + (long)NumSort,
+            ScoreWithIndex + (long)F->getIsTarget().size(),
             [](const std::pair<double, std::size_t>& Elem1,
                const std::pair<double, std::size_t>& Elem2) {
                 return Elem1.first > Elem2.first;
