@@ -27,6 +27,9 @@ jobs:
       run: |
         git clone https://github.com/nyashiki/nshogi.git
         cd nshogi && sudo make install
+    - name: ldconfig
+      if: runner.os == 'Linux'
+      run: sudo ldconfig
     - name: run test
       working-directory: ${{ env.working-directory }}
       run: make EXECUTOR=random runtest
