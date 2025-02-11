@@ -13,6 +13,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: install nshogi
+      run: |
+        git clone git@github.com:nyashiki/nshogi.git
+        cd nshogi && make install
     - name: make engine
       working-directory: ${{ env.working-directory }}
       run: make EXECUTOR=random engine
