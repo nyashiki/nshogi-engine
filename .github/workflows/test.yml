@@ -1,0 +1,24 @@
+name: test
+
+on: [push]
+
+jobs:
+  runtest:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      working-directory: ./
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install googletest
+      if: runner.os == 'Linux'
+      run: sudo apt install libgtest-dev
+    - name: install googletest
+      if: runner.os == 'macOS'
+      run: brew install googletest
+    - name: run test
+      working-directory: ${{ env.working-directory }}
+      run: make EXECUTOR=random runtest
