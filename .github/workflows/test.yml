@@ -18,7 +18,9 @@ jobs:
       run: sudo apt-get install libgtest-dev -y
     - name: install googletest
       if: runner.os == 'macOS'
-      run: brew install googletest
+      run: |
+        brew install googletest
+        brew link --force googletest
     - name: install nshogi
       run: |
         git clone https://github.com/nyashiki/nshogi.git
