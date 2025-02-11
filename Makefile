@@ -15,8 +15,8 @@ SELFPLAY_TARGET := $(OBJDIR)/nshogi-selfplay
 TEST_TARGET := $(OBJDIR)/nshogi-test
 BENCH_TARGET := $(OBJDIR)/nshogi-bench
 
-INCLUDES := -I$(HOME)/.local/include/
-LINK_DIRS := -Wl,-rpath,$(HOME)/.local/lib -L$(HOME)/.local/lib/
+INCLUDES :=
+LINK_DIRS :=
 LINKS := -lnshogi -lpthread
 TEST_LINKS := -lgtest
 
