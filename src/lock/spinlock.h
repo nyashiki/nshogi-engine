@@ -36,9 +36,9 @@ class SpinLock {
                 ++StreakFail;
             } else {
 #ifdef USE_SSE2
-            _mm_pause();
+                _mm_pause();
 #else
-            std::this_thread::yield();
+                std::this_thread::yield();
 #endif
             }
         }

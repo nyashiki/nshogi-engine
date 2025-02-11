@@ -16,7 +16,9 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Watchdog::Watchdog(const Context* C, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, std::shared_ptr<logger::Logger> Logger)
+Watchdog::Watchdog(const Context* C, allocator::Allocator* NodeAllocator,
+                   allocator::Allocator* EdgeAllocator,
+                   std::shared_ptr<logger::Logger> Logger)
     : worker::Worker(false)
     , StopSearchingCallback(nullptr)
     , PContext(C)
@@ -30,7 +32,8 @@ Watchdog::~Watchdog() {
     assert(!getIsRunning());
 }
 
-void Watchdog::updateRoot(const core::State* S, const core::StateConfig* SC, Node* N) {
+void Watchdog::updateRoot(const core::State* S, const core::StateConfig* SC,
+                          Node* N) {
     State = S;
     Config = SC;
     Root = N;
@@ -47,19 +50,22 @@ void Watchdog::setStopSearchingCallback(std::function<void()> Callback) {
 bool Watchdog::doTask() {
     const auto StartTime = std::chrono::steady_clock::now();
     auto LogTimePrevious = StartTime;
-    const uint64_t NumNodesAtStarted = Root->getVisitsAndVirtualLoss() & Node::VisitMask;
+    const uint64_t NumNodesAtStarted =
+        Root->getVisitsAndVirtualLoss() & Node::VisitMask;
 
     BestEdgePrevious = nullptr;
     ElapsedPrevious = 0;
 
     while (true) {
         const auto CurrentTime = std::chrono::steady_clock::now();
-        const uint32_t Elapsed =
-            static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>
-                    (CurrentTime - StartTime).count());
-        const uint32_t LogElapsed =
-            static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>
-                    (CurrentTime - LogTimePrevious).count());
+        const uint32_t Elapsed = static_cast<uint32_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(CurrentTime -
+                                                                  StartTime)
+                .count());
+        const uint32_t LogElapsed = static_cast<uint32_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                CurrentTime - LogTimePrevious)
+                .count());
 
         if (LogElapsed >= PContext->getLogMargin()) {
             dumpPVLog(NumNodesAtStarted, Elapsed);
@@ -101,9 +107,10 @@ bool Watchdog::doTask() {
     }
     std::cerr << "[doWatchdogWork()] stop workers ... ok." << std::endl;
     const auto CurrentTime = std::chrono::steady_clock::now();
-    const uint32_t Elapsed =
-        static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>
-                (CurrentTime - StartTime).count());
+    const uint32_t Elapsed = static_cast<uint32_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(CurrentTime -
+                                                              StartTime)
+            .count());
     dumpPVLog(NumNodesAtStarted, Elapsed);
 
     return false;
@@ -117,13 +124,13 @@ bool Watchdog::checkMemoryBudget() const {
     const double Factor = PContext->getMemoryLimitFactor();
 
     if (NA->getTotal() > 0 &&
-            (double)NA->getUsed() > (double)NA->getTotal() * Factor) {
+        (double)NA->getUsed() > (double)NA->getTotal() * Factor) {
         PLogger->printLog("Memory limit (Node).");
         return true;
     }
 
     if (EA->getTotal() > 0 &&
-            (double)EA->getUsed() > (double)EA->getTotal() * Factor) {
+        (double)EA->getUsed() > (double)EA->getTotal() * Factor) {
         PLogger->printLog("Memory limit (Edge).");
         return true;
     }
@@ -136,9 +143,9 @@ bool Watchdog::checkThinkingTimeBudget(uint32_t Elapsed) const {
         return false;
     }
 
-    const uint32_t Budget = Limit->TimeLimitMilliSeconds
-        + Limit->ByoyomiMilliSeconds
-        + Limit->IncreaseMilliSeconds;
+    const uint32_t Budget = Limit->TimeLimitMilliSeconds +
+                            Limit->ByoyomiMilliSeconds +
+                            Limit->IncreaseMilliSeconds;
 
     return Elapsed + PContext->getThinkingTimeMargin() >= Budget;
 }
@@ -162,7 +169,8 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
         Node* Child = E->getTarget();
 
         if (Child != nullptr) {
-            const uint64_t V = Child->getVisitsAndVirtualLoss() & Node::VisitMask;
+            const uint64_t V =
+                Child->getVisitsAndVirtualLoss() & Node::VisitMask;
             SumVisits += V;
             Visits[I] = (double)V;
         }
@@ -178,7 +186,8 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
 
     Edge* BestEdge = Root->mostPromisingEdge();
 
-    if (BestEdge == BestEdgePrevious && Visits.size() == VisitsPrevious.size()) {
+    if (BestEdge == BestEdgePrevious &&
+        Visits.size() == VisitsPrevious.size()) {
         double KLDivergence = 0.0;
         double KLDivergenceToPredicted = 0.0;
 
@@ -191,12 +200,14 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
             }
 
             const double Predicted = Root->getEdge()[I].getProbability();
-            const double KLD = VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
+            const double KLD =
+                VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
 
             KLDivergence += KLD;
 
             if (Predicted > 0) {
-                const double KLDToP = Predicted * std::log(Predicted / Visits[I]);
+                const double KLDToP =
+                    Predicted * std::log(Predicted / Visits[I]);
                 KLDivergenceToPredicted += KLDToP;
             }
         }
@@ -221,8 +232,9 @@ void Watchdog::dumpPVLog(uint64_t NumNodesAtStarted, uint32_t Elapsed) const {
 
     Log.ElapsedMilliSeconds = Elapsed;
     if (Elapsed > 0) {
-        Log.NodesPerSecond = (uint64_t)(
-                (double)(Log.NumNodes - NumNodesAtStarted) * 1000ULL / (double)Elapsed);
+        Log.NodesPerSecond =
+            (uint64_t)((double)(Log.NumNodes - NumNodesAtStarted) * 1000ULL /
+                       (double)Elapsed);
     }
 
     PLogger->printPVLog(Log);
@@ -243,7 +255,8 @@ logger::PVLog Watchdog::getPVLog() const {
     Log.WinRate = N->getWinRateAccumulated() / (double)Visits;
     Log.DrawRate = N->getDrawRateAccumulated() / (double)Visits;
     Log.DrawValue = (State->getSideToMove() == core::Black)
-                ? Config->BlackDrawValue : Config->WhiteDrawValue;
+                        ? Config->BlackDrawValue
+                        : Config->WhiteDrawValue;
 
     while (N != nullptr) {
         if ((N->getVisitsAndVirtualLoss() & Node::VisitMask) == 0) {

@@ -12,8 +12,8 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <mutex>
 #include <cstdint>
+#include <mutex>
 
 namespace nshogi {
 namespace engine {

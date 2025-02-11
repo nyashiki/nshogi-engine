@@ -84,6 +84,5 @@ bool Context::isRepetitionBookAllowed() const {
     return IsRepetitionBookAllowed;
 }
 
-
 } // namespace engine
 } // namespace nshogi

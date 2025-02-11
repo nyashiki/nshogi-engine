@@ -13,13 +13,13 @@
 #include <cstddef>
 #include <mutex>
 
-
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
 template <typename LockType>
-MutexPool<LockType>::MutexPool(std::size_t PoolSize): Size(PoolSize) {
+MutexPool<LockType>::MutexPool(std::size_t PoolSize)
+    : Size(PoolSize) {
     Pool = std::make_unique<LockType[]>(PoolSize);
 }
 

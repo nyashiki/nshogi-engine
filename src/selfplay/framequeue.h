@@ -25,7 +25,8 @@ class FrameQueue {
     FrameQueue();
     void add(std::unique_ptr<Frame>&&);
     void add(std::vector<std::unique_ptr<Frame>>&);
-    auto get(std::size_t, bool Wait = true, bool AcceptShortage = true) -> std::vector<std::unique_ptr<Frame>>;
+    auto get(std::size_t, bool Wait = true, bool AcceptShortage = true)
+        -> std::vector<std::unique_ptr<Frame>>;
     auto getAll() -> std::queue<std::unique_ptr<Frame>>;
     void close();
 
@@ -38,6 +39,6 @@ class FrameQueue {
 
 } // namespace selfplay
 } // namespace engine
-} // namespcae nshogi
+} // namespace nshogi
 
 #endif // #ifndef NSHOGI_ENGINE_SELFPLAY_FRAMEQUEUE_H

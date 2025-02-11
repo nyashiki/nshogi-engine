@@ -13,18 +13,17 @@
 #include "infer.h"
 
 #include <cstdint>
-#include <string>
 #include <iostream>
 #include <memory>
+#include <string>
 
 #include "NvInfer.h"
 #include "NvOnnxParser.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 
-
-#include <thread>
 #include <stdexcept>
+#include <thread>
 
 namespace nshogi {
 namespace engine {
@@ -47,8 +46,12 @@ class TensorRT : public Infer {
 
     void load(const std::string& Path, bool UseSerializedFileIfAvailable);
 
-    void computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
-    void computeBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
+    void computeNonBlocking(const ml::FeatureBitboard* Features,
+                            std::size_t BatchSize, float* DstPolicy,
+                            float* DstWinRate, float* DstDrawRate) override;
+    void computeBlocking(const ml::FeatureBitboard* Features,
+                         std::size_t BatchSize, float* DstPolicy,
+                         float* DstWinRate, float* DstDrawRate) override;
     void await() override;
     bool isComputing() override;
     void resetGPU();

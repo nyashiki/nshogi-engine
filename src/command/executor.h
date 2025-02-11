@@ -16,16 +16,16 @@
 #include <queue>
 #include <thread>
 
+#include "../contextmanager.h"
+#include "../logger/logger.h"
+#include "../mcts/manager.h"
 #include "command.h"
-#include "commands/noop.h"
 #include "commands/config.h"
 #include "commands/getready.h"
+#include "commands/noop.h"
 #include "commands/setposition.h"
-#include "commands/think.h"
 #include "commands/stop.h"
-#include "../mcts/manager.h"
-#include "../logger/logger.h"
-#include "../contextmanager.h"
+#include "commands/think.h"
 
 #include <nshogi/core/state.h>
 
@@ -78,6 +78,5 @@ class Executor {
 } // namespace command
 } // namespace engine
 } // namespace nshogi
-
 
 #endif // #ifndef NSHOGI_ENGINE_COMMAND_EXECUTOR_H

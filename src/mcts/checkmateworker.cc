@@ -28,8 +28,8 @@ CheckmateWorker::~CheckmateWorker() {
 }
 
 bool CheckmateWorker::doTask() {
-    std::queue<std::unique_ptr<CheckmateTask>> Tasks
-        = PCheckmateQueue->getAll();
+    std::queue<std::unique_ptr<CheckmateTask>> Tasks =
+        PCheckmateQueue->getAll();
 
     if (Tasks.empty()) {
         std::this_thread::yield();

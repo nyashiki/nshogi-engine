@@ -7,8 +7,8 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include <gtest/gtest.h>
 #include "../math/fixedpoint.h"
+#include <gtest/gtest.h>
 #include <random>
 
 TEST(Math, FixedPointHandmade1) {

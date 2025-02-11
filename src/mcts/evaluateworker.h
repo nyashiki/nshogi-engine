@@ -10,20 +10,20 @@
 #ifndef NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
 #define NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
 
-#include "node.h"
-#include "evalcache.h"
-#include "evaluatequeue.h"
+#include "../context.h"
 #include "../evaluate/evaluator.h"
 #include "../infer/infer.h"
 #include "../worker/worker.h"
-#include "../context.h"
+#include "evalcache.h"
+#include "evaluatequeue.h"
+#include "node.h"
 
-#include <nshogi/ml/featurebitboard.h>
-#include <nshogi/ml/common.h>
 #include <atomic>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
+#include <nshogi/ml/common.h>
+#include <nshogi/ml/featurebitboard.h>
+#include <thread>
 
 namespace nshogi {
 namespace engine {
@@ -32,7 +32,8 @@ namespace mcts {
 template <typename Features>
 class EvaluateWorker : public worker::Worker {
  public:
-    EvaluateWorker(const Context*, std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>*, EvalCache*);
+    EvaluateWorker(const Context*, std::size_t GPUId, std::size_t BatchSize,
+                   EvaluationQueue<Features>*, EvalCache*);
     ~EvaluateWorker();
 
  private:
@@ -44,7 +45,8 @@ class EvaluateWorker : public worker::Worker {
     void flattenFeatures(std::size_t BatchSize);
     void doInference(std::size_t BatchSize);
     void feedResults(std::size_t BatchSize);
-    void feedResult(core::Color, Node*, const float* Policy, float WinRate, float DrawRate, uint64_t Hash);
+    void feedResult(core::Color, Node*, const float* Policy, float WinRate,
+                    float DrawRate, uint64_t Hash);
 
     const Context* PContext;
 

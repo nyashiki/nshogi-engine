@@ -26,8 +26,12 @@ class Random : public Infer {
 
     ~Random() override;
 
-    void computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
-    void computeBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
+    void computeNonBlocking(const ml::FeatureBitboard* Features,
+                            std::size_t BatchSize, float* DstPolicy,
+                            float* DstWinRate, float* DstDrawRate) override;
+    void computeBlocking(const ml::FeatureBitboard* Features,
+                         std::size_t BatchSize, float* DstPolicy,
+                         float* DstWinRate, float* DstDrawRate) override;
     void await() override;
     bool isComputing() override;
 

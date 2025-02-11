@@ -59,7 +59,6 @@ class ContextManager {
 
  private:
     const std::unique_ptr<Context> Context_;
-
 };
 
 } // namespace engine

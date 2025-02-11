@@ -49,7 +49,10 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-EvaluateWorker<Features>::EvaluateWorker(const Context* C, std::size_t GPUId, std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
+EvaluateWorker<Features>::EvaluateWorker(const Context* C, std::size_t GPUId,
+                                         std::size_t BatchSize,
+                                         EvaluationQueue<Features>* EQ,
+                                         EvalCache* EC)
     : worker::Worker(true)
     , PContext(C)
     , BatchSizeMax(BatchSize)
@@ -77,7 +80,8 @@ EvaluateWorker<Features>::~EvaluateWorker() {
 template <typename Features>
 void EvaluateWorker<Features>::initializationTask() {
 #ifdef CUDA_ENABLED
-    cudaMallocHost(&FeatureBitboards, BatchSizeMax * Features::size() * sizeof(ml::FeatureBitboard));
+    cudaMallocHost(&FeatureBitboards, BatchSizeMax * Features::size() *
+                                          sizeof(ml::FeatureBitboard));
 #else
     FeatureBitboards = new ml::FeatureBitboard[BatchSizeMax * Features::size()];
 #endif
@@ -89,12 +93,14 @@ void EvaluateWorker<Features>::initializationTask() {
 #elif defined(EXECUTOR_RANDOM)
     Infer = std::make_unique<infer::Random>(0);
 #elif defined(EXECUTOR_TRT)
-    auto TRT = std::make_unique<infer::TensorRT>(GPUId_, BatchSizeMax, global_config::FeatureType::size());
+    auto TRT = std::make_unique<infer::TensorRT>(
+        GPUId_, BatchSizeMax, global_config::FeatureType::size());
     TRT->load(PContext->getWeightPath(), true);
     TRT->resetGPU();
     Infer = std::move(TRT);
 #endif
-    Evaluator = std::make_unique<evaluate::Evaluator>(BatchSizeMax, Infer.get());
+    Evaluator =
+        std::make_unique<evaluate::Evaluator>(BatchSizeMax, Infer.get());
 }
 
 template <typename Features>
@@ -109,7 +115,8 @@ bool EvaluateWorker<Features>::doTask() {
         return false;
     }
 
-    if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD && BatchSize < BatchSizeMax / 2) {
+    if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD &&
+        BatchSize < BatchSizeMax / 2) {
         ++SequentialSkip;
         std::this_thread::yield();
         // There are tasks to do so return true not to stop this worker.
@@ -126,7 +133,8 @@ bool EvaluateWorker<Features>::doTask() {
     PendingHashes.clear();
     SequentialSkip = 0;
 
-    // There may be tasks (a next batch) to do so return true not to stop this worker.
+    // There may be tasks (a next batch) to do so return true not to stop this
+    // worker.
     return true;
 }
 
@@ -147,9 +155,11 @@ void EvaluateWorker<Features>::getBatch() {
         return;
     }
 
-    std::move(SideToMoves.begin(), SideToMoves.end(), std::back_inserter(PendingSideToMoves));
+    std::move(SideToMoves.begin(), SideToMoves.end(),
+              std::back_inserter(PendingSideToMoves));
     std::move(Nodes.begin(), Nodes.end(), std::back_inserter(PendingNodes));
-    std::move(FeatureStacks.begin(), FeatureStacks.end(), std::back_inserter(PendingFeatures));
+    std::move(FeatureStacks.begin(), FeatureStacks.end(),
+              std::back_inserter(PendingFeatures));
     std::move(Hashes.begin(), Hashes.end(), std::back_inserter(PendingHashes));
 }
 
@@ -159,9 +169,9 @@ void EvaluateWorker<Features>::flattenFeatures(std::size_t BatchSize) {
 
     for (std::size_t I = 0; I < BatchSize; ++I) {
         std::memcpy(
-            static_cast<void*>((ml::FeatureBitboard*)(FeatureBitboards) + I * UnitSize),
-            PendingFeatures[I].data(),
-            UnitSize * sizeof(ml::FeatureBitboard));
+            static_cast<void*>((ml::FeatureBitboard*)(FeatureBitboards) +
+                               I * UnitSize),
+            PendingFeatures[I].data(), UnitSize * sizeof(ml::FeatureBitboard));
     }
 }
 
@@ -173,25 +183,30 @@ void EvaluateWorker<Features>::doInference(std::size_t BatchSize) {
 template <typename Features>
 void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
     for (std::size_t I = 0; I < BatchSize; ++I) {
-        const float* Policy = Evaluator->getPolicy() + 27 * core::NumSquares * I;
+        const float* Policy =
+            Evaluator->getPolicy() + 27 * core::NumSquares * I;
         const float WinRate = *(Evaluator->getWinRate() + I);
         const float DrawRate = *(Evaluator->getDrawRate() + I);
 
         assert(WinRate >= 0.0f && WinRate <= 1.0f);
         assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
-        feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate, DrawRate, PendingHashes[I]);
+        feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate,
+                   DrawRate, PendingHashes[I]);
     }
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N, const float* Policy, float WinRate, float DrawRate, uint64_t Hash) {
+void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N,
+                                          const float* Policy, float WinRate,
+                                          float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
-        constexpr float P[] = { 1.0 };
+        constexpr float P[] = {1.0};
         N->setEvaluation(P, WinRate, DrawRate);
     } else {
         for (uint16_t I = 0; I < NumChildren; ++I) {
-            const std::size_t MoveIndex = ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
+            const std::size_t MoveIndex =
+                ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
             LegalPolicy[I] = Policy[MoveIndex];
         }
         ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);

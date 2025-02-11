@@ -63,9 +63,7 @@ class ICommand {
         assert(BlockingMode);
 
         std::unique_lock<std::mutex> Lock(Mtx);
-        CV.wait(Lock, [this]() {
-            return IsDone;
-        });
+        CV.wait(Lock, [this]() { return IsDone; });
     }
 
  private:
@@ -78,6 +76,5 @@ class ICommand {
 } // namespace command
 } // namespace engine
 } // namespace nshogi
-
 
 #endif // #ifndef NSHOGI_ENGINE_COMMAND_COMMAND_H

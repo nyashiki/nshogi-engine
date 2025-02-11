@@ -10,9 +10,9 @@
 #ifndef NSHOGI_ENGINE_SELFPLAY_SAVEWORKER_H
 #define NSHOGI_ENGINE_SELFPLAY_SAVEWORKER_H
 
+#include "../worker/worker.h"
 #include "framequeue.h"
 #include "selfplayinfo.h"
-#include "../worker/worker.h"
 
 #include <chrono>
 #include <fstream>
@@ -23,7 +23,8 @@ namespace selfplay {
 
 class SaveWorker : public worker::Worker {
  public:
-    SaveWorker(SelfplayInfo*, FrameQueue*, FrameQueue*, std::size_t NumSelfplayGames, const char* SavePath);
+    SaveWorker(SelfplayInfo*, FrameQueue*, FrameQueue*,
+               std::size_t NumSelfplayGames, const char* SavePath);
 
  private:
     bool doTask() override;
@@ -39,7 +40,8 @@ class SaveWorker : public worker::Worker {
     std::ofstream Ofs;
 
     std::chrono::time_point<std::chrono::steady_clock> StartTime;
-    mutable std::chrono::time_point<std::chrono::steady_clock> PreviousPrintTime;
+    mutable std::chrono::time_point<std::chrono::steady_clock>
+        PreviousPrintTime;
     std::string LatestGame;
 
     struct {
@@ -54,7 +56,7 @@ class SaveWorker : public worker::Worker {
     std::vector<std::unique_ptr<Frame>> TasksToAdd;
 };
 
-} // namespace selfpaly
+} // namespace selfplay
 } // namespace engine
 } // namespace nshogi
 

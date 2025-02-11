@@ -16,7 +16,6 @@
 #include <mutex>
 #include <queue>
 
-
 namespace nshogi {
 namespace engine {
 namespace mcts {
@@ -29,7 +28,9 @@ class EvaluationQueue {
     void open();
     void close();
     void add(const core::State&, const core::StateConfig&, Node*);
-    auto get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>, std::vector<uint64_t>>;
+    auto get(std::size_t NumElements)
+        -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
+                      std::vector<Features>, std::vector<uint64_t>>;
     std::size_t count();
 
  private:

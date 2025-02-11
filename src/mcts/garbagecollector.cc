@@ -11,14 +11,16 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <mutex>
 #include <iostream>
+#include <mutex>
 
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-GarbageCollector::GarbageCollector(std::size_t NumWorkers, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator)
+GarbageCollector::GarbageCollector(std::size_t NumWorkers,
+                                   allocator::Allocator* NodeAllocator,
+                                   allocator::Allocator* EdgeAllocator)
     : NA(NodeAllocator)
     , EA(EdgeAllocator) {
     if (NumWorkers <= 0) {
@@ -70,9 +72,7 @@ void GarbageCollector::mainLoop() {
         {
             std::unique_lock<std::mutex> Lock(Mtx);
 
-            Cv.wait(Lock, [&]{
-                return !Garbages.empty() || ToExit;
-            });
+            Cv.wait(Lock, [&] { return !Garbages.empty() || ToExit; });
 
             Garbages.swap(NodesToProcess);
         }
@@ -88,7 +88,8 @@ void GarbageCollector::mainLoop() {
             // To avoid stack-overflow, manually expand the children.
             const uint16_t NumChildren = NodeToProcess->getNumChildren();
             for (uint16_t I = 0; I < NumChildren; ++I) {
-                NodesToProcess.push(std::move(NodeToProcess->getEdge()[I].getTargetWithOwner()));
+                NodesToProcess.push(std::move(
+                    NodeToProcess->getEdge()[I].getTargetWithOwner()));
             }
 
             NodeToProcess->getEdge().destroy(EA, NumChildren);

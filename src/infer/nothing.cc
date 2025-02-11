@@ -19,10 +19,12 @@ Nothing::Nothing() {
 Nothing::~Nothing() {
 }
 
-void Nothing::computeNonBlocking(const ml::FeatureBitboard*, std::size_t, float*, float*, float*) {
+void Nothing::computeNonBlocking(const ml::FeatureBitboard*, std::size_t,
+                                 float*, float*, float*) {
 }
 
-void Nothing::computeBlocking(const ml::FeatureBitboard*, std::size_t, float*, float*, float*) {
+void Nothing::computeBlocking(const ml::FeatureBitboard*, std::size_t, float*,
+                              float*, float*) {
 }
 
 void Nothing::await() {

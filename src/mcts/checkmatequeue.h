@@ -55,7 +55,6 @@ class CheckmateQueue {
     bool IsOpen;
     std::mutex Mutex;
     std::queue<std::unique_ptr<CheckmateTask>> Queue;
-
 };
 
 } // namespace mcts

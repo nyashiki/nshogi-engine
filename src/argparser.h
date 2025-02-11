@@ -22,9 +22,12 @@ class ArgParser {
  public:
     ArgParser();
 
-    void addOption(char NameShort, const char* NameLong, const char* DefaultValue, const char* Description);
-    void addOption(const char* NameLong, const char* DefaultValue, const char* Description);
-    void addOption(char NameShort, const char* NameLong, const char* Description);
+    void addOption(char NameShort, const char* NameLong,
+                   const char* DefaultValue, const char* Description);
+    void addOption(const char* NameLong, const char* DefaultValue,
+                   const char* Description);
+    void addOption(char NameShort, const char* NameLong,
+                   const char* Description);
     void addOption(const char* NameLong, const char* Description);
 
     const std::string& getOption(char NameShort) const;

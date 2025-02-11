@@ -13,12 +13,12 @@
 #include <memory>
 #include <nshogi/io/sfen.h>
 
-
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-Tree::Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator, logger::Logger* Logger)
+Tree::Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator,
+           logger::Logger* Logger)
     : GC(GCollector)
     , NA(NodeAllocator)
     , PLogger(Logger) {
@@ -131,7 +131,6 @@ Node* Tree::createNewRoot(const nshogi::core::State& State) {
 
     return Root.get();
 }
-
 
 } // namespace mcts
 } // namespace engine

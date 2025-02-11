@@ -14,7 +14,8 @@ namespace engine {
 namespace mcts {
 
 EvalCache::EvalCache(std::size_t MemorySize)
-    : NumBundle(MemorySize * 1024LL * 1024LL / (sizeof(CacheData) * CACHE_BUNDLE_SIZE))
+    : NumBundle(MemorySize * 1024LL * 1024LL /
+                (sizeof(CacheData) * CACHE_BUNDLE_SIZE))
     , Memory(std::make_unique<CacheData[]>(NumBundle * CACHE_BUNDLE_SIZE)) {
 
     CacheStorage = std::make_unique<CacheBundle[]>(NumBundle);
@@ -45,7 +46,8 @@ EvalCache::EvalCache(std::size_t MemorySize)
     }
 }
 
-bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR, float D) {
+bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
+                      float D) {
     if (NumM > MAX_CACHE_MOVES_COUNT) {
         return false;
     }
@@ -163,5 +165,5 @@ bool EvalCache::load(const core::State& St, EvalInfo* EI) {
 }
 
 } // namespace mcts
-} // namescape engine
+} // namespace engine
 } // namespace nshogi

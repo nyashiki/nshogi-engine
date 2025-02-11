@@ -10,12 +10,12 @@
 #ifndef NSHOGI_ENGINE_SELFPLAY_FRAME_H
 #define NSHOGI_ENGINE_SELFPLAY_FRAME_H
 
-#include "phase.h"
 #include "../allocator/allocator.h"
-#include "../mcts/tree.h"
 #include "../mcts/evalcache.h"
-#include <vector>
+#include "../mcts/tree.h"
+#include "phase.h"
 #include <memory>
+#include <vector>
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -83,7 +83,7 @@ struct Frame {
     uint64_t NumPlayouts; // n in the paper.
     uint64_t SequentialHalvingPlayouts;
     uint8_t SequentialHalvingCount;
-    uint16_t NumSamplingMove;  // m in the paper.
+    uint16_t NumSamplingMove; // m in the paper.
     std::vector<double> GumbelNoise;
     std::vector<bool> IsTarget;
 };

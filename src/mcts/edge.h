@@ -10,13 +10,12 @@
 #ifndef NSHOGI_ENGINE_MCTS_EDGE_H
 #define NSHOGI_ENGINE_MCTS_EDGE_H
 #include <atomic>
-#include <memory>
 #include <cassert>
+#include <memory>
 
-#include "pointer.h"
 #include "../allocator/allocator.h"
+#include "pointer.h"
 #include <nshogi/core/types.h>
-
 
 namespace nshogi {
 namespace engine {
@@ -26,7 +25,8 @@ struct Node;
 
 struct Edge {
  public:
-    Edge(): Ready(false) {
+    Edge()
+        : Ready(false) {
     }
 
     Edge(const Edge& E) {
@@ -92,7 +92,6 @@ struct Edge {
     core::Move16 Move;
     std::atomic<bool> Ready;
 };
-
 
 } // namespace mcts
 } // namespace engine

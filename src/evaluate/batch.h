@@ -17,9 +17,9 @@
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
-#include <nshogi/ml/featuretype.h>
-#include <nshogi/ml/featurestack.h>
 #include <nshogi/ml/featurebitboard.h>
+#include <nshogi/ml/featurestack.h>
+#include <nshogi/ml/featuretype.h>
 
 namespace nshogi {
 namespace engine {

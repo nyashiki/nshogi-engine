@@ -16,7 +16,9 @@ namespace nshogi {
 namespace engine {
 namespace bench {
 
-void benchMCTS(uint64_t DurationSeconds, std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumThreadsPerGPU, std::size_t NumCheckmateSearchers, std::size_t EvalCacheMB);
+void benchMCTS(uint64_t DurationSeconds, std::size_t BatchSize,
+               std::size_t NumGPUs, std::size_t NumThreadsPerGPU,
+               std::size_t NumCheckmateSearchers, std::size_t EvalCacheMB);
 
 } // namespace bench
 } // namespace engine

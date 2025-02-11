@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_COMMAND_COMMANDS_THINK
 #define NSHOGI_ENGINE_COMMAND_COMMANDS_THINK
 
-#include "../command.h"
 #include "../../limit.h"
+#include "../command.h"
 
 #include <functional>
 #include <nshogi/core/types.h>
@@ -23,7 +23,8 @@ namespace commands {
 
 class Think : public ICommand {
  public:
-    Think(Limit Limits[2], std::function<void(core::Move32)> Callback = nullptr);
+    Think(Limit Limits[2],
+          std::function<void(core::Move32)> Callback = nullptr);
     ~Think();
 
     CommandType type() const;

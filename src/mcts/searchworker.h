@@ -10,14 +10,14 @@
 #ifndef NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 #define NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 
-#include "checkmatequeue.h"
-#include "evalcache.h"
-#include "evaluatequeue.h"
-#include "edge.h"
-#include "node.h"
-#include "mutexpool.h"
 #include "../lock/spinlock.h"
 #include "../worker/worker.h"
+#include "checkmatequeue.h"
+#include "edge.h"
+#include "evalcache.h"
+#include "evaluatequeue.h"
+#include "mutexpool.h"
+#include "node.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -29,7 +29,10 @@ namespace mcts {
 template <typename Features>
 class SearchWorker : public worker::Worker {
  public:
-    SearchWorker(allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, EvaluationQueue<Features>*, CheckmateQueue*, MutexPool<lock::SpinLock>*, EvalCache*);
+    SearchWorker(allocator::Allocator* NodeAllocator,
+                 allocator::Allocator* EdgeAllocator,
+                 EvaluationQueue<Features>*, CheckmateQueue*,
+                 MutexPool<lock::SpinLock>*, EvalCache*);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -49,8 +52,10 @@ class SearchWorker : public worker::Worker {
 
     bool doTask() override;
 
-    Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren, bool regardNotVisitedWin);
-    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits, uint64_t ChildVirtualVisits);
+    Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
+                            bool regardNotVisitedWin);
+    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
+                                 uint64_t ChildVirtualVisits);
     void incrementVirtualLosses(Node*);
 
     std::unique_ptr<core::State> State;

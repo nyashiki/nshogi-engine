@@ -10,13 +10,13 @@
 #ifndef NSHOGI_ENGINE_MCTS_WATCHDOG_H
 #define NSHOGI_ENGINE_MCTS_WATCHDOG_H
 
+#include "../allocator/allocator.h"
+#include "../context.h"
+#include "../limit.h"
+#include "../logger/logger.h"
+#include "../worker/worker.h"
 #include "edge.h"
 #include "node.h"
-#include "../limit.h"
-#include "../allocator/allocator.h"
-#include "../worker/worker.h"
-#include "../logger/logger.h"
-#include "../context.h"
 
 #include <functional>
 #include <memory>
@@ -31,7 +31,9 @@ namespace mcts {
 
 class Watchdog : public worker::Worker {
  public:
-    Watchdog(const Context*, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, std::shared_ptr<logger::Logger>);
+    Watchdog(const Context*, allocator::Allocator* NodeAllocator,
+             allocator::Allocator* EdgeAllocator,
+             std::shared_ptr<logger::Logger>);
     ~Watchdog();
 
     void updateRoot(const core::State*, const core::StateConfig*, Node*);

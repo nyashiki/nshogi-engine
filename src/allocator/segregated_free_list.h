@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 #define NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 
-#include "allocator.h"
 #include "../lock/spinlock.h"
+#include "allocator.h"
 
 #include <atomic>
 #include <mutex>
@@ -48,33 +48,43 @@ class SegregatedFreeListAllocator : public Allocator {
 
         const std::size_t AlignedSize = getAlignedSize(Size_);
         Size = sizeof(Header1) + AlignedSize + Alignment + sizeof(Header1);
-        Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+        Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE,
+                      MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
 
-        AlignedMemory = reinterpret_cast<void*>((reinterpret_cast<std::size_t>(Memory) + sizeof(Header1) + AlignmentMask) & ~AlignmentMask);
+        AlignedMemory =
+            reinterpret_cast<void*>((reinterpret_cast<std::size_t>(Memory) +
+                                     sizeof(Header1) + AlignmentMask) &
+                                    ~AlignmentMask);
 
         for (std::size_t I = 0; I < 64; ++I) {
             FreeLists[I] = nullptr;
         }
 
         Header2* Header = reinterpret_cast<Header2*>(AlignedMemory);
-        Header1* H1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(AlignedMemory) - sizeof(Header1));
+        Header1* H1 = reinterpret_cast<Header1*>(
+            reinterpret_cast<char*>(AlignedMemory) - sizeof(Header1));
         H1->setSize(AlignedSize);
-        Footer* Foot = reinterpret_cast<Footer*>(reinterpret_cast<char*>(H1) + AlignedSize - sizeof(Footer));
+        Footer* Foot = reinterpret_cast<Footer*>(reinterpret_cast<char*>(H1) +
+                                                 AlignedSize - sizeof(Footer));
         Foot->Header = Header;
         addToFreeList(Header);
 
-        Header1* LastH1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(Foot) + sizeof(Footer));
+        Header1* LastH1 = reinterpret_cast<Header1*>(
+            reinterpret_cast<char*>(Foot) + sizeof(Footer));
         LastH1->setSize(0);
         LastH1->setUsed();
     }
 
     void* malloc(std::size_t Size_) override {
-        const std::size_t AlignedSize = getAlignedSize(Size_ + sizeof(Footer) + sizeof(Header1));
-        const std::size_t MinimumIndex = (std::size_t)(64 - __builtin_clzll(AlignedSize - 1));
+        const std::size_t AlignedSize =
+            getAlignedSize(Size_ + sizeof(Footer) + sizeof(Header1));
+        const std::size_t MinimumIndex =
+            (std::size_t)(64 - __builtin_clzll(AlignedSize - 1));
 
         std::lock_guard<lock::SpinLock> Lk(SpinLock);
 
-        const std::size_t TargetBits = AvailableListBits & (0xffffffffffffffffULL << MinimumIndex);
+        const std::size_t TargetBits =
+            AvailableListBits & (0xffffffffffffffffULL << MinimumIndex);
 
         if (TargetBits == 0) {
             return nullptr;
@@ -92,7 +102,8 @@ class SegregatedFreeListAllocator : public Allocator {
             FreeLists[Index]->Previous = nullptr;
         }
 
-        Header1* H1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(Header) - sizeof(Header1));
+        Header1* H1 = reinterpret_cast<Header1*>(
+            reinterpret_cast<char*>(Header) - sizeof(Header1));
 
         // Split the block if the remaining size is enough.
         const std::size_t RemainingSize = H1->getSize() - AlignedSize;
@@ -100,14 +111,19 @@ class SegregatedFreeListAllocator : public Allocator {
 
         if (RemainingSize > sizeof(Footer) + sizeof(Header1)) {
             H1->setSize(AlignedSize);
-            Footer* Foot = reinterpret_cast<Footer*>(reinterpret_cast<char*>(Header) +
-                    AlignedSize - sizeof(Header1) - sizeof(Footer));
+            Footer* Foot = reinterpret_cast<Footer*>(
+                reinterpret_cast<char*>(Header) + AlignedSize -
+                sizeof(Header1) - sizeof(Footer));
 
             Foot->Header = Header;
 
-            Header2* NewHeader = reinterpret_cast<Header2*>(reinterpret_cast<char*>(Header) + AlignedSize);
-            Header1* NewH1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(NewHeader) - sizeof(Header1));
-            Footer* NewFooter = reinterpret_cast<Footer*>(reinterpret_cast<char*>(NewHeader) + RemainingSize - sizeof(Header1) - sizeof(Footer));
+            Header2* NewHeader = reinterpret_cast<Header2*>(
+                reinterpret_cast<char*>(Header) + AlignedSize);
+            Header1* NewH1 = reinterpret_cast<Header1*>(
+                reinterpret_cast<char*>(NewHeader) - sizeof(Header1));
+            Footer* NewFooter = reinterpret_cast<Footer*>(
+                reinterpret_cast<char*>(NewHeader) + RemainingSize -
+                sizeof(Header1) - sizeof(Footer));
 
             NewH1->setSize(RemainingSize);
             NewFooter->Header = NewHeader;
@@ -128,7 +144,8 @@ class SegregatedFreeListAllocator : public Allocator {
         }
 
         Header2* Header = reinterpret_cast<Header2*>(Ptr);
-        Header1* H1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(Header) - sizeof(Header1));
+        Header1* H1 = reinterpret_cast<Header1*>(
+            reinterpret_cast<char*>(Header) - sizeof(Header1));
         Used.fetch_sub(H1->getSize(), std::memory_order_relaxed);
 
         std::lock_guard<lock::SpinLock> Lk(SpinLock);
@@ -137,16 +154,20 @@ class SegregatedFreeListAllocator : public Allocator {
         assert(!H1->getIsUsed());
 
         if (Ptr != AlignedMemory) {
-            Footer* PreviousFooter = reinterpret_cast<Footer*>(reinterpret_cast<char*>(H1) - sizeof(Footer));
+            Footer* PreviousFooter = reinterpret_cast<Footer*>(
+                reinterpret_cast<char*>(H1) - sizeof(Footer));
             Header2* PreviousHeader = PreviousFooter->Header;
-            Header1* PreviousH1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(PreviousHeader) - sizeof(Header1));
+            Header1* PreviousH1 = reinterpret_cast<Header1*>(
+                reinterpret_cast<char*>(PreviousHeader) - sizeof(Header1));
 
             if (!PreviousH1->getIsUsed()) {
                 removeFromFreeList(PreviousHeader);
 
                 PreviousH1->setSize(PreviousH1->getSize() + H1->getSize());
 
-                Footer* CurrentFotter = reinterpret_cast<Footer*>(reinterpret_cast<char*>(Header) + H1->getSize() - sizeof(Header1) - sizeof(Footer));
+                Footer* CurrentFotter = reinterpret_cast<Footer*>(
+                    reinterpret_cast<char*>(Header) + H1->getSize() -
+                    sizeof(Header1) - sizeof(Footer));
                 CurrentFotter->Header = PreviousHeader;
 
                 H1 = PreviousH1;
@@ -154,15 +175,19 @@ class SegregatedFreeListAllocator : public Allocator {
             }
         }
 
-        Header2* NextHeader = reinterpret_cast<Header2*>(reinterpret_cast<char*>(Header) + H1->getSize());
-        Header1* NextH1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(NextHeader) - sizeof(Header1));
+        Header2* NextHeader = reinterpret_cast<Header2*>(
+            reinterpret_cast<char*>(Header) + H1->getSize());
+        Header1* NextH1 = reinterpret_cast<Header1*>(
+            reinterpret_cast<char*>(NextHeader) - sizeof(Header1));
 
         if (!NextH1->getIsUsed()) {
             removeFromFreeList(NextHeader);
 
             H1->setSize(H1->getSize() + NextH1->getSize());
 
-            Footer* NextFooter = reinterpret_cast<Footer*>(reinterpret_cast<char*>(NextHeader) + NextH1->getSize() - sizeof(Header1) - sizeof(Footer));
+            Footer* NextFooter = reinterpret_cast<Footer*>(
+                reinterpret_cast<char*>(NextHeader) + NextH1->getSize() -
+                sizeof(Header1) - sizeof(Footer));
             NextFooter->Header = Header;
         }
 
@@ -204,7 +229,8 @@ class SegregatedFreeListAllocator : public Allocator {
         Header2* Header = reinterpret_cast<Header2*>(AlignedMemory);
 
         while (true) {
-            Header1* H1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(Header) - sizeof(Header1));
+            Header1* H1 = reinterpret_cast<Header1*>(
+                reinterpret_cast<char*>(Header) - sizeof(Header1));
 
             if (H1->getSize() == 0) {
                 break;
@@ -214,7 +240,8 @@ class SegregatedFreeListAllocator : public Allocator {
                 return false;
             }
 
-            Header = reinterpret_cast<Header2*>(reinterpret_cast<char*>(Header) + H1->getSize());
+            Header = reinterpret_cast<Header2*>(
+                reinterpret_cast<char*>(Header) + H1->getSize());
         }
 
         return true;
@@ -276,27 +303,31 @@ class SegregatedFreeListAllocator : public Allocator {
     }
 
     void addToFreeList(Header2* Header) {
-        Header1* H1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(Header) - sizeof(Header1));
+        Header1* H1 = reinterpret_cast<Header1*>(
+            reinterpret_cast<char*>(Header) - sizeof(Header1));
         std::size_t Index = (std::size_t)(63 - __builtin_clzll(H1->getSize()));
         addToFreeList(Header, Index);
     }
 
     void removeFromFreeList(Header2* Header) {
-        if (Header->Previous != nullptr) { // This block is not the first element.
+        if (Header->Previous !=
+            nullptr) { // This block is not the first element.
             // FreeList[Index]:
             //     Old: ... [ (a) ][ This block. ][ (b) ] ...
             //     New: ... [ (a) ][ (b) ] ...
             Header->Previous->Next = Header->Next; // (a) ==> (b).
             if (Header->Next != nullptr) {
-                Header->Next->Previous = Header->Previous;  // (a) <== (b).
+                Header->Next->Previous = Header->Previous; // (a) <== (b).
             }
         } else { // This block is the first element.
             // FreeList[Index]:
             //     Old: [ This block. ][ (a) ] ...
             //     New: [ (a) ] ...
 
-            const Header1* H1 = reinterpret_cast<Header1*>(reinterpret_cast<char*>(Header) - sizeof(Header1));
-            const std::size_t Index = (std::size_t)(63 - __builtin_clzll(H1->getSize()));
+            const Header1* H1 = reinterpret_cast<Header1*>(
+                reinterpret_cast<char*>(Header) - sizeof(Header1));
+            const std::size_t Index =
+                (std::size_t)(63 - __builtin_clzll(H1->getSize()));
             assert(FreeLists[Index] == Header);
 
             FreeLists[Index] = Header->Next;

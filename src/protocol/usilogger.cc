@@ -9,10 +9,10 @@
 
 #include "usilogger.h"
 
-#include <cstdint>
 #include <cmath>
-#include <mutex>
+#include <cstdint>
 #include <iostream>
+#include <mutex>
 
 #include <nshogi/io/sfen.h>
 
@@ -29,16 +29,20 @@ USILogger::USILogger()
 void USILogger::printPVLog(const logger::PVLog& Log) const {
     std::lock_guard<std::mutex> Lock(Mtx);
 
-    std::cout << "info depth " << Log.PV.size() <<  " time " << Log.ElapsedMilliSeconds;
+    std::cout << "info depth " << Log.PV.size() << " time "
+              << Log.ElapsedMilliSeconds;
 
     if (Log.SolvedGameEndPly != 0) {
         std::cout << " score mate " << Log.SolvedGameEndPly;
     } else {
         if (SFType == ScoreFormatType::WinDraw) {
-            const double WinRate = (1.0 - Log.DrawRate) * ((IsInverse)? (1.0 - Log.WinRate) : Log.WinRate);
+            const double WinRate =
+                (1.0 - Log.DrawRate) *
+                ((IsInverse) ? (1.0 - Log.WinRate) : Log.WinRate);
             std::cout << " score windraw " << WinRate << " " << Log.DrawRate;
         } else {
-            int32_t Score = getScoreFromWinRate(Log.WinRate, Log.DrawRate, Log.DrawValue);
+            int32_t Score =
+                getScoreFromWinRate(Log.WinRate, Log.DrawRate, Log.DrawValue);
             if (IsInverse) {
                 Score = -Score;
             }
@@ -47,7 +51,7 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
     }
 
     std::cout << " nodes " << Log.NumNodes << " nps " << Log.NodesPerSecond
-            << " hashfull " << Log.HashFullPerMille << " pv";
+              << " hashfull " << Log.HashFullPerMille << " pv";
 
     for (const auto& Move : Log.PV) {
         std::cout << " " << io::sfen::move16ToSfen(Move);
@@ -58,7 +62,8 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
 
 void USILogger::printBestMove(core::Move32 Move) const {
     std::lock_guard<std::mutex> Lock(Mtx);
-    std::cout << "bestmove " << nshogi::io::sfen::move32ToSfen(Move) << std::endl;
+    std::cout << "bestmove " << nshogi::io::sfen::move32ToSfen(Move)
+              << std::endl;
 }
 
 void USILogger::printLog(const char* Message) const {
@@ -74,17 +79,19 @@ void USILogger::setScoreFormatType(ScoreFormatType Type) {
     SFType = Type;
 }
 
-int32_t USILogger::getScoreFromWinRate(double WinRate, double DrawRate, double DrawValue) const {
+int32_t USILogger::getScoreFromWinRate(double WinRate, double DrawRate,
+                                       double DrawValue) const {
     const double PonanzaConstant = 600;
 
-    const double WinRateConsideringDraw = DrawRate * DrawValue + (1 - DrawRate) * WinRate;
+    const double WinRateConsideringDraw =
+        DrawRate * DrawValue + (1 - DrawRate) * WinRate;
     if (WinRateConsideringDraw == 0) {
         return -9999;
     }
 
-    return (int32_t)(-PonanzaConstant * std::log(1.0 / WinRateConsideringDraw - 1.0));
+    return (int32_t)(-PonanzaConstant *
+                     std::log(1.0 / WinRateConsideringDraw - 1.0));
 }
-
 
 } // namespace usi
 } // namespace protocol

@@ -47,9 +47,7 @@ void Worker::start() {
     std::cerr << ">>>>> CONFIRM THREAD HAS STARTED. <<<<<" << std::endl;
     // Ensure the thread has started.
     std::unique_lock<std::mutex> Lock(Mutex);
-    WaitingCV.wait(Lock, [this]() {
-        return IsStartNotified;
-    });
+    WaitingCV.wait(Lock, [this]() { return IsStartNotified; });
 
     std::cerr << ">>>>> CONFIRM THREAD HAS STARTED OK!. <<<<<" << std::endl;
 }
@@ -62,9 +60,7 @@ void Worker::stop() {
 void Worker::await() {
     // Wait until the thread has stopped.
     std::unique_lock<std::mutex> Lock(Mutex);
-    WaitingCV.wait(Lock, [this] {
-        return !IsRunning && IsWaiting;
-    });
+    WaitingCV.wait(Lock, [this] { return !IsRunning && IsWaiting; });
 }
 
 void Worker::spawnThread() {
@@ -75,9 +71,7 @@ void Worker::spawnThread() {
 
     {
         std::unique_lock<std::mutex> Lock(MutexInitialization);
-        CVInitialization.wait(Lock, [this]() {
-            return IsInitializationDone;
-        });
+        CVInitialization.wait(Lock, [this]() { return IsInitializationDone; });
     }
 }
 
@@ -110,9 +104,7 @@ void Worker::mainLoop() {
         {
             std::unique_lock<std::mutex> Lock(Mutex);
 
-            CV.wait(Lock, [this] {
-                return IsRunning || IsExiting;
-            });
+            CV.wait(Lock, [this] { return IsRunning || IsExiting; });
 
             // Notify a waiting thread which is in start().
             IsWaiting = false;

@@ -10,6 +10,8 @@
 #ifndef NSHOGI_ENGINE_MCTS_NODE_H
 #define NSHOGI_ENGINE_MCTS_NODE_H
 
+#include "../allocator/allocator.h"
+#include "../math/fixedpoint.h"
 #include "edge.h"
 #include "pointer.h"
 #include <algorithm>
@@ -19,8 +21,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
-#include "../allocator/allocator.h"
-#include "../math/fixedpoint.h"
 #include <nshogi/core/movelist.h>
 #include <nshogi/core/state.h>
 #include <nshogi/core/types.h>
@@ -89,7 +89,8 @@ struct Node {
     }
 
     inline void incrementVisitsAndDecrementVirtualLoss() {
-        constexpr uint64_t Value = (0xffffffffffffffffULL << VirtualLossShift) | 0b1ULL;
+        constexpr uint64_t Value =
+            (0xffffffffffffffffULL << VirtualLossShift) | 0b1ULL;
         VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
@@ -126,7 +127,8 @@ struct Node {
         return DrawRatePredicted;
     }
 
-    inline int16_t expand(const nshogi::core::MoveList& MoveList, allocator::Allocator* Allocator) {
+    inline int16_t expand(const nshogi::core::MoveList& MoveList,
+                          allocator::Allocator* Allocator) {
         assert(Edges == nullptr);
         assert(MoveList.size() > 0);
         assert((VisitsAndVirtualLoss & VisitMask) == 0);
@@ -145,7 +147,8 @@ struct Node {
         return (int16_t)NumChildren;
     }
 
-    inline void setEvaluation(const float* Policy, float WinRate, float DrawRate) {
+    inline void setEvaluation(const float* Policy, float WinRate,
+                              float DrawRate) {
         if (Policy != nullptr) {
             for (std::size_t I = 0; I < getNumChildren(); ++I) {
                 Edges[I].setProbability(Policy[I]);
@@ -293,7 +296,8 @@ struct Node {
     }
 
     core::Move16 getSolverResult() const {
-        return core::Move16::fromValue(SolverMove.load(std::memory_order_acquire));
+        return core::Move16::fromValue(
+            SolverMove.load(std::memory_order_acquire));
     }
 
  private:

@@ -11,15 +11,14 @@
 #define NSHOGI_ENGINE_PROTOCOL_USILOGGER_H
 
 #include "../logger/logger.h"
+#include <cstdint>
 #include <iostream>
 #include <mutex>
-#include <cstdint>
 
 namespace nshogi {
 namespace engine {
 namespace protocol {
 namespace usi {
-
 
 class USILogger : public logger::Logger {
  public:
@@ -51,13 +50,13 @@ class USILogger : public logger::Logger {
     void setScoreFormatType(ScoreFormatType);
 
  public:
-    int32_t getScoreFromWinRate(double WinRate, double DrawRate, double DrawValue) const;
+    int32_t getScoreFromWinRate(double WinRate, double DrawRate,
+                                double DrawValue) const;
     bool IsInverse;
     ScoreFormatType SFType;
 
     mutable std::mutex Mtx;
 };
-
 
 } // namespace usi
 } // namespace protocol

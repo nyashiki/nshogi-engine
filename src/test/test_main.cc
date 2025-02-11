@@ -10,7 +10,7 @@
 #include <gtest/gtest.h>
 #include <nshogi/core/initializer.h>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     nshogi::core::initializer::initializeAll();
 
     ::testing::InitGoogleTest(&argc, argv);
