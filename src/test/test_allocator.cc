@@ -7,16 +7,15 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include <CUnit/CUnit.h>
+#include <gtest/gtest.h>
 
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/segregated_free_list.h"
 
 #include <random>
 
-namespace {
 
-void testFixedAllocatorRandomWrite() {
+TEST(FixedAllocator, RandomWrite) {
     std::mt19937_64 mt(20231219);
 
     constexpr std::size_t Size = 100000;
@@ -40,20 +39,20 @@ void testFixedAllocatorRandomWrite() {
         Vec[R1] = R2;
         *Vec2[R1] = R2;
 
-        CU_ASSERT_EQUAL(Vec[R1], *Vec2[R1]);
+        ASSERT_EQ(Vec[R1], *Vec2[R1]);
     }
 
     for (std::size_t I = 0; I < Size; ++I) {
-        CU_ASSERT_EQUAL(Vec[I], *Vec2[I]);
+        ASSERT_EQ(Vec[I], *Vec2[I]);
     }
 
     for (std::size_t I = 0; I < Size; ++I) {
-        CU_ASSERT_EQUAL(Vec[I], *Vec2[I]);
+        ASSERT_EQ(Vec[I], *Vec2[I]);
         Allocator.free(Vec2[I]);
     }
 }
 
-void testSegregatedAllocatorRandomWrite() {
+TEST(SegregatedAllocator, RandomWrite) {
     std::mt19937_64 mt(20231219);
 
     constexpr std::size_t Size = 100000;
@@ -77,20 +76,20 @@ void testSegregatedAllocatorRandomWrite() {
         Vec[R1] = R2;
         *Vec2[R1] = R2;
 
-        CU_ASSERT_EQUAL(Vec[R1], *Vec2[R1]);
+        ASSERT_EQ(Vec[R1], *Vec2[R1]);
     }
 
     for (std::size_t I = 0; I < Size; ++I) {
-        CU_ASSERT_EQUAL(Vec[I], *Vec2[I]);
+        ASSERT_EQ(Vec[I], *Vec2[I]);
     }
 
     for (std::size_t I = 0; I < Size; ++I) {
-        CU_ASSERT_EQUAL(Vec[I], *Vec2[I]);
+        ASSERT_EQ(Vec[I], *Vec2[I]);
         Allocator.free(Vec2[I]);
     }
 }
 
-void testSegregatedAllocatorDifferentSizes() {
+TEST(SegregatedAllocator, DifferentSizes) {
     std::mt19937_64 mt(20231219);
 
     constexpr std::size_t Size = 10000;
@@ -141,41 +140,28 @@ void testSegregatedAllocatorDifferentSizes() {
         *VecI32_[Index3] = R3;
         *VecI64_[Index4] = R4;
 
-        CU_ASSERT_EQUAL(VecI8[Index1], *VecI8_[Index1]);
-        CU_ASSERT_EQUAL(VecI16[Index2], *VecI16_[Index2]);
-        CU_ASSERT_EQUAL(VecI32[Index3], *VecI32_[Index3]);
-        CU_ASSERT_EQUAL(VecI64[Index4], *VecI64_[Index4]);
+        ASSERT_EQ(VecI8[Index1], *VecI8_[Index1]);
+        ASSERT_EQ(VecI16[Index2], *VecI16_[Index2]);
+        ASSERT_EQ(VecI32[Index3], *VecI32_[Index3]);
+        ASSERT_EQ(VecI64[Index4], *VecI64_[Index4]);
     }
 
     for (std::size_t I = 0; I < Size; ++I) {
-        CU_ASSERT_EQUAL(VecI8[I], *VecI8_[I]);
-        CU_ASSERT_EQUAL(VecI16[I], *VecI16_[I]);
-        CU_ASSERT_EQUAL(VecI32[I], *VecI32_[I]);
-        CU_ASSERT_EQUAL(VecI64[I], *VecI64_[I]);
+        ASSERT_EQ(VecI8[I], *VecI8_[I]);
+        ASSERT_EQ(VecI16[I], *VecI16_[I]);
+        ASSERT_EQ(VecI32[I], *VecI32_[I]);
+        ASSERT_EQ(VecI64[I], *VecI64_[I]);
     }
 
     for (std::size_t I = 0; I < Size; ++I) {
-        CU_ASSERT_EQUAL(VecI8[I], *VecI8_[I]);
-        CU_ASSERT_EQUAL(VecI16[I], *VecI16_[I]);
-        CU_ASSERT_EQUAL(VecI32[I], *VecI32_[I]);
-        CU_ASSERT_EQUAL(VecI64[I], *VecI64_[I]);
+        ASSERT_EQ(VecI8[I], *VecI8_[I]);
+        ASSERT_EQ(VecI16[I], *VecI16_[I]);
+        ASSERT_EQ(VecI32[I], *VecI32_[I]);
+        ASSERT_EQ(VecI64[I], *VecI64_[I]);
 
         Allocator.free(VecI8_[I]);
         Allocator.free(VecI16_[I]);
         Allocator.free(VecI32_[I]);
         Allocator.free(VecI64_[I]);
     }
-}
-
-
-} // namespace
-
-int setupAllocator() {
-    CU_pSuite suite = CU_add_suite("allocator test", 0, 0);
-
-    // CU_add_test(suite, "FixedAllocator random write test", testFixedAllocatorRandomWrite);
-    CU_add_test(suite, "SegregatedAllocator random write test", testSegregatedAllocatorRandomWrite);
-    CU_add_test(suite, "SegregatedAllocator different sizes random write test", testSegregatedAllocatorDifferentSizes);
-
-    return CUE_SUCCESS;
 }
