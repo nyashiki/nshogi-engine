@@ -1,7 +1,7 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_ALLOCATOR_H
 #define NSHOGI_ENGINE_ALLOCATOR_ALLOCATOR_H
 
-#include <cinttypes>
+#include <cstddef>
 
 namespace nshogi {
 namespace engine {
