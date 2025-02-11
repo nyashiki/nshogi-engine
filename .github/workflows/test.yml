@@ -19,6 +19,10 @@ jobs:
     - name: install googletest
       if: runner.os == 'macOS'
       run: brew install googletest
+    - name: install nshogi
+      run: |
+        git clone https://github.com/nyashiki/nshogi.git
+        cd nshogi && sudo make install
     - name: run test
       working-directory: ${{ env.working-directory }}
       run: make EXECUTOR=random runtest
