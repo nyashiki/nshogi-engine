@@ -20,7 +20,11 @@
 #include <cstring>
 
 #include <iostream>
+#ifdef __linux__
+
 #include <sys/mman.h>
+
+#endif
 
 namespace nshogi {
 namespace engine {
@@ -48,8 +52,12 @@ class SegregatedFreeListAllocator : public Allocator {
 
         const std::size_t AlignedSize = getAlignedSize(Size_);
         Size = sizeof(Header1) + AlignedSize + Alignment + sizeof(Header1);
+#ifdef __linux__
         Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+#else
+        Memory = std::malloc(Size);
+#endif
 
         AlignedMemory =
             reinterpret_cast<void*>((reinterpret_cast<std::size_t>(Memory) +

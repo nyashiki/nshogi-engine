@@ -20,7 +20,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+
+#ifdef __linux__
+
 #include <sys/mman.h>
+
+#endif
 
 namespace nshogi {
 namespace engine {
@@ -53,19 +58,18 @@ class FixedAllocator : public Allocator {
 
         Size = Size_;
         Used = 0;
+#ifdef __linux__
         Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+#else
+        Memory = std::malloc(Size);
+#endif
+
         std::memset(Memory, 0, Size);
 
         AlignedMemory = reinterpret_cast<void*>(
             (reinterpret_cast<std::size_t>(Memory) + AlignmentMask) &
             ~AlignmentMask);
-        // for (AlignedMemory = reinterpret_cast<char*>(Memory); ; AlignedMemory
-        // = reinterpret_cast<char*>(AlignedMemory) + 1) {
-        //     if (reinterpret_cast<uint64_t>(AlignedMemory) % Alignment == 0) {
-        //         break;
-        //     }
-        // }
 
         FreeList = nullptr;
         Header* Previous = nullptr;
