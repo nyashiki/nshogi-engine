@@ -1,6 +1,10 @@
 # nshogi-engine: a USI shogi engine
 
-nshogi-engine is a USI shogi engine built on the top of (nshogi)[https://github.com/nyashiki/nshogi] library.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![build](https://github.com/nyashiki/nshogi-engine/actions/workflows/build.yml/badge.svg)](https://github.com/nyashiki/nshogi-engine/actions/workflows/build.yml)
+[![test](https://github.com/nyashiki/nshogi-engine/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/nyashiki/nshogi-engine/actions/workflows/test.yml)
+
+nshogi-engine is a USI shogi engine built on the top of [nshogi](https://github.com/nyashiki/nshogi) library.
 The engine implements an AlphaZero-style Monte-Carlo Tree Search (MCTS) algorithm, using multi-threading for search.
 In addition, this project includes a module for generating self-play data used for reinforcement learning in the AlphaZero style.
 
@@ -30,5 +34,3 @@ The USI engine binary is built in `./build` directory.
 ## License
 
 This repository is released under the MIT License.
-
-For details about licenses of third-party dependencies, please see [LICENSE-THIRD-PARTY.md](./LICENSE-THIRD-PARTY.md).
