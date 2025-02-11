@@ -18,7 +18,7 @@ BENCH_TARGET := $(OBJDIR)/nshogi-bench
 INCLUDES := -I$(HOME)/.local/include/
 LINK_DIRS := -Wl,-rpath,$(HOME)/.local/lib -L$(HOME)/.local/lib/
 LINKS := -lnshogi -lpthread
-TEST_LINKS := -lcunit
+TEST_LINKS := -lgtest
 
 ifeq ($(BUILD), debug)
 	CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -pipe
@@ -28,8 +28,8 @@ else
 	CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
 	# CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
 	NVCC_FLAGS = -O3 --use_fast_math --generate-code $(NVCC_ARCH)
-	OPTIM = -Ofast
-	# OPTIM = -Ofast -g
+	OPTIM = -O3 -ffast-math
+
 endif
 
 SOURCES :=                                  \
