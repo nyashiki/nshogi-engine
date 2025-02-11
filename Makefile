@@ -113,6 +113,10 @@ ifeq ($(EXECUTOR), tensorrt)
 	LINKS += -lcuda -lcublas -lcudnn -lnvrtc -lnvinfer -lnvinfer_plugin -lnvonnxparser
 endif
 
+ifneq ($(filter $(EXECUTOR),zero nothing random tensorrt),$(EXECUTOR))
+  $(error "invalid executor: '$(EXECUTOR)'")
+endif
+
 OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
 SELFPLAY_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SELFPLAY_SOURCES))
 CUDA_OBJECTS = $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
