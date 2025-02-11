@@ -45,7 +45,11 @@ class FixedAllocator : public Allocator {
         FreeList = nullptr;
 
         if (Memory != nullptr) {
+#ifdef __linux__
             munmap(Memory, Size);
+#else
+            std::free(Memory);
+#endif
             Memory = nullptr;
         }
     }
@@ -53,7 +57,11 @@ class FixedAllocator : public Allocator {
     void resize(std::size_t Size_) override {
         if (Memory != nullptr) {
             FreeList = nullptr;
+#ifdef __linux__
             munmap(Memory, Size);
+#else
+            std::free(Memory);
+#endif
         }
 
         Size = Size_;

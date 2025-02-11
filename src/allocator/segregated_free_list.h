@@ -41,13 +41,21 @@ class SegregatedFreeListAllocator : public Allocator {
 
     ~SegregatedFreeListAllocator() {
         if (Memory != nullptr) {
+#ifdef __linux__
             munmap(Memory, Size);
+#else
+            std::free(Memory);
+#endif
         }
     }
 
     void resize(std::size_t Size_) override {
         if (Memory != nullptr) {
+#ifdef __linux__
             munmap(Memory, Size);
+#else
+            std::free(Memory);
+#endif
         }
 
         const std::size_t AlignedSize = getAlignedSize(Size_);
