@@ -21,6 +21,7 @@ jobs:
       run: |
         brew install googletest
         echo "CPATH=$(brew --prefix)/include" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=$(brew --prefix)/lib" >> $GITHUB_ENV
     - name: install nshogi
       run: |
         git clone https://github.com/nyashiki/nshogi.git
