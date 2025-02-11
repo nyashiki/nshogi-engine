@@ -16,7 +16,7 @@ jobs:
     - name: install nshogi
       run: |
         git clone https://github.com/nyashiki/nshogi.git
-        cd nshogi && make install
+        cd nshogi && sudo make install
     - name: make engine
       working-directory: ${{ env.working-directory }}
       run: make EXECUTOR=random engine
