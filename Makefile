@@ -230,6 +230,10 @@ bench: $(BENCH_TARGET)
 runbench: bench
 	./$(BENCH_TARGET)
 
+.PHONY: fmt
+fmt:
+	find src/ \( -name "*.cc" -o -name "*.h" \) -exec clang-format -i {} \;
+
 .PHONY: clean
 clean:
 	-rm -r build/
