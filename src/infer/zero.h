@@ -21,8 +21,12 @@ class Zero : public Infer {
     Zero();
     ~Zero() override;
 
-    void computeNonBlocking(const ml::FeatureBitboard*, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
-    void computeBlocking(const ml::FeatureBitboard*, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
+    void computeNonBlocking(const ml::FeatureBitboard*, std::size_t BatchSize,
+                            float* DstPolicy, float* DstWinRate,
+                            float* DstDrawRate) override;
+    void computeBlocking(const ml::FeatureBitboard*, std::size_t BatchSize,
+                         float* DstPolicy, float* DstWinRate,
+                         float* DstDrawRate) override;
     void await() override;
     bool isComputing() override;
 };

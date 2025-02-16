@@ -19,7 +19,8 @@ ArgParser::ArgParser() {
     addOption("help", "", "Show this help.");
 }
 
-void ArgParser::addOption(char NameShort, const char* NameLong, const char* DefaultValue, const char* Description) {
+void ArgParser::addOption(char NameShort, const char* NameLong,
+                          const char* DefaultValue, const char* Description) {
     NamedOptions.emplace(NameLong, DefaultValue);
     Descriptions.emplace(NameLong, Description);
 
@@ -28,11 +29,13 @@ void ArgParser::addOption(char NameShort, const char* NameLong, const char* Defa
     }
 }
 
-void ArgParser::addOption(const char* NameLong, const char* DefaultValue, const char* Description) {
-    addOption(0, NameLong,  DefaultValue, Description);
+void ArgParser::addOption(const char* NameLong, const char* DefaultValue,
+                          const char* Description) {
+    addOption(0, NameLong, DefaultValue, Description);
 }
 
-void ArgParser::addOption(char NameShort, const char* NameLong, const char* Description) {
+void ArgParser::addOption(char NameShort, const char* NameLong,
+                          const char* Description) {
     addOption(NameShort, NameLong, "", Description);
 }
 
@@ -44,8 +47,8 @@ const std::string& ArgParser::getOption(char NameShort) const {
     using std::literals::string_literals::operator""s;
 
     if (!exists(NameShort)) {
-        throw std::runtime_error(
-                "Unknown option `"s + NameShort + "` is given."s);
+        throw std::runtime_error("Unknown option `"s + NameShort +
+                                 "` is given."s);
     }
 
     return NamedOptions.at(MapShortToLong.at(NameShort));
@@ -55,8 +58,8 @@ const std::string& ArgParser::getOption(const char* NameLong) const {
     using std::literals::string_literals::operator""s;
 
     if (!exists(NameLong)) {
-        throw std::runtime_error(
-                "Unknown option `"s + NameLong + "` is given."s);
+        throw std::runtime_error("Unknown option `"s + NameLong +
+                                 "` is given."s);
     }
 
     return NamedOptions.at(NameLong);
@@ -74,18 +77,16 @@ void ArgParser::parse(int Argc, char* Argv[], bool AllowUnknownOption) {
     for (int I = 1; I < Argc; ++I) {
         const auto Element = std::string(Argv[I]);
 
-        if (Element.size() >= 3 &&
-                Element[0] == '-' &&
-                Element[1] == '-' &&
-                Element[2] == '-') {
+        if (Element.size() >= 3 && Element[0] == '-' && Element[1] == '-' &&
+            Element[2] == '-') {
 
             throw std::runtime_error(
-                    "option starts with more than or equal to three hyphenations.");
-        } else if (Element.size() >= 2 &&
-                Element[0] == '-' && Element[1] == '-') {
+                "option starts with more than or equal to three hyphenations.");
+        } else if (Element.size() >= 2 && Element[0] == '-' &&
+                   Element[1] == '-') {
             if (Element.size() == 2) {
                 throw std::runtime_error(
-                        "Given two hyphenations but no name is specified.");
+                    "Given two hyphenations but no name is specified.");
             }
 
             if (OptionName != "") {
@@ -95,24 +96,24 @@ void ArgParser::parse(int Argc, char* Argv[], bool AllowUnknownOption) {
             OptionName = Element.substr(2);
 
             if (!AllowUnknownOption && !exists(OptionName.data())) {
-                throw std::runtime_error(
-                        "Unknown option `"s + OptionName + "` is given."s);
+                throw std::runtime_error("Unknown option `"s + OptionName +
+                                         "` is given."s);
             }
 
             continue;
         } else if (Element.size() >= 1 && Element[0] == '-') {
             if (Element.size() == 1) {
                 throw std::runtime_error(
-                        "Given a hyphenation but no name is specified.");
+                    "Given a hyphenation but no name is specified.");
             }
             if (Element.size() >= 3) {
-                throw std::runtime_error(
-                        "Only one character can be accepted for short name options.");
+                throw std::runtime_error("Only one character can be accepted "
+                                         "for short name options.");
             }
 
             if (!exists(Element[1])) {
-                throw std::runtime_error(
-                        "Unknown option `"s + Element[1] + "` is given."s);
+                throw std::runtime_error("Unknown option `"s + Element[1] +
+                                         "` is given."s);
             }
 
             if (OptionName != "") {
@@ -167,8 +168,8 @@ void ArgParser::showHelp() const {
     for (const auto& [k, v] : MapShortToLong) {
         const auto& Description = Descriptions.at(v);
 
-        std::cout << "\t-" << k << ", --" << v << ": " <<
-            Description << std::endl;
+        std::cout << "\t-" << k << ", --" << v << ": " << Description
+                  << std::endl;
 
         std::cout << std::endl;
 
@@ -181,10 +182,8 @@ void ArgParser::showHelp() const {
         }
 
         const auto& Description = Descriptions.at(v);
-        std::cout << "\t--" << v << ": " <<
-            Description << std::endl;
+        std::cout << "\t--" << v << ": " << Description << std::endl;
         std::cout << std::endl;
-
     }
 }
 

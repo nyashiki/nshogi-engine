@@ -14,7 +14,6 @@
 
 #include <random>
 
-
 TEST(FixedAllocator, RandomWrite) {
     std::mt19937_64 mt(20231219);
 
@@ -110,9 +109,12 @@ TEST(SegregatedAllocator, DifferentSizes) {
 
     for (std::size_t I = 0; I < Size; ++I) {
         VecI8_[I] = reinterpret_cast<int8_t*>(Allocator.malloc(sizeof(int8_t)));
-        VecI16_[I] = reinterpret_cast<int16_t*>(Allocator.malloc(sizeof(int16_t)));
-        VecI32_[I] = reinterpret_cast<int32_t*>(Allocator.malloc(sizeof(int32_t)));
-        VecI64_[I] = reinterpret_cast<int64_t*>(Allocator.malloc(sizeof(int64_t)));
+        VecI16_[I] =
+            reinterpret_cast<int16_t*>(Allocator.malloc(sizeof(int16_t)));
+        VecI32_[I] =
+            reinterpret_cast<int32_t*>(Allocator.malloc(sizeof(int32_t)));
+        VecI64_[I] =
+            reinterpret_cast<int64_t*>(Allocator.malloc(sizeof(int64_t)));
 
         *VecI8_[I] = 0;
         *VecI16_[I] = 0;

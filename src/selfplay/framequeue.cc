@@ -39,17 +39,15 @@ void FrameQueue::add(std::vector<std::unique_ptr<Frame>>& Fs) {
     CV.notify_one();
 }
 
-
-std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait, bool AcceptShortage) {
+std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait,
+                                                    bool AcceptShortage) {
     std::vector<std::unique_ptr<Frame>> Buffer;
 
     {
         std::unique_lock<std::mutex> Lock(Mutex);
 
         if (Wait) {
-            CV.wait(Lock, [this]() {
-                return !Queue.empty() || IsClosed;
-            });
+            CV.wait(Lock, [this]() { return !Queue.empty() || IsClosed; });
         }
 
         if (AcceptShortage || Queue.size() >= Size) {
@@ -69,9 +67,7 @@ std::queue<std::unique_ptr<Frame>> FrameQueue::getAll() {
     {
         std::unique_lock<std::mutex> Lock(Mutex);
 
-        CV.wait(Lock, [this]() {
-            return !Queue.empty() || IsClosed;
-        });
+        CV.wait(Lock, [this]() { return !Queue.empty() || IsClosed; });
 
         Queue.swap(Q);
     }

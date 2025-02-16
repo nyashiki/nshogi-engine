@@ -87,7 +87,7 @@ void Frame::setEvaluationCache(mcts::EvalCache* EC) {
     EvalCache = EC;
 }
 
-template<bool Aggregated>
+template <bool Aggregated>
 void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
     const uint16_t NumChildren = NodeToEvaluate->getNumChildren();
     assert(Policy != nullptr || NumChildren == 0);
@@ -96,15 +96,16 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         if constexpr (Aggregated) {
             LegalPolicyLogits[I] = Policy[I];
         } else {
-            const std::size_t MoveIndex =
-                ml::getMoveIndex(State->getSideToMove(), NodeToEvaluate->getEdge()[I].getMove());
+            const std::size_t MoveIndex = ml::getMoveIndex(
+                State->getSideToMove(), NodeToEvaluate->getEdge()[I].getMove());
             LegalPolicyLogits[I] = Policy[MoveIndex];
         }
     }
 
     if constexpr (!Aggregated) {
         assert(EvalCache != nullptr);
-        EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(), WinRate, DrawRate);
+        EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(),
+                         WinRate, DrawRate);
     }
 
     NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
@@ -150,10 +151,10 @@ void Frame::setNumSamplingMove(uint16_t M) {
     NumSamplingMove = M;
 }
 
-template
-void Frame::setEvaluation<false>(const float* Policy, float WinRate, float DrawRate);
-template
-void Frame::setEvaluation<true>(const float* Policy, float WinRate, float DrawRate);
+template void Frame::setEvaluation<false>(const float* Policy, float WinRate,
+                                          float DrawRate);
+template void Frame::setEvaluation<true>(const float* Policy, float WinRate,
+                                         float DrawRate);
 
 } // namespace selfplay
 } // namespace engine

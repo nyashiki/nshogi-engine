@@ -12,8 +12,8 @@
 
 #include "../command.h"
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace nshogi {
 namespace engine {
@@ -69,7 +69,8 @@ class IConfig : public ICommand {
     virtual ConfigType configType() const = 0;
 
  protected:
-    IConfig(Configurable Conf) : C(Conf) {
+    IConfig(Configurable Conf)
+        : C(Conf) {
     }
 
     Configurable C;

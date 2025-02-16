@@ -44,7 +44,11 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-EvaluationWorker::EvaluationWorker([[ maybe_unused ]] std::size_t GPUId, std::size_t BSize, [[ maybe_unused ]] const char* WeightPath, FrameQueue* EQ, FrameQueue* SQ, SelfplayInfo* SI)
+EvaluationWorker::EvaluationWorker([[maybe_unused]] std::size_t GPUId,
+                                   std::size_t BSize,
+                                   [[maybe_unused]] const char* WeightPath,
+                                   FrameQueue* EQ, FrameQueue* SQ,
+                                   SelfplayInfo* SI)
     : worker::Worker(true)
     , BatchSize(BSize)
     , EvaluationQueue(EQ)
@@ -76,7 +80,8 @@ bool EvaluationWorker::doTask() {
     const std::size_t MAX_TRIAL = 4 * BatchSize;
 
     for (std::size_t Counter = 0; Counter < MAX_TRIAL; ++Counter) {
-        Tasks = EvaluationQueue->get(BatchSize, false, Counter == MAX_TRIAL - 1);
+        Tasks =
+            EvaluationQueue->get(BatchSize, false, Counter == MAX_TRIAL - 1);
 
         if (Tasks.size() > 0) {
             break;
@@ -92,17 +97,15 @@ bool EvaluationWorker::doTask() {
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         evaluate::preset::CustomFeaturesV1::constructAt(
             FeatureBitboards + I * evaluate::preset::CustomFeaturesV1::size(),
-            *Tasks.at(I)->getState(),
-            *Tasks.at(I)->getStateConfig());
+            *Tasks.at(I)->getState(), *Tasks.at(I)->getStateConfig());
     }
 
     Evaluator->computeBlocking(FeatureBitboards, Tasks.size());
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         Tasks.at(I)->setEvaluation<false>(
-                Evaluator->getPolicy() + 27 * core::NumSquares * I,
-                Evaluator->getWinRate()[I],
-                Evaluator->getDrawRate()[I]);
+            Evaluator->getPolicy() + 27 * core::NumSquares * I,
+            Evaluator->getWinRate()[I], Evaluator->getDrawRate()[I]);
 
         Tasks.at(I)->setPhase(SelfplayPhase::Backpropagation);
     }
@@ -113,7 +116,8 @@ bool EvaluationWorker::doTask() {
     return false;
 }
 
-void EvaluationWorker::prepareInfer([[ maybe_unused ]] std::size_t GPUId, [[ maybe_unused ]] const char* WeightPath) {
+void EvaluationWorker::prepareInfer([[maybe_unused]] std::size_t GPUId,
+                                    [[maybe_unused]] const char* WeightPath) {
 #if defined(EXECUTOR_ZERO)
     Infer = std::make_unique<infer::Zero>();
 #elif defined(EXECUTOR_NOTHING)
@@ -121,7 +125,8 @@ void EvaluationWorker::prepareInfer([[ maybe_unused ]] std::size_t GPUId, [[ may
 #elif defined(EXECUTOR_RANDOM)
     Infer = std::make_unique<infer::Random>(0);
 #elif defined(EXECUTOR_TRT)
-    auto TRT = std::make_unique<infer::TensorRT>(GPUId, BatchSize, evaluate::preset::CustomFeaturesV1::size());
+    auto TRT = std::make_unique<infer::TensorRT>(
+        GPUId, BatchSize, evaluate::preset::CustomFeaturesV1::size());
     TRT->load(WeightPath, true);
     Infer = std::move(TRT);
 #endif
@@ -130,11 +135,13 @@ void EvaluationWorker::prepareInfer([[ maybe_unused ]] std::size_t GPUId, [[ may
 
 void EvaluationWorker::allocate() {
 #ifdef CUDA_ENABLED
-    cudaMallocHost(
-        &FeatureBitboards,
-        BatchSize * evaluate::preset::CustomFeaturesV1::size() * sizeof(ml::FeatureBitboard));
+    cudaMallocHost(&FeatureBitboards,
+                   BatchSize * evaluate::preset::CustomFeaturesV1::size() *
+                       sizeof(ml::FeatureBitboard));
 #else
-    FeatureBitboards = new ml::FeatureBitboard[BatchSize * evaluate::preset::CustomFeaturesV1::size()];
+    FeatureBitboards =
+        new ml::FeatureBitboard[BatchSize *
+                                evaluate::preset::CustomFeaturesV1::size()];
 #endif
 }
 

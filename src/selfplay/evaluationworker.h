@@ -10,11 +10,11 @@
 #ifndef NSHOGI_ENGINE_SELFPLAY_EVALUATIONWORKER_H
 #define NSHOGI_ENGINE_SELFPLAY_EVALUATIONWORKER_H
 
+#include "../evaluate/evaluator.h"
+#include "../infer/infer.h"
+#include "../worker/worker.h"
 #include "framequeue.h"
 #include "selfplayinfo.h"
-#include "../worker/worker.h"
-#include "../infer/infer.h"
-#include "../evaluate/evaluator.h"
 
 namespace nshogi {
 namespace engine {
@@ -22,7 +22,8 @@ namespace selfplay {
 
 class EvaluationWorker : public worker::Worker {
  public:
-    EvaluationWorker(std::size_t GPUId, std::size_t, const char* WeightPath, FrameQueue*, FrameQueue*, SelfplayInfo*);
+    EvaluationWorker(std::size_t GPUId, std::size_t, const char* WeightPath,
+                     FrameQueue*, FrameQueue*, SelfplayInfo*);
     ~EvaluationWorker();
 
  private:

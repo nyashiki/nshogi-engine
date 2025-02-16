@@ -12,19 +12,19 @@
 
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/segregated_free_list.h"
-#include "evaluateworker.h"
-#include "searchworker.h"
-#include "evaluatequeue.h"
-#include "evalcache.h"
+#include "../context.h"
+#include "../evaluate/preset.h"
+#include "../globalconfig.h"
+#include "../limit.h"
 #include "checkmatequeue.h"
 #include "checkmateworker.h"
+#include "evalcache.h"
+#include "evaluatequeue.h"
+#include "evaluateworker.h"
 #include "garbagecollector.h"
+#include "searchworker.h"
 #include "tree.h"
 #include "watchdog.h"
-#include "../limit.h"
-#include "../evaluate/preset.h"
-#include "../context.h"
-#include "../globalconfig.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -41,7 +41,9 @@ class Manager {
 
     void setIsPonderingEnabled(bool Value);
 
-    void thinkNextMove(const core::State&, const core::StateConfig&, engine::Limit, std::function<void(core::Move32)> Callback);
+    void thinkNextMove(const core::State&, const core::StateConfig&,
+                       engine::Limit,
+                       std::function<void(core::Move32)> Callback);
     void interrupt();
 
  private:
@@ -49,8 +51,10 @@ class Manager {
     void setupGarbageCollector();
     void setupMutexPool();
     void setupSearchTree();
-    void setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU);
-    void setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs, std::size_t NumEvaluationWorkersPerGPU);
+    void setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
+                              std::size_t NumEvaluationWorkersPerGPU);
+    void setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
+                                std::size_t NumEvaluationWorkersPerGPU);
     void setupSearchWorkers(std::size_t NumSearchWorkers);
     void setupCheckmateQueue(std::size_t NumCheckmateWorkers);
     void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
@@ -77,8 +81,10 @@ class Manager {
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
-    std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>> SearchWorkers;
-    std::vector<std::unique_ptr<EvaluateWorker<global_config::FeatureType>>> EvaluateWorkers;
+    std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>>
+        SearchWorkers;
+    std::vector<std::unique_ptr<EvaluateWorker<global_config::FeatureType>>>
+        EvaluateWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::shared_ptr<logger::Logger> PLogger;

@@ -10,15 +10,13 @@
 #ifndef NSHOGI_ENGINE_MCTS_TREE_H
 #define NSHOGI_ENGINE_MCTS_TREE_H
 
-
-#include "node.h"
+#include "../logger/logger.h"
 #include "edge.h"
 #include "garbagecollector.h"
-#include "../logger/logger.h"
+#include "node.h"
 
 #include <memory>
 #include <nshogi/core/state.h>
-
 
 namespace nshogi {
 namespace engine {
@@ -26,7 +24,8 @@ namespace mcts {
 
 class Tree {
  public:
-    Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator, logger::Logger* Logger);
+    Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator,
+         logger::Logger* Logger);
     ~Tree();
 
     Node* updateRoot(const nshogi::core::State& State, bool ReUse = true);

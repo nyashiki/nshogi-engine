@@ -1,0 +1,35 @@
+name: test
+
+on: [push]
+
+jobs:
+  runtest:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      working-directory: ./
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install googletest
+      if: runner.os == 'Linux'
+      run: sudo apt-get install libgtest-dev -y
+    - name: install googletest
+      if: runner.os == 'macOS'
+      run: |
+        brew install googletest
+        echo "CPATH=$(brew --prefix)/include" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=$(brew --prefix)/lib" >> $GITHUB_ENV
+        echo "DYLD_LIBRARY_PATH=/usr/local/lib" >> $GITHUB_ENV
+    - name: install nshogi
+      run: |
+        git clone https://github.com/nyashiki/nshogi.git
+        cd nshogi && sudo make install
+    - name: ldconfig
+      if: runner.os == 'Linux'
+      run: sudo ldconfig
+    - name: run test
+      working-directory: ${{ env.working-directory }}
+      run: make EXECUTOR=random runtest

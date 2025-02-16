@@ -10,10 +10,9 @@
 #ifndef NSHOGI_ENGINE_MCTS_MUTEXPOOL_H
 #define NSHOGI_ENGINE_MCTS_MUTEXPOOL_H
 
-
 #include <cstddef>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
 namespace nshogi {
 namespace engine {
@@ -36,6 +35,5 @@ class MutexPool {
 } // namespace mcts
 } // namespace engine
 } // namespace nshogi
-
 
 #endif // #ifndef NSHOGI_ENGINE_MCTS_MUTEXPOOL_H

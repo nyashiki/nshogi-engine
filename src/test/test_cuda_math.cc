@@ -45,11 +45,13 @@ TEST(CUDA, Sigmoid) {
             X[I] = Dist(Mt);
         }
 
-        cudaMemcpy(DeviceIn, X.data(), Size * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(DeviceIn, X.data(), Size * sizeof(float),
+                   cudaMemcpyHostToDevice);
 
         nshogi::engine::cuda::sigmoid(DeviceOut, DeviceIn, Size);
 
-        cudaMemcpy(Y1.data(), DeviceOut, Size * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(Y1.data(), DeviceOut, Size * sizeof(float),
+                   cudaMemcpyDeviceToHost);
 
         std::transform(X.begin(), X.end(), Y2.begin(), sigmoid<float>);
 

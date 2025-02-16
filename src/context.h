@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_CONTEXT_H
 #define NSHOGI_ENGINE_CONTEXT_H
 
-#include <string>
 #include <cinttypes>
+#include <string>
 
 namespace nshogi {
 namespace engine {
@@ -58,7 +58,7 @@ class Context {
     bool PonderingEnabled = true;
 
     uint32_t MinimumThinkingTimeMilliSeconds = 0;
-    uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000;  // one hour.
+    uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000; // one hour.
 
     std::size_t NumGPUs = 1;
     std::size_t NumSearchThreads = 2;
@@ -87,11 +87,10 @@ class Context {
     bool IsBookEnabled = false;
     std::string Bookpath = "";
 
- friend class ContextManager;
+    friend class ContextManager;
 };
 
 } // namespace engine
 } // namespace nshogi
-
 
 #endif // #ifndef NSHOGI_ENGINE_CONTEXT_H

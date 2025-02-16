@@ -10,17 +10,22 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 #define NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 
-#include "allocator.h"
 #include "../lock/spinlock.h"
+#include "allocator.h"
 
 #include <algorithm>
 #include <atomic>
-#include <mutex>
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+
+#ifdef __linux__
+
 #include <sys/mman.h>
+
+#endif
 
 namespace nshogi {
 namespace engine {
@@ -40,7 +45,11 @@ class FixedAllocator : public Allocator {
         FreeList = nullptr;
 
         if (Memory != nullptr) {
+#ifdef __linux__
             munmap(Memory, Size);
+#else
+            std::free(Memory);
+#endif
             Memory = nullptr;
         }
     }
@@ -48,27 +57,35 @@ class FixedAllocator : public Allocator {
     void resize(std::size_t Size_) override {
         if (Memory != nullptr) {
             FreeList = nullptr;
+#ifdef __linux__
             munmap(Memory, Size);
+#else
+            std::free(Memory);
+#endif
         }
 
         Size = Size_;
         Used = 0;
-        Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+#ifdef __linux__
+        Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE,
+                      MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+#else
+        Memory = std::malloc(Size);
+#endif
+
         std::memset(Memory, 0, Size);
 
-        AlignedMemory = reinterpret_cast<void*>((reinterpret_cast<std::size_t>(Memory) + AlignmentMask) & ~AlignmentMask);
-        // for (AlignedMemory = reinterpret_cast<char*>(Memory); ; AlignedMemory = reinterpret_cast<char*>(AlignedMemory) + 1) {
-        //     if (reinterpret_cast<uint64_t>(AlignedMemory) % Alignment == 0) {
-        //         break;
-        //     }
-        // }
+        AlignedMemory = reinterpret_cast<void*>(
+            (reinterpret_cast<std::size_t>(Memory) + AlignmentMask) &
+            ~AlignmentMask);
 
         FreeList = nullptr;
         Header* Previous = nullptr;
 
         for (void* Mem = AlignedMemory;
-                (reinterpret_cast<char*>(Mem) + BlockSize) < reinterpret_cast<char*>(Memory) + Size;
-                Mem = reinterpret_cast<char*>(Mem) + BlockSize) {
+             (reinterpret_cast<char*>(Mem) + BlockSize) <
+             reinterpret_cast<char*>(Memory) + Size;
+             Mem = reinterpret_cast<char*>(Mem) + BlockSize) {
             Header* H = reinterpret_cast<Header*>(Mem);
 
             if (Previous != nullptr) {
@@ -151,6 +168,5 @@ class FixedAllocator : public Allocator {
 } // namespace allocator
 } // namespace engine
 } // namespace nshogi
-
 
 #endif // #ifndef NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H

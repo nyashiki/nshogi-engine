@@ -10,12 +10,12 @@
 #ifndef NSHOGI_ENGINE_SELFPLAY_WORKER_H
 #define NSHOGI_ENGINE_SELFPLAY_WORKER_H
 
+#include "../allocator/allocator.h"
+#include "../mcts/evalcache.h"
+#include "../worker/worker.h"
 #include "framequeue.h"
 #include "selfplayinfo.h"
 #include "shogi816k.h"
-#include "../allocator/allocator.h"
-#include "../worker/worker.h"
-#include "../mcts/evalcache.h"
 
 #include <random>
 #include <vector>
@@ -28,7 +28,11 @@ namespace selfplay {
 
 class Worker : public worker::Worker {
  public:
-    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation, FrameQueue* QueueForSave, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator, mcts::EvalCache*, std::vector<core::Position>* InitialPositionsToPlay, bool UseShogi816k, SelfplayInfo*);
+    Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation,
+           FrameQueue* QueueForSave, allocator::Allocator* NodeAllocator,
+           allocator::Allocator* EdgeAllocator, mcts::EvalCache*,
+           std::vector<core::Position>* InitialPositionsToPlay,
+           bool UseShogi816k, SelfplayInfo*);
 
  private:
     bool doTask() override;
@@ -45,10 +49,14 @@ class Worker : public worker::Worker {
     double sampleGumbelNoise() const;
     double transformQ(double, uint64_t MaxN) const;
     template <bool IsRoot>
-    mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*) const;
-    mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*, uint8_t Depth) const;
-    double computeWinRate(Frame* F, core::Color SideToMove, mcts::Node* Child) const;
-    double computeWinRateOfChild(Frame* F, core::Color SideToMove, mcts::Node* Child) const;
+    mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove,
+                                    mcts::Node*) const;
+    mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*,
+                                    uint8_t Depth) const;
+    double computeWinRate(Frame* F, core::Color SideToMove,
+                          mcts::Node* Child) const;
+    double computeWinRateOfChild(Frame* F, core::Color SideToMove,
+                                 mcts::Node* Child) const;
     bool isCheckmated(Frame* F) const;
     void sampleTopMMoves(Frame*) const;
     uint16_t executeSequentialHalving(Frame*) const;

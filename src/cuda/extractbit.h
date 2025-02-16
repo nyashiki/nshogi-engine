@@ -18,7 +18,8 @@ namespace nshogi {
 namespace engine {
 namespace cuda {
 
-void extractBits(float* Dest, const uint64_t* Src, int N, cudaStream_t Stream = 0);
+void extractBits(float* Dest, const uint64_t* Src, int N,
+                 cudaStream_t Stream = 0);
 
 } // namespace cuda
 } // namespace engine

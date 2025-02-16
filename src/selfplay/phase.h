@@ -29,8 +29,8 @@ enum class SelfplayPhase : uint8_t {
     Save,
 };
 
-} // namespace selfpaly
+} // namespace selfplay
 } // namespace engine
-} // nshogi
+} // namespace nshogi
 
 #endif // #ifndef NSHOGI_ENGINE_SELFPLAY_PHASE_H

@@ -10,19 +10,19 @@
 #include "usi.h"
 
 #include "../command/executor.h"
-#include "usioption.h"
 #include "usilogger.h"
+#include "usioption.h"
 
 #include <cstdint>
-#include <string>
+#include <cstdio>
 #include <memory>
 #include <sstream>
-#include <cstdio>
+#include <string>
 
-#include <nshogi/core/state.h>
-#include <nshogi/core/types.h>
-#include <nshogi/core/stateconfig.h>
 #include <nshogi/core/movegenerator.h>
+#include <nshogi/core/state.h>
+#include <nshogi/core/stateconfig.h>
+#include <nshogi/core/types.h>
 #include <nshogi/io/sfen.h>
 
 namespace nshogi {
@@ -40,49 +40,56 @@ std::shared_ptr<USILogger> Logger = std::make_shared<USILogger>();
 
 namespace {
 
-constexpr static const char* USI_OPTION_MAX_PLY                        = "USI_MaxPly";
-constexpr static const char* USI_OPTION_HASH                           = "USI_Hash";
-constexpr static const char* USI_OPTION_PONDER                         = "USI_Ponder";
-constexpr static const char* USI_OPTION_NUM_GPUS                       = "NumGPUs";
-constexpr static const char* USI_OPTION_NUM_SEARCH_THREADS             = "NumSearchThreads";
-constexpr static const char* USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU = "NumEvaluationThreadsPerGPU";
-constexpr static const char* USI_OPTION_NUM_CHECKMATE_THREADS          = "NumCheckmateSearchThreads";
-constexpr static const char* USI_OPTION_BATCH_SIZE                     = "BatchSize";
-constexpr static const char* USI_OPTION_BOOK_ENABLED                   = "IsBookEnabled";
-constexpr static const char* USI_OPTION_WEIGHT_PATH                    = "WeightPath";
-constexpr static const char* USI_OPTION_BOOK_PATH                      = "BookPath";
-constexpr static const char* USI_OPTION_EVAL_CACHE_MEMORY_MB           = "EvalCacheMemoryMB";
-constexpr static const char* USI_OPTION_THINKING_TIME_MARGIN           = "ThinkingTimeMargin";
-constexpr static const char* USI_OPTION_BLACK_DRAW_VALUE               = "BlackDrawValue";
-constexpr static const char* USI_OPTION_WHITE_DRAW_VALUE               = "WhiteDrawValue";
-constexpr static const char* USI_OPTION_REPETITION_BOOK_ALLOWED        = "RepetitionBookAllowed";
+constexpr static const char* USI_OPTION_MAX_PLY = "USI_MaxPly";
+constexpr static const char* USI_OPTION_HASH = "USI_Hash";
+constexpr static const char* USI_OPTION_PONDER = "USI_Ponder";
+constexpr static const char* USI_OPTION_NUM_GPUS = "NumGPUs";
+constexpr static const char* USI_OPTION_NUM_SEARCH_THREADS = "NumSearchThreads";
+constexpr static const char* USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU =
+    "NumEvaluationThreadsPerGPU";
+constexpr static const char* USI_OPTION_NUM_CHECKMATE_THREADS =
+    "NumCheckmateSearchThreads";
+constexpr static const char* USI_OPTION_BATCH_SIZE = "BatchSize";
+constexpr static const char* USI_OPTION_BOOK_ENABLED = "IsBookEnabled";
+constexpr static const char* USI_OPTION_WEIGHT_PATH = "WeightPath";
+constexpr static const char* USI_OPTION_BOOK_PATH = "BookPath";
+constexpr static const char* USI_OPTION_EVAL_CACHE_MEMORY_MB =
+    "EvalCacheMemoryMB";
+constexpr static const char* USI_OPTION_THINKING_TIME_MARGIN =
+    "ThinkingTimeMargin";
+constexpr static const char* USI_OPTION_BLACK_DRAW_VALUE = "BlackDrawValue";
+constexpr static const char* USI_OPTION_WHITE_DRAW_VALUE = "WhiteDrawValue";
+constexpr static const char* USI_OPTION_REPETITION_BOOK_ALLOWED =
+    "RepetitionBookAllowed";
 
 void setupOption(const Context* C) {
     Option.addIntOption(USI_OPTION_MAX_PLY, 320, 1, 99999);
-    Option.addIntOption(USI_OPTION_HASH,
-            (int64_t)C->getAvailableMemoryMB(), 1024LL, 1024 * 1024LL);
+    Option.addIntOption(USI_OPTION_HASH, (int64_t)C->getAvailableMemoryMB(),
+                        1024LL, 1024 * 1024LL);
     Option.addBoolOption(USI_OPTION_PONDER, C->getPonderingEnabled());
     Option.addIntOption(USI_OPTION_NUM_GPUS, (int64_t)C->getNumGPUs(), 1, 16);
     Option.addIntOption(USI_OPTION_NUM_SEARCH_THREADS,
-            (int64_t)C->getNumSearchThreads(), 1, 2048);
+                        (int64_t)C->getNumSearchThreads(), 1, 2048);
     Option.addIntOption(USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU,
-            (int64_t)C->getNumEvaluationThreadsPerGPU(), 1, 2048);
+                        (int64_t)C->getNumEvaluationThreadsPerGPU(), 1, 2048);
     Option.addIntOption(USI_OPTION_NUM_CHECKMATE_THREADS,
-            (int64_t)C->getNumCheckmateSearchThreads(), 0, 128);
-    Option.addIntOption(USI_OPTION_BATCH_SIZE, (int64_t)C->getBatchSize(), 1, 4096);
+                        (int64_t)C->getNumCheckmateSearchThreads(), 0, 128);
+    Option.addIntOption(USI_OPTION_BATCH_SIZE, (int64_t)C->getBatchSize(), 1,
+                        4096);
     Option.addBoolOption(USI_OPTION_BOOK_ENABLED, C->isBookEnabled());
-    Option.addFileNameOption(USI_OPTION_WEIGHT_PATH, C->getWeightPath().c_str());
+    Option.addFileNameOption(USI_OPTION_WEIGHT_PATH,
+                             C->getWeightPath().c_str());
     Option.addFileNameOption(USI_OPTION_BOOK_PATH, C->getBookPath().c_str());
     Option.addIntOption(USI_OPTION_EVAL_CACHE_MEMORY_MB,
-            (int64_t)C->getEvalCacheMemoryMB(), 0LL, 1024 * 1024LL);
+                        (int64_t)C->getEvalCacheMemoryMB(), 0LL, 1024 * 1024LL);
     Option.addIntOption(USI_OPTION_THINKING_TIME_MARGIN,
-            (int64_t)C->getThinkingTimeMargin(), 0LL, 60 * 1000);
+                        (int64_t)C->getThinkingTimeMargin(), 0LL, 60 * 1000);
     Option.addIntOption(USI_OPTION_BLACK_DRAW_VALUE,
-            (int)(C->getBlackDrawValue() * 100.0f), 0, 100);
+                        (int)(C->getBlackDrawValue() * 100.0f), 0, 100);
     Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE,
-            (int)(C->getWhiteDrawValue() * 100.0f), 0, 100);
+                        (int)(C->getWhiteDrawValue() * 100.0f), 0, 100);
     Option.addBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED,
-            C->isRepetitionBookAllowed());
+                         C->isRepetitionBookAllowed());
 }
 
 void showOption() {
@@ -114,55 +121,51 @@ void isready() {
     using namespace command::commands;
 
     Executor->pushCommand(std::make_shared<BoolConfig>(
-                Configurable::PonderEnabled,
-                Option.getIntOption(USI_OPTION_PONDER)));
+        Configurable::PonderEnabled, Option.getIntOption(USI_OPTION_PONDER)));
     Executor->pushCommand(std::make_shared<BoolConfig>(
-                Configurable::BookEnabled,
-                Option.getIntOption(USI_OPTION_BOOK_ENABLED)));
+        Configurable::BookEnabled,
+        Option.getIntOption(USI_OPTION_BOOK_ENABLED)));
     Executor->pushCommand(std::make_shared<BoolConfig>(
-                Configurable::RepetitionBookAllowed,
-                Option.getBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED)));
+        Configurable::RepetitionBookAllowed,
+        Option.getBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED)));
 
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::NumGPUs, Option.getIntOption(USI_OPTION_NUM_GPUS)));
+        Configurable::NumGPUs, Option.getIntOption(USI_OPTION_NUM_GPUS)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::NumSearchThreadsPerGPU,
-                Option.getIntOption(USI_OPTION_NUM_SEARCH_THREADS)));
+        Configurable::NumSearchThreadsPerGPU,
+        Option.getIntOption(USI_OPTION_NUM_SEARCH_THREADS)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::NumEvaluationThreadsPerGPU,
-                Option.getIntOption(USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU)));
+        Configurable::NumEvaluationThreadsPerGPU,
+        Option.getIntOption(USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::NumCheckmateSearchThreads,
-                Option.getIntOption(USI_OPTION_NUM_CHECKMATE_THREADS)));
+        Configurable::NumCheckmateSearchThreads,
+        Option.getIntOption(USI_OPTION_NUM_CHECKMATE_THREADS)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::BatchSize,
-                Option.getIntOption(USI_OPTION_BATCH_SIZE)));
+        Configurable::BatchSize, Option.getIntOption(USI_OPTION_BATCH_SIZE)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::HashMemoryMB,
-                Option.getIntOption(USI_OPTION_HASH)));
+        Configurable::HashMemoryMB, Option.getIntOption(USI_OPTION_HASH)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::EvalCacheMemoryMB,
-                Option.getIntOption(USI_OPTION_EVAL_CACHE_MEMORY_MB)));
+        Configurable::EvalCacheMemoryMB,
+        Option.getIntOption(USI_OPTION_EVAL_CACHE_MEMORY_MB)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::ThinkingTimeMargin,
-                Option.getIntOption(USI_OPTION_THINKING_TIME_MARGIN)));
+        Configurable::ThinkingTimeMargin,
+        Option.getIntOption(USI_OPTION_THINKING_TIME_MARGIN)));
 
     Executor->pushCommand(std::make_shared<IntegerConfig>(
-                Configurable::MaxPly,
-                Option.getIntOption(USI_OPTION_MAX_PLY)));
+        Configurable::MaxPly, Option.getIntOption(USI_OPTION_MAX_PLY)));
     Executor->pushCommand(std::make_shared<DoubleConfig>(
-                Configurable::BlackDrawValue,
-                (double)Option.getIntOption(USI_OPTION_BLACK_DRAW_VALUE) / 100.0));
+        Configurable::BlackDrawValue,
+        (double)Option.getIntOption(USI_OPTION_BLACK_DRAW_VALUE) / 100.0));
     Executor->pushCommand(std::make_shared<DoubleConfig>(
-                Configurable::WhiteDrawValue,
-                (double)Option.getIntOption(USI_OPTION_WHITE_DRAW_VALUE) / 100.0));
+        Configurable::WhiteDrawValue,
+        (double)Option.getIntOption(USI_OPTION_WHITE_DRAW_VALUE) / 100.0));
 
     Executor->pushCommand(std::make_shared<StringConfig>(
-                Configurable::WeightPath,
-                Option.getFileNameOption(USI_OPTION_WEIGHT_PATH)));
+        Configurable::WeightPath,
+        Option.getFileNameOption(USI_OPTION_WEIGHT_PATH)));
     Executor->pushCommand(std::make_shared<StringConfig>(
-                Configurable::BookPath,
-                Option.getFileNameOption(USI_OPTION_BOOK_PATH)));
+        Configurable::BookPath,
+        Option.getFileNameOption(USI_OPTION_BOOK_PATH)));
 
     Executor->pushCommand(std::make_shared<GetReady>(), true);
 
@@ -177,7 +180,8 @@ void position(std::istringstream& Stream) {
     Stream >> Token;
 
     if (Token == "startpos") {
-        Sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 ";
+        Sfen =
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 ";
     } else if (Token == "sfen") {
     } else {
         Logger->printLog("Unkwown token`", Token, "`.");
@@ -188,8 +192,10 @@ void position(std::istringstream& Stream) {
         Sfen += Token + " ";
     }
 
-    Executor->pushCommand(std::make_shared<command::commands::SetPosition>(Sfen.c_str()));
-    // State = std::make_unique<nshogi::core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
+    Executor->pushCommand(
+        std::make_shared<command::commands::SetPosition>(Sfen.c_str()));
+    // State =
+    // std::make_unique<nshogi::core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
 }
 
 void bestMoveCallBackFunction(nshogi::core::Move32 Move) {
@@ -199,7 +205,7 @@ void bestMoveCallBackFunction(nshogi::core::Move32 Move) {
 void go(std::istringstream& Stream) {
     std::string Token;
 
-    Limit Limits[2] { NoLimit, NoLimit };
+    Limit Limits[2]{NoLimit, NoLimit};
     while (Stream >> Token) {
         if (Token == "btime") {
             Stream >> Limits[nshogi::core::Black].TimeLimitMilliSeconds;
@@ -223,7 +229,8 @@ void go(std::istringstream& Stream) {
         }
     }
 
-    Executor->pushCommand(std::make_shared<command::commands::Think>(Limits, bestMoveCallBackFunction));
+    Executor->pushCommand(std::make_shared<command::commands::Think>(
+        Limits, bestMoveCallBackFunction));
 }
 
 void setOption(std::istringstream& Stream) {
@@ -234,17 +241,21 @@ void setOption(std::istringstream& Stream) {
     const std::size_t ValuePos = Line.find(" value ");
 
     if (NamePos == std::string::npos) {
-        std::cout << "setoption error. `name` keyward was not found." << std::endl;
+        std::cout << "setoption error. `name` keyward was not found."
+                  << std::endl;
         return;
     }
 
     if (ValuePos == std::string::npos) {
-        std::cout << "setoption error. `value` keyward was not found." << std::endl;
+        std::cout << "setoption error. `value` keyward was not found."
+                  << std::endl;
         return;
     }
 
     if (NamePos > ValuePos) {
-        std::cout << "setoption error. `name` keyward must be followed by `value` keyward." << std::endl;
+        std::cout << "setoption error. `name` keyward must be followed by "
+                     "`value` keyward."
+                  << std::endl;
         return;
     }
 
@@ -252,7 +263,8 @@ void setOption(std::istringstream& Stream) {
     const std::string Value = Line.substr(ValuePos + 7);
 
     if (!Option.setOptionValue(Name.c_str(), Value.c_str())) {
-        std::cout << "usioption of `" << Name << "` does not exist." << std::endl;
+        std::cout << "usioption of `" << Name << "` does not exist."
+                  << std::endl;
     }
 }
 

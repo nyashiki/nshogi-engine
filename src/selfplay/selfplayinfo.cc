@@ -45,7 +45,8 @@ std::size_t SelfplayInfo::getNumOnGoinggames() const {
 void SelfplayInfo::putBatchSizeStatistics(std::size_t BatchSize) {
     std::lock_guard<std::mutex> Lock(MutexInference);
     AverageBatchSize =
-        (AverageBatchSize * (double)InferenceCount + (double)BatchSize) / (double)(InferenceCount + 1);
+        (AverageBatchSize * (double)InferenceCount + (double)BatchSize) /
+        (double)(InferenceCount + 1);
     ++InferenceCount;
 }
 

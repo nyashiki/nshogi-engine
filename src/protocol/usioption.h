@@ -10,14 +10,14 @@
 #ifndef NSHOGI_ENGINE_PROTOCOL_USIOPTION_H
 #define NSHOGI_ENGINE_PROTOCOL_USIOPTION_H
 
+#include <cinttypes>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
 #include <variant>
 #include <vector>
-#include <cinttypes>
-#include <cstring>
 
 namespace nshogi {
 namespace engine {
@@ -34,7 +34,8 @@ class USIOption {
         return true;
     }
 
-    bool addIntOption(const char* Key, int64_t DefaultValue, int64_t Min, int64_t Max) {
+    bool addIntOption(const char* Key, int64_t DefaultValue, int64_t Min,
+                      int64_t Max) {
         if (exists(Key)) {
             return false;
         }
@@ -134,12 +135,13 @@ class USIOption {
         }
 
         void print() const {
-            std::cout << "option name " << Key << " type check default " << (Value ? "true" : "false") << std::endl;
+            std::cout << "option name " << Key << " type check default "
+                      << (Value ? "true" : "false") << std::endl;
         }
 
         void set(const char* Value_) {
             if (std::strcmp(Value_, "0") == 0 ||
-                    std::strcmp(Value_, "false") == 0) {
+                std::strcmp(Value_, "false") == 0) {
                 Value = false;
             } else {
                 Value = true;
@@ -161,7 +163,8 @@ class USIOption {
         }
 
         void print() const {
-            std::cout << "option name " << Key << " type filename default " << Value << std::endl;
+            std::cout << "option name " << Key << " type filename default "
+                      << Value << std::endl;
         }
 
         void set(const char* Value_) {
@@ -183,7 +186,8 @@ class USIOption {
         }
 
         void print() const {
-            std::cout << "option name " << Key << " type string default " << Value << std::endl;
+            std::cout << "option name " << Key << " type string default "
+                      << Value << std::endl;
         }
 
         void set(const char* Value_) {
@@ -200,7 +204,8 @@ class USIOption {
         int64_t Value;
         int64_t Min, Max;
 
-        IntItem(const std::string& Key_, int64_t Value_, int64_t Min_, int64_t Max_)
+        IntItem(const std::string& Key_, int64_t Value_, int64_t Min_,
+                int64_t Max_)
             : Item(Key_)
             , Value(Value_)
             , Min(Min_)
@@ -208,8 +213,8 @@ class USIOption {
         }
 
         void print() const {
-            std::cout << "option name " << Key << " type spin default " << Value <<
-                " min " << Min << " max " << Max << std::endl;
+            std::cout << "option name " << Key << " type spin default " << Value
+                      << " min " << Min << " max " << Max << std::endl;
         }
 
         void set(const char* Value_) {

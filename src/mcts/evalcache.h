@@ -10,10 +10,10 @@
 #ifndef NSHOGI_ENGINE_MCTS_EVALCACHE_H
 #define NSHOGI_ENGINE_MCTS_EVALCACHE_H
 
-#include <memory>
-#include <mutex>
 #include <cinttypes>
 #include <cstring>
+#include <memory>
+#include <mutex>
 
 #include <nshogi/core/state.h>
 

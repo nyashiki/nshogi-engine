@@ -10,7 +10,6 @@
 #ifndef NSHOGI_ENGINE_EVALUATE_EVALUATOR_H
 #define NSHOGI_ENGINE_EVALUATE_EVALUATOR_H
 
-
 #include <cstddef>
 #include <memory>
 
@@ -42,7 +41,6 @@ class Evaluator {
         WinRate = new float[BatchSize];
         DrawRate = new float[BatchSize];
 #endif
-
     }
 
     ~Evaluator() {
@@ -57,11 +55,14 @@ class Evaluator {
 #endif
     }
 
-    void computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize) {
-        PInfer->computeNonBlocking(Features, BatchSize, Policy, WinRate, DrawRate);
+    void computeNonBlocking(const ml::FeatureBitboard* Features,
+                            std::size_t BatchSize) {
+        PInfer->computeNonBlocking(Features, BatchSize, Policy, WinRate,
+                                   DrawRate);
     }
 
-    void computeBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize) {
+    void computeBlocking(const ml::FeatureBitboard* Features,
+                         std::size_t BatchSize) {
         PInfer->computeBlocking(Features, BatchSize, Policy, WinRate, DrawRate);
     }
 

@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_MCTS_CHECKMATEWORKER_H
 #define NSHOGI_ENGINE_MCTS_CHECKMATEWORKER_H
 
-#include "checkmatequeue.h"
 #include "../worker/worker.h"
+#include "checkmatequeue.h"
 
 namespace nshogi {
 namespace engine {
@@ -33,4 +33,4 @@ class CheckmateWorker : public worker::Worker {
 } // namespace engine
 } // namespace nshogi
 
-#endif  // #ifndef NSHOGI_ENGINE_MCTS_CHECKMATEWORKER_H
+#endif // #ifndef NSHOGI_ENGINE_MCTS_CHECKMATEWORKER_H

@@ -15,8 +15,8 @@ SELFPLAY_TARGET := $(OBJDIR)/nshogi-selfplay
 TEST_TARGET := $(OBJDIR)/nshogi-test
 BENCH_TARGET := $(OBJDIR)/nshogi-bench
 
-INCLUDES := -I$(HOME)/.local/include/
-LINK_DIRS := -Wl,-rpath,$(HOME)/.local/lib -L$(HOME)/.local/lib/
+INCLUDES :=
+LINK_DIRS :=
 LINKS := -lnshogi -lpthread
 TEST_LINKS := -lgtest
 
@@ -111,6 +111,10 @@ ifeq ($(EXECUTOR), tensorrt)
 	INCLUDES += -I$(TENSORRT_DIR)/include
 	LINK_DIRS += -L$(TENSORRT_DIR)/lib/
 	LINKS += -lcuda -lcublas -lcudnn -lnvrtc -lnvinfer -lnvinfer_plugin -lnvonnxparser
+endif
+
+ifneq ($(filter $(EXECUTOR),zero nothing random tensorrt),$(EXECUTOR))
+  $(error "invalid executor: '$(EXECUTOR)'")
 endif
 
 OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
@@ -225,6 +229,10 @@ bench: $(BENCH_TARGET)
 .PHONY: runbench
 runbench: bench
 	./$(BENCH_TARGET)
+
+.PHONY: fmt
+fmt:
+	find src/ \( -name "*.cc" -o -name "*.h" \) -exec clang-format -i {} \;
 
 .PHONY: clean
 clean:

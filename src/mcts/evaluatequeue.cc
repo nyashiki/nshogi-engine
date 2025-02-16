@@ -43,27 +43,27 @@ std::size_t EvaluationQueue<Features>::count() {
 }
 
 template <typename Features>
-void EvaluationQueue<Features>::add(const core::State& State, const core::StateConfig& Config, Node* N) {
+void EvaluationQueue<Features>::add(const core::State& State,
+                                    const core::StateConfig& Config, Node* N) {
     Features FSC(State, Config);
 
     std::unique_lock<std::mutex> Lock(Mutex);
 
-    CV.wait(Lock, [this]() {
-        return Queue.size() < MaxQueueSize || !IsOpen;
-    });
+    CV.wait(Lock, [this]() { return Queue.size() < MaxQueueSize || !IsOpen; });
 
     if (IsOpen) {
-        Queue.emplace(State.getSideToMove(), N, std::move(FSC), State.getHash());
+        Queue.emplace(State.getSideToMove(), N, std::move(FSC),
+                      State.getHash());
     }
 }
 
 template <typename Features>
-auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::vector<core::Color>, std::vector<Node*>, std::vector<Features>, std::vector<uint64_t>> {
-    std::tuple<
-        std::vector<core::Color>,
-        std::vector<Node*>,
-        std::vector<Features>,
-        std::vector<uint64_t>> T;
+auto EvaluationQueue<Features>::get(std::size_t NumElements)
+    -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
+                  std::vector<Features>, std::vector<uint64_t>> {
+    std::tuple<std::vector<core::Color>, std::vector<Node*>,
+               std::vector<Features>, std::vector<uint64_t>>
+        T;
 
     std::get<0>(T).reserve(NumElements);
     std::get<1>(T).reserve(NumElements);
@@ -89,7 +89,6 @@ auto EvaluationQueue<Features>::get(std::size_t NumElements) -> std::tuple<std::
 
 template class EvaluationQueue<evaluate::preset::SimpleFeatures>;
 template class EvaluationQueue<evaluate::preset::CustomFeaturesV1>;
-
 
 } // namespace mcts
 } // namespace engine

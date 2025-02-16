@@ -12,7 +12,6 @@
 
 #include <cstdint>
 
-
 namespace nshogi {
 namespace engine {
 
@@ -22,13 +21,12 @@ struct Limit {
     uint32_t IncreaseMilliSeconds = 0;
 
     bool isNoLimit() const {
-        return (TimeLimitMilliSeconds == 0) &&
-            (ByoyomiMilliSeconds == 0) &&
-            (IncreaseMilliSeconds == 0);
+        return (TimeLimitMilliSeconds == 0) && (ByoyomiMilliSeconds == 0) &&
+               (IncreaseMilliSeconds == 0);
     }
 };
 
-constexpr Limit NoLimit {0, 0, 0};
+constexpr Limit NoLimit{0, 0, 0};
 
 } // namespace engine
 } // namespace nshogi

@@ -13,12 +13,12 @@
 #include "node.h"
 #include "pointer.h"
 
+#include <condition_variable>
 #include <cstddef>
+#include <mutex>
+#include <queue>
 #include <thread>
 #include <vector>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 
 namespace nshogi {
 namespace engine {
@@ -26,7 +26,9 @@ namespace mcts {
 
 class GarbageCollector {
  public:
-    GarbageCollector(std::size_t NumWorkers, allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator);
+    GarbageCollector(std::size_t NumWorkers,
+                     allocator::Allocator* NodeAllocator,
+                     allocator::Allocator* EdgeAllocator);
     ~GarbageCollector();
 
     void addGarbage(Pointer<Node>&& Node);
