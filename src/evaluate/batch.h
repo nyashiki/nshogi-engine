@@ -1,3 +1,12 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_EVALUATE_BATCH_H
 #define NSHOGI_ENGINE_EVALUATE_BATCH_H
 
@@ -8,9 +17,9 @@
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
-#include <nshogi/ml/featuretype.h>
-#include <nshogi/ml/featurestack.h>
 #include <nshogi/ml/featurebitboard.h>
+#include <nshogi/ml/featurestack.h>
+#include <nshogi/ml/featuretype.h>
 
 namespace nshogi {
 namespace engine {

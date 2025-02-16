@@ -1,17 +1,29 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_INFER_TRT_H
 #define NSHOGI_ENGINE_INFER_TRT_H
 
 #include "infer.h"
 
 #include <cstdint>
-#include <string>
 #include <iostream>
 #include <memory>
+#include <string>
 
 #include "NvInfer.h"
 #include "NvOnnxParser.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
+
+#include <stdexcept>
+#include <thread>
 
 namespace nshogi {
 namespace engine {
@@ -34,12 +46,19 @@ class TensorRT : public Infer {
 
     void load(const std::string& Path, bool UseSerializedFileIfAvailable);
 
-    void computeNonBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
-    void computeBlocking(const ml::FeatureBitboard* Features, std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) override;
+    void computeNonBlocking(const ml::FeatureBitboard* Features,
+                            std::size_t BatchSize, float* DstPolicy,
+                            float* DstWinRate, float* DstDrawRate) override;
+    void computeBlocking(const ml::FeatureBitboard* Features,
+                         std::size_t BatchSize, float* DstPolicy,
+                         float* DstWinRate, float* DstDrawRate) override;
     void await() override;
     bool isComputing() override;
+    void resetGPU();
 
  private:
+    void dummyInference(std::size_t Repeat);
+
     const uint16_t BatchSizeM;
     const uint16_t NumC;
     const int GPUId_;
@@ -60,6 +79,8 @@ class TensorRT : public Infer {
     void* DevicePolicyOutput;
     void* DeviceValueOutput;
     void* DeviceDrawOutput;
+    bool Called = false;
+    std::thread::id ThreadIDPrev;
 };
 
 } // namespace infer

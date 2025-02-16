@@ -1,3 +1,12 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #include "random.h"
 
 #include <cstddef>
@@ -9,14 +18,16 @@ namespace nshogi {
 namespace engine {
 namespace infer {
 
-Random::Random(uint64_t Seed): Rng(Seed) {
+Random::Random(uint64_t Seed)
+    : Rng(Seed) {
 }
 
 Random::~Random() {
 }
 
-void Random::computeNonBlocking([[maybe_unused]] const ml::FeatureBitboard* Features,
-        std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) {
+void Random::computeNonBlocking(
+    [[maybe_unused]] const ml::FeatureBitboard* Features, std::size_t BatchSize,
+    float* DstPolicy, float* DstWinRate, float* DstDrawRate) {
 
     static std::uniform_real_distribution<float> Distribution(0, 1);
 
@@ -31,7 +42,8 @@ void Random::computeNonBlocking([[maybe_unused]] const ml::FeatureBitboard* Feat
 }
 
 void Random::computeBlocking(const ml::FeatureBitboard* Features,
-        std::size_t BatchSize, float* DstPolicy, float* DstWinRate, float* DstDrawRate) {
+                             std::size_t BatchSize, float* DstPolicy,
+                             float* DstWinRate, float* DstDrawRate) {
     computeNonBlocking(Features, BatchSize, DstPolicy, DstWinRate, DstDrawRate);
     await();
 }

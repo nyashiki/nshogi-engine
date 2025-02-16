@@ -1,12 +1,21 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_MCTS_EDGE_H
 #define NSHOGI_ENGINE_MCTS_EDGE_H
 #include <atomic>
-#include <memory>
 #include <cassert>
+#include <memory>
 
 #include "../allocator/allocator.h"
+#include "pointer.h"
 #include <nshogi/core/types.h>
-
 
 namespace nshogi {
 namespace engine {
@@ -16,7 +25,8 @@ struct Node;
 
 struct Edge {
  public:
-    Edge(): Ready(false) {
+    Edge()
+        : Ready(false) {
     }
 
     Edge(const Edge& E) {
@@ -47,7 +57,7 @@ struct Edge {
         return Probability;
     }
 
-    void setTarget(std::unique_ptr<Node>&& T) {
+    void setTarget(Pointer<Node>&& T) {
         assert(Target == nullptr);
         assert(Ready == false);
 
@@ -55,7 +65,7 @@ struct Edge {
         Ready.store(true, std::memory_order_release);
     }
 
-    Node* getTarget() const {
+    Node* getTarget() {
         if (Ready.load(std::memory_order_acquire)) {
             assert(Target != nullptr);
             return Target.get();
@@ -64,7 +74,7 @@ struct Edge {
         return nullptr;
     }
 
-    std::unique_ptr<Node>&& getTargetWithOwner() {
+    Pointer<Node>&& getTargetWithOwner() {
         return std::move(Target);
     }
 
@@ -72,28 +82,16 @@ struct Edge {
         Move = M;
     }
 
-    const core::Move16& getMove() const {
+    core::Move16 getMove() const {
         return Move;
     }
 
-    void* operator new(std::size_t) = delete;
-    void operator delete(void*) = delete;
-
-    void* operator new[](std::size_t Size) {
-        return allocator::getEdgeAllocator().malloc(Size);
-    }
-
-    void operator delete[](void* Ptr) noexcept {
-        allocator::getEdgeAllocator().free(Ptr);
-    }
-
  private:
-    std::unique_ptr<Node> Target;
+    Pointer<Node> Target;
     float Probability;
     core::Move16 Move;
     std::atomic<bool> Ready;
 };
-
 
 } // namespace mcts
 } // namespace engine

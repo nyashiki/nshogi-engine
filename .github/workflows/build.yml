@@ -1,0 +1,22 @@
+name: build
+
+on: [push]
+
+jobs:
+  engine-build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      working-directory: ./
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install nshogi
+      run: |
+        git clone https://github.com/nyashiki/nshogi.git
+        cd nshogi && sudo make install
+    - name: make engine
+      working-directory: ${{ env.working-directory }}
+      run: make EXECUTOR=random engine

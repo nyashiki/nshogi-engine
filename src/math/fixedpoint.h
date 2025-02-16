@@ -1,3 +1,12 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_MATH_FIXEDPOINT_H
 #define NSHOGI_ENGINE_MATH_FIXEDPOINT_H
 
@@ -10,33 +19,38 @@ namespace nshogi {
 namespace engine {
 namespace math {
 
-
 class FixedPoint64 {
  public:
-    constexpr FixedPoint64(): Data(0) {
+    constexpr FixedPoint64()
+        : Data(0) {
     }
 
     FixedPoint64(double D) {
         assert(D >= 0 && D <= 1);
 
         uint64_t RawBinary;
-        std::memcpy(reinterpret_cast<char*>(&RawBinary), reinterpret_cast<const char*>(&D), sizeof(double));
+        std::memcpy(reinterpret_cast<char*>(&RawBinary),
+                    reinterpret_cast<const char*>(&D), sizeof(double));
 
         if (RawBinary == 0) {
             Data = 0;
             return;
         }
 
-        const int8_t Exponent = static_cast<int8_t>(1023 - ((RawBinary >> 52) & 0x7FF));
-        const uint64_t Mantissa = (RawBinary & 0xFFFFFFFFFFFFF) >> (52 - FractionBits);
+        const int8_t Exponent =
+            static_cast<int8_t>(1023 - ((RawBinary >> 52) & 0x7FF));
+        const uint64_t Mantissa =
+            (RawBinary & 0xFFFFFFFFFFFFF) >> (52 - FractionBits);
 
         Data = (Mantissa | (1ULL << FractionBits)) >> Exponent;
     }
 
-    FixedPoint64(float F): FixedPoint64(static_cast<double>(F)) {
+    FixedPoint64(float F)
+        : FixedPoint64(static_cast<double>(F)) {
     }
 
-    FixedPoint64(uint32_t Integer): Data((uint64_t)Integer << FractionBits) {
+    FixedPoint64(uint32_t Integer)
+        : Data((uint64_t)Integer << FractionBits) {
     }
 
     void add(double D) {
@@ -61,7 +75,8 @@ class FixedPoint64 {
     }
 
     FixedPoint64 operator*(const FixedPoint64& FP) const {
-        return FixedPoint64((Data >> (FractionBits / 2)) * (FP.Data >> (FractionBits / 2)));
+        return FixedPoint64((Data >> (FractionBits / 2)) *
+                            (FP.Data >> (FractionBits / 2)));
     }
 
     bool operator>(const FixedPoint64& FP) const {
@@ -72,24 +87,27 @@ class FixedPoint64 {
         const uint64_t Integer = Data >> FractionBits;
         const uint64_t Fraction = Data & ((1ULL << FractionBits) - 1);
 
-        return static_cast<double>(Integer) + (static_cast<double>(Fraction) / static_cast<double>(1ULL << FractionBits));
+        return static_cast<double>(Integer) +
+               (static_cast<double>(Fraction) /
+                static_cast<double>(1ULL << FractionBits));
     }
 
  private:
-    static constexpr uint8_t FractionBits = 36;  // must be even.
+    static constexpr uint8_t FractionBits = 36; // must be even.
 
-    FixedPoint64(uint64_t RawData): Data(RawData) {
+    FixedPoint64(uint64_t RawData)
+        : Data(RawData) {
     }
 
     uint64_t Data;
 
- friend struct AtomicFixedPoint64;
+    friend struct AtomicFixedPoint64;
 };
-
 
 struct AtomicFixedPoint64 {
  public:
-    AtomicFixedPoint64(uint64_t V): Data(V) {
+    AtomicFixedPoint64(uint64_t V)
+        : Data(V) {
     }
 
     void store(double Value, std::memory_order Order) {

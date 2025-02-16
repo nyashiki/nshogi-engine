@@ -1,3 +1,12 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #include "evalcache.h"
 
 namespace nshogi {
@@ -5,7 +14,8 @@ namespace engine {
 namespace mcts {
 
 EvalCache::EvalCache(std::size_t MemorySize)
-    : NumBundle(MemorySize * 1024LL * 1024LL / (sizeof(CacheData) * CACHE_BUNDLE_SIZE))
+    : NumBundle(MemorySize * 1024LL * 1024LL /
+                (sizeof(CacheData) * CACHE_BUNDLE_SIZE))
     , Memory(std::make_unique<CacheData[]>(NumBundle * CACHE_BUNDLE_SIZE)) {
 
     CacheStorage = std::make_unique<CacheBundle[]>(NumBundle);
@@ -36,12 +46,19 @@ EvalCache::EvalCache(std::size_t MemorySize)
     }
 }
 
-void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, float WR, float D) {
-    const uint64_t Hash = St.getHash();
-    const core::HuffmanCode HC = core::HuffmanCode::encode(St.getPosition());
+bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
+                      float D) {
+    if (NumM > MAX_CACHE_MOVES_COUNT) {
+        return false;
+    }
 
     CacheBundle* Bundle = &CacheStorage[Hash % NumBundle];
-    std::lock_guard<std::mutex> Lk(Bundle->Mtx);
+
+    bool LockAcquired = Bundle->Mtx.try_lock();
+
+    if (!LockAcquired) {
+        return false;
+    }
 
     CacheData* CacheElem = Bundle->Head;
 
@@ -50,7 +67,7 @@ void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, floa
             break;
         }
 
-        if (CacheElem->Hash64 == Hash && CacheElem->HC == HC) {
+        if (CacheElem->Hash64 == Hash && CacheElem->EInfo.NumMoves == NumM) {
             // The entry already exists.
 
             // Reorder.
@@ -66,7 +83,8 @@ void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, floa
                 Bundle->Head = CacheElem;
             }
 
-            return;
+            Bundle->Mtx.unlock();
+            return true;
         }
 
         if (CacheElem->Next == nullptr) {
@@ -91,21 +109,24 @@ void EvalCache::store(const core::State& St, uint16_t NumM, const float* P, floa
 
     CacheElem->IsUsed = true;
     CacheElem->Hash64 = Hash;
-    CacheElem->HC = HC;
 
+    CacheElem->EInfo.NumMoves = NumM;
     std::memcpy(CacheElem->EInfo.Policy, P, sizeof(float) * NumM);
     CacheElem->EInfo.WinRate = WR;
     CacheElem->EInfo.DrawRate = D;
+
+    Bundle->Mtx.unlock();
+    return true;
 };
 
 bool EvalCache::load(const core::State& St, EvalInfo* EI) {
     const uint64_t Hash = St.getHash();
 
-    bool IsHuffmanCodeComputed = false;
-    core::HuffmanCode HC = core::HuffmanCode::zero();
-
     CacheBundle* Bundle = &CacheStorage[Hash % NumBundle];
-    std::lock_guard<std::mutex> Lk(Bundle->Mtx);
+    const bool LockAcquired = Bundle->Mtx.try_lock();
+    if (!LockAcquired) {
+        return false;
+    }
 
     CacheData* CacheElem = Bundle->Head;
 
@@ -115,37 +136,34 @@ bool EvalCache::load(const core::State& St, EvalInfo* EI) {
         }
 
         if (CacheElem->Hash64 == Hash) {
-            if (!IsHuffmanCodeComputed) {
-                HC = core::HuffmanCode::encode(St.getPosition());
-                IsHuffmanCodeComputed = true;
-            }
+            *EI = CacheElem->EInfo;
 
-            if (CacheElem->HC == HC) {
-                *EI = CacheElem->EInfo;
+            // Reorder.
+            // If the found element is not located at the first position,
+            // reorder so that it comes to the first position.
+            if (CacheElem->Prev != nullptr) {
+                CacheElem->Prev->Next = CacheElem->Next;
 
-                // Reorder.
-                if (CacheElem->Prev != nullptr) {
-                    CacheElem->Prev->Next = CacheElem->Next;
-
-                    if (CacheElem->Next != nullptr) {
-                        CacheElem->Next->Prev = CacheElem->Prev;
-                    }
-
-                    CacheElem->Next = Bundle->Head;
-                    CacheElem->Prev = nullptr;
-                    Bundle->Head = CacheElem;
+                if (CacheElem->Next != nullptr) {
+                    CacheElem->Next->Prev = CacheElem->Prev;
                 }
 
-                return true;
+                CacheElem->Next = Bundle->Head;
+                CacheElem->Prev = nullptr;
+                Bundle->Head = CacheElem;
             }
+
+            Bundle->Mtx.unlock();
+            return true;
         }
 
         CacheElem = CacheElem->Next;
     }
 
+    Bundle->Mtx.unlock();
     return false;
 }
 
 } // namespace mcts
-} // namescape engine
+} // namespace engine
 } // namespace nshogi

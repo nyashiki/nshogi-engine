@@ -1,7 +1,7 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_ALLOCATOR_H
 #define NSHOGI_ENGINE_ALLOCATOR_ALLOCATOR_H
 
-#include <cinttypes>
+#include <cstddef>
 
 namespace nshogi {
 namespace engine {
@@ -22,19 +22,6 @@ class Allocator {
     virtual std::size_t getUsed() const = 0;
     virtual std::size_t getFree() const = 0;
 };
-
-Allocator* createEdgeAllocator();
-Allocator* createNodeAllocator();
-
-inline Allocator& getEdgeAllocator() {
-    static Allocator* Alloc = createEdgeAllocator();
-    return *Alloc;
-}
-
-inline Allocator& getNodeAllocator() {
-    static Allocator* Alloc = createNodeAllocator();
-    return *Alloc;
-}
 
 } // namespace allocator
 } // namespace engine

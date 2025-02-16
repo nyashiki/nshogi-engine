@@ -1,15 +1,22 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_MCTS_TREE_H
 #define NSHOGI_ENGINE_MCTS_TREE_H
 
-
-#include "node.h"
+#include "../logger/logger.h"
 #include "edge.h"
 #include "garbagecollector.h"
-#include "../logger/logger.h"
+#include "node.h"
 
 #include <memory>
 #include <nshogi/core/state.h>
-
 
 namespace nshogi {
 namespace engine {
@@ -17,19 +24,23 @@ namespace mcts {
 
 class Tree {
  public:
-    Tree(GarbageCollector* GCollector, logger::Logger* Logger);
+    Tree(GarbageCollector* GCollector, allocator::Allocator* NodeAllocator,
+         logger::Logger* Logger);
+    ~Tree();
 
-    Node* updateRoot(const nshogi::core::State& State);
+    Node* updateRoot(const nshogi::core::State& State, bool ReUse = true);
 
-    Node* getRoot() const;
+    Node* getRoot();
     const core::State* getRootState() const;
 
  private:
     Node* createNewRoot(const nshogi::core::State& State);
 
-    std::unique_ptr<Node> Root;
+    Pointer<Node> Root;
     std::unique_ptr<core::State> RootState;
     GarbageCollector* GC;
+
+    allocator::Allocator* NA;
     logger::Logger* PLogger;
 };
 

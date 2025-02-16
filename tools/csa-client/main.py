@@ -4,6 +4,7 @@ import tomllib
 import threading
 import time
 import math
+import sys
 import os
 
 import flask
@@ -69,59 +70,64 @@ class CSAClient:
             self.viewer_thread.start()
 
         while True:
-            # Prepare engine.
-            self.engine = Engine(config["engine"], True)
-
-            if config["viewer"]["enabled"]:
-                self.engine.add_read_message_callback(self.callback_read_message)
-                self.engine.add_send_message_callback(self.callback_send_message)
-
-            self.engine.usi()
-            self.engine.isready()
-
-            # Start communication.
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.connect((target, port))
-
-            self._login(username, password)
-
-            self.client_connected = True
-            self.keepalive_thread = None
-            self._start_keepalive_thread()
-
-            self._wait_next_match()
-
-            self.remaining_time = [self.time_info["total"] for _ in range(2)]
-
-            self._agree()
-
-            self.evaluation_history = [None for _ in range(1024)]
-
-            if self.viewer is not None:
-                gi = self.game_info.copy()
-                if "Your_Turn" in gi:
-                    gi["Your_Turn"] = "BLACK" if gi["Your_Turn"] == nshogi.Color.BLACK else "WHITE"
-                self.socketio.emit("update", {
-                    "engine": self.config["engine"],
-                    "timeinfo": self.time_info,
-                    "time": self.remaining_time,
-                    "gameinfo": gi,
-                })
-
-            self._start_match()
-            self._logout()
-            self.client_connected = False
-            self.keepalive_thread.join()
-
             try:
+                # Prepare engine.
+                self.engine = Engine(config["engine"], True)
+
+                if config["viewer"]["enabled"]:
+                    self.engine.add_read_message_callback(self.callback_read_message)
+                    self.engine.add_send_message_callback(self.callback_send_message)
+
+                self.engine.usi()
+                self.engine.isready()
+
+                # Start communication.
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                self.socket.connect((target, port))
+
+                self._login(username, password)
+
+                self.client_connected = True
+                self.keepalive_thread = None
+                self._start_keepalive_thread()
+
+                self._wait_next_match()
+
+                self.remaining_time = [self.time_info["total"] for _ in range(2)]
+
+                self._agree()
+
+                self.evaluation_history = [None for _ in range(1024)]
+
+                if self.viewer is not None:
+                    gi = self.game_info.copy()
+                    if "Your_Turn" in gi:
+                        gi["Your_Turn"] = "BLACK" if gi["Your_Turn"] == nshogi.Color.BLACK else "WHITE"
+                    self.socketio.emit("update", {
+                        "engine": self.config["engine"],
+                        "timeinfo": self.time_info,
+                        "time": self.remaining_time,
+                        "gameinfo": gi,
+                    })
+
+                self._start_match()
+                self._logout()
+                self.client_connected = False
+                self.keepalive_thread.join()
+
                 self.socket.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+            except socket.error:
+                pass
+            except IOError:
+                pass
             finally:
                 self.socket.close()
+
             self.engine.quit()
 
             if not config["client"]["loop"]:
@@ -292,15 +298,18 @@ class CSAClient:
                 else:
                     message = f"{csa_move},'* {cp}"
                     if pv is not None:
-                        stm = int(self._state.side_to_move)
-                        csa_pv = []
-                        s = self._state.clone()
-                        for i, m in enumerate(pv):
-                            m = nshogi.io.sfen.move_from_sfen(s, m)
-                            s.do_move(m)
-                            csa_pv.append(nshogi.io.csa.stringify(m, nshogi.Color(stm)))
-                            stm = 1 - stm
-                        message += " " + " ".join(csa_pv[1:])
+                        try:
+                            stm = int(self._state.side_to_move)
+                            csa_pv = []
+                            s = self._state.clone()
+                            for i, m in enumerate(pv[:-1]):
+                                m = nshogi.io.sfen.move_from_sfen(s, m)
+                                s.do_move(m)
+                                csa_pv.append(nshogi.io.csa.stringify(m, nshogi.Color(stm)))
+                                stm = 1 - stm
+                            message += " " + " ".join(csa_pv[1:])
+                        except RuntimeError:
+                            pass
 
                 self._send_message(message)
 
@@ -477,7 +486,9 @@ class CSAClient:
                 })
 
 if __name__ == "__main__":
-    with open("config.toml", "rb") as f:
+    config_file = "config.toml" if len(sys.argv) == 1 else sys.argv[1]
+
+    with open(config_file, "rb") as f:
         config = tomllib.load(f)
 
     try:

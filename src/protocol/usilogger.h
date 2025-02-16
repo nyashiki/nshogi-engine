@@ -1,16 +1,24 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_PROTOCOL_USILOGGER_H
 #define NSHOGI_ENGINE_PROTOCOL_USILOGGER_H
 
 #include "../logger/logger.h"
+#include <cstdint>
 #include <iostream>
 #include <mutex>
-#include <cstdint>
 
 namespace nshogi {
 namespace engine {
 namespace protocol {
 namespace usi {
-
 
 class USILogger : public logger::Logger {
  public:
@@ -20,9 +28,10 @@ class USILogger : public logger::Logger {
     };
 
     USILogger();
+    ~USILogger() = default;
 
     void printPVLog(const logger::PVLog& Log) const override;
-    void printBestMove(const core::Move32& Move) const override;
+    void printBestMove(core::Move32 Move) const override;
 
     void printLog(const char* Message) const override;
 
@@ -37,17 +46,17 @@ class USILogger : public logger::Logger {
         (std::cout << ... << Args) << std::endl;
     }
 
-    void setIsInverse(bool Value);
+    void setIsInverse(bool Value) override;
     void setScoreFormatType(ScoreFormatType);
 
  public:
-    int32_t getScoreFromWinRate(double WinRate, double DrawRate, double DrawValue) const;
+    int32_t getScoreFromWinRate(double WinRate, double DrawRate,
+                                double DrawValue) const;
     bool IsInverse;
     ScoreFormatType SFType;
 
     mutable std::mutex Mtx;
 };
-
 
 } // namespace usi
 } // namespace protocol

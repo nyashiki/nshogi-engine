@@ -1,11 +1,18 @@
+//
+// Copyright (c) 2025 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_LOGGER_LOGGER_H
 #define NSHOGI_ENGINE_LOGGER_LOGGER_H
 
-
 #include <cinttypes>
-#include <vector>
 #include <nshogi/core/types.h>
-
+#include <vector>
 
 namespace nshogi {
 namespace engine {
@@ -23,17 +30,19 @@ struct PVLog {
     std::vector<core::Move16> PV;
 };
 
-
 class Logger {
  public:
+    virtual ~Logger(){};
+
     virtual void printPVLog(const PVLog& Log) const = 0;
-    virtual void printBestMove(const core::Move32& Move) const = 0;
+    virtual void printBestMove(core::Move32 Move) const = 0;
     virtual void printLog(const char* Message) const = 0;
+
+    virtual void setIsInverse(bool Value) = 0;
 };
 
 } // namespace logger
 } // namespace engine
 } // namespace nshogi
-
 
 #endif // #ifndef NSHOGI_ENGINE_LOGGER_H
