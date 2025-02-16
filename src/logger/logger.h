@@ -32,7 +32,7 @@ struct PVLog {
 
 class Logger {
  public:
-    virtual ~Logger() {};
+    virtual ~Logger(){};
 
     virtual void printPVLog(const PVLog& Log) const = 0;
     virtual void printBestMove(core::Move32 Move) const = 0;

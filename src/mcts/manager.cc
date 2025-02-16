@@ -130,12 +130,10 @@ void Manager::interrupt() {
 }
 
 void Manager::setupAllocator() {
-    NodeAllocator.resize(
-        (std::size_t)(0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL *
-                                     1024UL)));
-    EdgeAllocator.resize(
-        (std::size_t)(0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL *
-                                     1024UL)));
+    NodeAllocator.resize((std::size_t)(
+        0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+    EdgeAllocator.resize((std::size_t)(
+        0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
 }
 
 void Manager::setupGarbageCollector() {
