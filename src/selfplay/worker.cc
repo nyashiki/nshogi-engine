@@ -576,7 +576,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
             (Visits == 1 || Child == nullptr)
                 ? ImprovedPolicy[I]
                 : (ImprovedPolicy[I] -
-                   (double)(Child->getVisitsAndVirtualLoss() / Visits));
+                   (double)Child->getVisitsAndVirtualLoss() / (double)Visits);
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
