@@ -80,11 +80,15 @@ bool Watchdog::doTask() {
             break;
         }
 
+        if (checkNodeLimit()) {
+            break;
+        }
+
         if (checkMemoryBudget()) {
             break;
         }
 
-        if (!Limit->isNoLimit()) {
+        if (!Limit->isNoLimitAboutTime()) {
             if (checkThinkingTimeBudget(Elapsed)) {
                 PLogger->printLog("Time limit.");
                 break;
@@ -120,6 +124,15 @@ bool Watchdog::isRootSolved() const {
     return Root->getPlyToTerminalSolved() != 0;
 }
 
+bool Watchdog::checkNodeLimit() const {
+    if (Limit->NumNodes == 0) {
+        return false;
+    }
+
+    const uint64_t Visits = Root->getVisitsAndVirtualLoss() & Node::VisitMask;
+    return Visits >= Limit->NumNodes;
+}
+
 bool Watchdog::checkMemoryBudget() const {
     const double Factor = PContext->getMemoryLimitFactor();
 
@@ -139,7 +152,7 @@ bool Watchdog::checkMemoryBudget() const {
 }
 
 bool Watchdog::checkThinkingTimeBudget(uint32_t Elapsed) const {
-    if (Limit->isNoLimit()) {
+    if (Limit->isNoLimitAboutTime()) {
         return false;
     }
 

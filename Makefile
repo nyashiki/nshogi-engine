@@ -32,11 +32,13 @@ else
 
 endif
 
-SOURCES :=                                  \
+SOURCES :=                              \
 	src/argparser.cc                    \
 	src/context.cc                      \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
+    src/book/bookseed.cc                \
+    src/book/bookmaker.cc               \
 	src/mcts/checkmateworker.cc         \
 	src/mcts/checkmatequeue.cc          \
 	src/mcts/garbagecollector.cc        \
@@ -60,7 +62,7 @@ SOURCES :=                                  \
 	src/command/commands/think.cc       \
 	src/command/commands/stop.cc
 
-SELFPLAY_SOURCES :=                      \
+SELFPLAY_SOURCES :=                  \
 	src/selfplay/evaluationworker.cc \
 	src/selfplay/frame.cc            \
 	src/selfplay/framequeue.cc       \
@@ -71,12 +73,12 @@ SELFPLAY_SOURCES :=                      \
 
 CUDA_SOURCES :=
 
-TEST_SOURCES :=                      \
+TEST_SOURCES :=                  \
 	src/test/test_main.cc        \
 	src/test/test_math.cc        \
 	src/test/test_allocator.cc
 
-BENCH_SOURCES :=               \
+BENCH_SOURCES :=           \
 	src/bench/bench.cc     \
 	src/bench/batchsize.cc \
 	src/bench/mcts.cc

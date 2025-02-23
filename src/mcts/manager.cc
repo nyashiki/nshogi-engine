@@ -22,6 +22,7 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     , WakeUpSupervisor(false)
     , HasInterruptReceived(false)
     , IsPonderingEnabled(false)
+    , IsThoughtLogEnabled(false)
     , IsExiting(false) {
     setupAllocator();
     setupGarbageCollector();
@@ -71,9 +72,13 @@ void Manager::setIsPonderingEnabled(bool Value) {
     IsPonderingEnabled = Value;
 }
 
+void Manager::setIsThoughtLogEnabled(bool Value) {
+    IsThoughtLogEnabled = Value;
+}
+
 void Manager::thinkNextMove(const core::State& State,
                             const core::StateConfig& Config, engine::Limit Lim,
-                            std::function<void(core::Move32)> Callback) {
+                            std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
     WatchdogWorker->stop();
 
     std::cerr << "[thinkNextMove()] await ... " << std::endl;
@@ -285,7 +290,30 @@ void Manager::doSupervisorWork(bool CallCallback) {
     }
     std::cerr << "[doSupervisorWork()] await watchdog ..." << std::endl;
     WatchdogWorker->await();
-    std::cerr << "[doSupervisorWork()] await watchdog ... ok." << std::endl;
+
+    // Prepare ThoughtLog if IsThoughtLogEnabled is true.
+    std::unique_ptr<ThoughtLog> TL;
+    if (IsThoughtLogEnabled) {
+        TL = std::make_unique<ThoughtLog>();
+        const uint64_t NumChildren = RootNode->getNumChildren();
+        TL->VisitCounts.reserve(NumChildren);
+        for (std::size_t I = 0; I < NumChildren; ++I) {
+            auto* Edge = &RootNode->getEdge()[I];
+            auto* Child = Edge->getTarget();
+
+            if (Child == nullptr) {
+                continue;
+            }
+
+            const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss() & Node::VisitMask;
+
+            if (ChildVisits <= 1) {
+                continue;
+            }
+
+            TL->VisitCounts.emplace_back(Edge->getMove(), ChildVisits);
+        }
+    }
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
@@ -328,14 +356,11 @@ void Manager::doSupervisorWork(bool CallCallback) {
                     CurrentState.get(), StateConfig.get(), RootNodePondering);
                 WatchdogWorker->setLimit(*Limit);
                 WatchdogWorker->start();
-
-                std::cerr << "[doSupervisorWork()] start pondering ... ok."
-                          << std::endl;
             }
         }
 
         if (BestMoveCallback != nullptr) {
-            BestMoveCallback(BestMove);
+            BestMoveCallback(BestMove, std::move(TL));
         }
     }
 }

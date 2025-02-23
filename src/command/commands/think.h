@@ -12,6 +12,7 @@
 
 #include "../../limit.h"
 #include "../command.h"
+#include "../../mcts/manager.h"
 
 #include <functional>
 #include <nshogi/core/types.h>
@@ -24,15 +25,15 @@ namespace commands {
 class Think : public ICommand {
  public:
     Think(Limit Limits[2],
-          std::function<void(core::Move32)> Callback = nullptr);
+          std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)> Callback = nullptr);
     ~Think();
 
     CommandType type() const;
     const Limit* limit() const;
-    std::function<void(core::Move32)> callback() const;
+    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)> callback() const;
 
  private:
-    std::function<void(core::Move32)> CallbackFunc;
+    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)> CallbackFunc;
     Limit L[2];
 };
 
