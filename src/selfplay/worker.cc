@@ -514,7 +514,11 @@ template <>
 mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
                                                mcts::Node* N) const {
     const uint16_t NumChildren = N->getNumChildren();
+    assert(NumChildren > 0);
+    assert(NumChildren < 600);
+
     const uint64_t Visits = N->getVisitsAndVirtualLoss();
+    assert(Visits > 0);
 
     uint64_t MaxN = 0;
     const double WinRateOfNode = computeWinRate(F, SideToMove, N);
@@ -523,7 +527,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
         CompletedQ[I] = WinRateOfNode;
     }
 
-    mcts::Node* Children[600];
+    mcts::Node* Children[600] = {};
     if (Visits > 1) {
         float Policy[600];
         for (std::size_t I = 0; I < NumChildren; ++I) {
@@ -597,6 +601,8 @@ mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove,
 double Worker::computeWinRate(Frame* F, core::Color SideToMove,
                               mcts::Node* Node) const {
     const uint64_t Visits = Node->getVisitsAndVirtualLoss();
+    assert(Visits > 0);
+
     const double WinRateAccumulated = Node->getWinRateAccumulated();
     const double DrawRateAccumulated = Node->getDrawRateAccumulated();
 
@@ -613,6 +619,8 @@ double Worker::computeWinRate(Frame* F, core::Color SideToMove,
 double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                      mcts::Node* Child) const {
     const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss();
+    assert(ChildVisits > 0);
+
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
