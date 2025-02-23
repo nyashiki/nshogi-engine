@@ -47,7 +47,8 @@ namespace selfplay {
 namespace {
 
 // Since std::isnan is not available when -ffast-math is specified,
-// we manually check for NaN using bitwise comparison based on the IEEE 754 standard.
+// we manually check for NaN using bitwise comparison based on the IEEE 754
+// standard.
 bool isnan_(double X) {
     union {
         double D;
@@ -56,7 +57,8 @@ bool isnan_(double X) {
     U.D = X;
     const uint64_t ExponentMask = 0x7FF0000000000000ULL;
     const uint64_t FractionMask = 0x000FFFFFFFFFFFFFULL;
-    return ((U.I & ExponentMask) == ExponentMask) && ((U.I & FractionMask) != 0);
+    return ((U.I & ExponentMask) == ExponentMask) &&
+           ((U.I & FractionMask) != 0);
 }
 
 } // namespace

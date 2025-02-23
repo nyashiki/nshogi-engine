@@ -527,7 +527,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
         CompletedQ[I] = WinRateOfNode;
     }
 
-    mcts::Node* Children[600] = { };
+    mcts::Node* Children[600] = {};
     if (Visits > 1) {
         float Policy[600];
         for (std::size_t I = 0; I < NumChildren; ++I) {
