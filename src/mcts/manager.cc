@@ -81,23 +81,16 @@ void Manager::thinkNextMove(const core::State& State,
                             std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
     WatchdogWorker->stop();
 
-    std::cerr << "[thinkNextMove()] await ... " << std::endl;
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
     }
-    std::cerr << "[thinkNextMove()] await search worker ok ... " << std::endl;
     for (const auto& EvaluationWorker : EvaluateWorkers) {
         EvaluationWorker->await();
     }
-    std::cerr << "[thinkNextMove()] await evaluation worker ok ... "
-              << std::endl;
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->await();
     }
-    std::cerr << "[thinkNextMove()] await checkmate worker ... ok."
-              << std::endl;
     WatchdogWorker->await();
-    std::cerr << "[thinkNextMove()] await ... ok." << std::endl;
 
     HasInterruptReceived.store(false);
 
@@ -111,8 +104,6 @@ void Manager::thinkNextMove(const core::State& State,
         WakeUpSupervisor = true;
         PLogger->setIsInverse(false);
     }
-    std::cerr << "[thinkNextMove()] update the current state ... ok."
-              << std::endl;
 
     // Wake up the supervisor and the watchdog.
     CVSupervisor.notify_one();
@@ -213,20 +204,12 @@ void Manager::setupSupervisor() {
                 CVSupervisor.wait(
                     Lock, [this]() { return WakeUpSupervisor || IsExiting; });
 
-                std::cerr
-                    << "[setupSupervisor()] the supervisor has been woken up."
-                    << std::endl;
-
                 if (IsExiting) {
                     break;
                 }
             }
 
-            std::cerr << "[setupSupervisor()] doSupervisorWork() ..."
-                      << std::endl;
             doSupervisorWork(true);
-            std::cerr << "[setupSupervisor()] doSupervisorWork() ... ok."
-                      << std::endl;
 
             {
                 std::lock_guard<std::mutex> Lock(MutexSupervisor);
@@ -248,7 +231,6 @@ void Manager::doSupervisorWork(bool CallCallback) {
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 
     // Start thinking.
-    std::cerr << "[doSupervisorWork()] start workers ..." << std::endl;
     assert(EQueue->count() == 0);
     EQueue->open();
     if (CQueue != nullptr) {
@@ -265,30 +247,20 @@ void Manager::doSupervisorWork(bool CallCallback) {
         CheckmateWorker->start();
     }
 
-    std::cerr << "[doSupervisorWork()] start workers ... ok." << std::endl;
-
     WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNode);
     WatchdogWorker->setLimit(*Limit);
-    std::cerr << "[doSupervisorWork()] start watchdog ..." << std::endl;
     WatchdogWorker->start();
-    std::cerr << "[doSupervisorWork()] start watchdog ... ok." << std::endl;
 
     // Await workers until the search stops.
-    std::cerr << "[doSupervisorWork()] await workers ..." << std::endl;
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
     }
-    std::cerr << "[doSupervisorWork()] await search workers ... ok."
-              << std::endl;
     for (const auto& EvaluateWorker : EvaluateWorkers) {
         EvaluateWorker->await();
     }
-    std::cerr << "[doSupervisorWork()] await evaluation workers ... ok."
-              << std::endl;
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->await();
     }
-    std::cerr << "[doSupervisorWork()] await watchdog ..." << std::endl;
     WatchdogWorker->await();
 
     // Prepare ThoughtLog if IsThoughtLogEnabled is true.
@@ -333,9 +305,6 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
                 PLogger->setIsInverse(true);
 
-                // Start pondering.
-                std::cerr << "[doSupervisorWork()] start pondering ..."
-                          << std::endl;
                 EQueue->open();
                 if (CQueue != nullptr) {
                     CQueue->open();
@@ -420,9 +389,7 @@ bool Manager::checkMemoryBudgetForPondering() {
 }
 
 void Manager::watchdogStopCallback() {
-    std::cerr << "[watchdogStopCallback()] got callback ..." << std::endl;
     stopWorkers();
-    std::cerr << "[watchdogStopCallback()] got callback ... ok." << std::endl;
 }
 
 } // namespace mcts

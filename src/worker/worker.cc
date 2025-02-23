@@ -36,7 +36,6 @@ Worker::~Worker() {
 }
 
 void Worker::start() {
-    std::cerr << ">>>>> START HAS CALLED. <<<<<" << std::endl;
     {
         std::lock_guard<std::mutex> Lock(Mutex);
         IsRunning = true;
@@ -44,12 +43,9 @@ void Worker::start() {
     }
     CV.notify_one();
 
-    std::cerr << ">>>>> CONFIRM THREAD HAS STARTED. <<<<<" << std::endl;
     // Ensure the thread has started.
     std::unique_lock<std::mutex> Lock(Mutex);
     WaitingCV.wait(Lock, [this]() { return IsStartNotified; });
-
-    std::cerr << ">>>>> CONFIRM THREAD HAS STARTED OK!. <<<<<" << std::endl;
 }
 
 void Worker::stop() {
@@ -113,7 +109,6 @@ void Worker::mainLoop() {
         }
 
         WaitingCV.notify_all();
-        std::cerr << ">>>>> NOTIFY THREAD HAS STARTED OK!. <<<<<" << std::endl;
 
         if (IsToExit) {
             break;
