@@ -10,11 +10,17 @@
 #ifndef NSHOGI_ENGINE_BOOK_BOOKENTRY_H
 #define NSHOGI_ENGINE_BOOK_BOOKENTRY_H
 
+#include <nshogi/core/types.h>
+#include <nshogi/core/huffman.h>
+
 namespace nshogi {
 namespace engine {
 namespace book {
 
 struct BookEntry {
+ public:
+    BookEntry(core::HuffmanCode, core::Move16, double, double);
+
  private:
     core::HuffmanCode HuffmanCode;
     core::Move16 BestMove;

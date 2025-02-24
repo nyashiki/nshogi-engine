@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: MIT
 //
 
+#include "bookentry.h"
 #include "bookmaker.h"
 #include "bookseed.h"
 
@@ -23,6 +24,34 @@
 namespace nshogi {
 namespace engine {
 namespace book {
+
+namespace {
+
+void writeSeed(std::ofstream& Ofs, const BookSeed& BS) {
+    double LP = BS.logProbability();
+    bool HP = BS.hasParent();
+
+    Ofs.write(BS.huffmanCode().data(),  (long)core::HuffmanCode::size());
+    Ofs.write(BS.parentCode().data(),  (long)core::HuffmanCode::size());
+    Ofs.write(reinterpret_cast<const char*>(&LP), sizeof(LP));
+    Ofs.write(reinterpret_cast<const char*>(&HP), sizeof(HP));
+}
+
+BookSeed readSeed(std::ifstream& Ifs) {
+    char HC[32];
+    char PC[32];
+    double LP;
+    bool HP;
+
+    Ifs.read(HC, (long)core::HuffmanCode::size());
+    Ifs.read(PC, (long)core::HuffmanCode::size());
+    Ifs.read(reinterpret_cast<char*>(&LP), sizeof(LP));
+    Ifs.read(reinterpret_cast<char*>(&HP), sizeof(HP));
+
+    return BookSeed(HC, PC, LP, HP);
+}
+
+} // namespace
 
 BookMaker::BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger) {
     Manager = std::make_unique<mcts::Manager>(Context, Logger);
@@ -69,7 +98,7 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
             continue;
         }
         Visited.emplace(Seed.huffmanCode());
-        Ofs.write(reinterpret_cast<const char*>(&Seed), sizeof(BookSeed));
+        writeSeed(Ofs, Seed);
 
         // Retrieve the state.
         const auto Position = core::HuffmanCode::decode(Seed.huffmanCode());
@@ -119,6 +148,57 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
         }
 
         ++Count;
+    }
+}
+
+void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath) {
+    std::ifstream Ifs(BookSeedPath, std::ios::in | std::ios::binary);
+
+    if (!Ifs) {
+        std::cerr << "Failed to open " << BookSeedPath << std::endl;
+        return;
+    }
+
+    Ifs.seekg(0, std::ios::end);
+    std::streampos FileSize = Ifs.tellg();
+    const uint64_t SeedCount = (uint64_t)FileSize / sizeof(BookSeed);
+
+    Manager->setIsThoughtLogEnabled(true);
+
+    core::StateConfig Config;
+    Config.MaxPly = 320;
+    Config.Rule = core::ER_Declare27;
+    Limit L;
+    L.NumNodes = 10000;
+
+    std::vector<BookEntry> BookEntries;
+    // Think all positions registered in the seed.
+    Ifs.seekg(0, std::ios::beg);
+    for (std::size_t I = 0; I < SeedCount; ++I) {
+        BookSeed Seed = readSeed(Ifs);
+
+        const auto Position = core::HuffmanCode::decode(Seed.huffmanCode());
+        auto State = core::StateBuilder::newState(Position);
+
+        std::mutex Mtx;
+        bool IsCallbackCalled = false;
+        std::condition_variable CV;
+        Manager->thinkNextMove(State, Config, L, [&](core::Move32 BestMove, std::unique_ptr<mcts::ThoughtLog> TL) {
+            assert(TL != nullptr);
+
+            BookEntries.emplace_back(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
+
+            std::lock_guard<std::mutex> Lock(Mtx);
+            IsCallbackCalled = true;
+            CV.notify_one();
+        });
+
+        {
+            std::unique_lock<std::mutex> Lock(Mtx);
+            CV.wait(Lock, [&]() { return IsCallbackCalled; });
+        }
+
+        std::cout << "Progress: " << (double)(I + 1) / (double)SeedCount * 100.0 << std::endl;
     }
 }
 

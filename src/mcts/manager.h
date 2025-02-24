@@ -36,6 +36,8 @@ namespace mcts {
 
 struct ThoughtLog {
     std::vector<std::pair<core::Move16, uint64_t>> VisitCounts;
+    double WinRate;
+    double DrawRate;
 };
 
 class Manager {

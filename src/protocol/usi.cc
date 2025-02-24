@@ -292,12 +292,18 @@ void nshogiExtension(std::istringstream& Stream) {
     std::string Token;
     Stream >> Token;
 
-    if (Token == "makebook") {
+    if (Token == "genbookseed") {
         std::string OutputPath = "bookseed.bin";
         Stream >> OutputPath;
 
         nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
         bookMaker.enumerateBookSeeds(10000, OutputPath);
+    } else if (Token == "makebook") {
+        std::string BookSeedPath = "bookseed.bin";
+        Stream >> BookSeedPath;
+
+        nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
+        bookMaker.makeBookFromBookSeed(BookSeedPath);
     }
 }
 

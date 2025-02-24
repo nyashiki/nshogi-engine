@@ -13,6 +13,13 @@ namespace nshogi {
 namespace engine {
 namespace book {
 
+BookSeed::BookSeed()
+    : HuffmanCode(0, 0, 0, 0)
+    , LP(0)
+    , HasParent(false)
+    , Parent(0, 0, 0, 0) {
+}
+
 BookSeed::BookSeed(const core::State& State, double LogProbability)
     : HuffmanCode(core::HuffmanCode::encode(State.getPosition()))
     , LP(LogProbability)
@@ -24,6 +31,13 @@ BookSeed::BookSeed(const core::State& State, double LogProbability, const core::
     : HuffmanCode(core::HuffmanCode::encode(State.getPosition()))
     , LP(LogProbability)
     , HasParent(true)
+    , Parent(ParentHuffman) {
+}
+
+BookSeed::BookSeed(const char* Huffman, const char* ParentHuffman, double LogProbability, bool HasParent_)
+    : HuffmanCode(Huffman)
+    , LP(LogProbability)
+    , HasParent(HasParent_)
     , Parent(ParentHuffman) {
 }
 
