@@ -231,8 +231,6 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std:
 }
 
 void BookMaker::refineBook(const std::string& UnrefinedPath) {
-    std::cout << "refinebook" << std::endl;
-
     std::ifstream Ifs(UnrefinedPath, std::ios::in | std::ios::binary);
     if (!Ifs) {
         std::cerr << "Failed to open " << UnrefinedPath << std::endl;
