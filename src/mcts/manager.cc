@@ -8,6 +8,7 @@
 //
 
 #include "manager.h"
+#include "../io/book.h"
 
 #include <cmath>
 #include <functional>
@@ -29,6 +30,7 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     setupCheckmateQueue(PContext->getNumCheckmateSearchThreads());
     setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
     setupEvalCache(PContext->getEvalCacheMemoryMB());
+    setupBook(PContext->isBookEnabled(), PContext->getBookPath());
     setupEvaluationQueue(PContext->getBatchSize(), PContext->getNumGPUs(),
                          PContext->getNumEvaluationThreadsPerGPU());
     setupEvaluationWorkers(PContext->getBatchSize(), PContext->getNumGPUs(),
@@ -192,6 +194,22 @@ void Manager::setupEvalCache(std::size_t EvalCacheMB) {
     }
 }
 
+void Manager::setupBook(bool IsBookEnabled, const std::string& BookPath) {
+    if (IsBookEnabled) {
+        std::ifstream Ifs(BookPath);
+        if (!Ifs) {
+            PLogger->printLog("Can't open the book.");
+            return;
+        }
+
+        const auto BookTemp = nshogi::engine::io::book::readBook(Ifs);
+        for (const auto& BookEntry : BookTemp) {
+            Book.emplace(BookEntry.huffmanCode(), BookEntry);
+        }
+        PLogger->printLog("Book loaded.");
+    }
+}
+
 void Manager::setupSupervisor() {
     Supervisor = std::make_unique<std::thread>([this]() {
         while (true) {
@@ -227,76 +245,87 @@ void Manager::doSupervisorWork(bool CallCallback) {
     // Setup the state to think.
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 
-    // Start thinking.
-    assert(EQueue->count() == 0);
-    EQueue->open();
-    if (CQueue != nullptr) {
-        CQueue->open();
-    }
-    for (const auto& SearchWorker : SearchWorkers) {
-        SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
-        SearchWorker->start();
-    }
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->start();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->start();
-    }
+    core::Move32 BestMove = core::Move32::MoveNone();
+    const auto BookEntryIt = Book.find(core::HuffmanCode::encode(CurrentState->getPosition()));
 
-    WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNode);
-    WatchdogWorker->setLimit(*Limit);
-    WatchdogWorker->start();
-
-    // Await workers until the search stops.
-    for (const auto& SearchWorker : SearchWorkers) {
-        SearchWorker->await();
-    }
-    std::cerr << "[doSupervisorWork()] await search workers ... ok."
-              << std::endl;
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->await();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->await();
-    }
-    WatchdogWorker->await();
-
-    // Prepare ThoughtLog if IsThoughtLogEnabled is true.
     std::unique_ptr<ThoughtLog> TL;
-    if (PContext->isThoughtLogEnabled()) {
-        TL = std::make_unique<ThoughtLog>();
-        const uint64_t NumChildren = RootNode->getNumChildren();
-        TL->VisitCounts.reserve(NumChildren);
-        for (std::size_t I = 0; I < NumChildren; ++I) {
-            auto* Edge = &RootNode->getEdge()[I];
-            auto* Child = Edge->getTarget();
-
-            if (Child == nullptr) {
-                continue;
-            }
-
-            const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss() & Node::VisitMask;
-
-            if (ChildVisits <= 1) {
-                continue;
-            }
-
-            TL->VisitCounts.emplace_back(Edge->getMove(), ChildVisits);
+    if (BookEntryIt != Book.end()) {
+        logger::PVLog Log;
+        Log.WinRate = BookEntryIt->second.winRate();
+        Log.DrawRate = BookEntryIt->second.drawRate();
+        PLogger->printLog("Found a book move.");
+        PLogger->printPVLog(Log);
+        BestMove = BookEntryIt->second.bestMove();
+    } else {
+        // Start thinking.
+        assert(EQueue->count() == 0);
+        EQueue->open();
+        if (CQueue != nullptr) {
+            CQueue->open();
+        }
+        for (const auto& SearchWorker : SearchWorkers) {
+            SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
+            SearchWorker->start();
+        }
+        for (const auto& EvaluateWorker : EvaluateWorkers) {
+            EvaluateWorker->start();
+        }
+        for (const auto& CheckmateWorker : CheckmateWorkers) {
+            CheckmateWorker->start();
         }
 
-        TL->WinRate = 0.0;
-        TL->DrawRate = 0.0;
-        const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
-        if (Visits > 0) {
-            TL->WinRate = RootNode->getWinRateAccumulated() / (double)Visits;
-            TL->DrawRate = RootNode->getDrawRateAccumulated() / (double)Visits;
+        WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNode);
+        WatchdogWorker->setLimit(*Limit);
+        WatchdogWorker->start();
+
+        // Await workers until the search stops.
+        for (const auto& SearchWorker : SearchWorkers) {
+            SearchWorker->await();
         }
+        for (const auto& EvaluationWorker : EvaluationWorkers) {
+            EvaluationWorker->await();
+        }
+        for (const auto& CheckmateWorker : CheckmateWorkers) {
+            CheckmateWorker->await();
+        }
+        WatchdogWorker->await();
+
+        // Prepare ThoughtLog if IsThoughtLogEnabled is true.
+        if (PContext->isThoughtLogEnabled()) {
+            TL = std::make_unique<ThoughtLog>();
+            const uint64_t NumChildren = RootNode->getNumChildren();
+            TL->VisitCounts.reserve(NumChildren);
+            for (std::size_t I = 0; I < NumChildren; ++I) {
+                auto* Edge = &RootNode->getEdge()[I];
+                auto* Child = Edge->getTarget();
+
+                if (Child == nullptr) {
+                    continue;
+                }
+
+                const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss() & Node::VisitMask;
+
+                if (ChildVisits <= 1) {
+                    continue;
+                }
+
+                TL->VisitCounts.emplace_back(Edge->getMove(), ChildVisits);
+            }
+
+            TL->WinRate = 0.0;
+            TL->DrawRate = 0.0;
+            const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+            if (Visits > 0) {
+                TL->WinRate = RootNode->getWinRateAccumulated() / (double)Visits;
+                TL->DrawRate = RootNode->getDrawRateAccumulated() / (double)Visits;
+            }
+        }
+
+        BestMove = getBestmove(RootNode);
     }
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
-    const auto BestMove = getBestmove(RootNode);
     CurrentState->doMove(BestMove);
     SearchTree->updateRoot(*CurrentState);
 
