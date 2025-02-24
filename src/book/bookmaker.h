@@ -27,7 +27,7 @@ class BookMaker {
     BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger);
 
     void enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path);
-    void makeBookFromBookSeed(const std::string& BookSeedPath);
+    void makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath);
 
  private:
     std::unique_ptr<mcts::Manager> Manager;

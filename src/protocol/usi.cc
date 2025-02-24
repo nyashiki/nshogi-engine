@@ -330,10 +330,12 @@ void nshogiExtension(std::istringstream& Stream) {
         bookMaker.enumerateBookSeeds(10000, OutputPath);
     } else if (Token == "makebook") {
         std::string BookSeedPath = "bookseed.bin";
+        std::string OutPath = "book_unrefined.bin";
         Stream >> BookSeedPath;
+        Stream >> OutPath;
 
         nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
-        bookMaker.makeBookFromBookSeed(BookSeedPath);
+        bookMaker.makeBookFromBookSeed(BookSeedPath, OutPath);
     }
 }
 
