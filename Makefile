@@ -51,6 +51,7 @@ SOURCES :=                              \
 	src/mcts/mutexpool.cc               \
 	src/mcts/evalcache.cc               \
 	src/mcts/watchdog.cc                \
+    src/io/book.cc                      \
 	src/worker/worker.cc                \
     src/evaluate/evaluator.cc           \
     src/logger/logger.cc                \

@@ -9,6 +9,7 @@
 
 #include "bookmaker.h"
 #include "bookseed.h"
+#include "../io/book.h"
 
 #include <queue>
 #include <cmath>
@@ -47,31 +48,6 @@ BookSeed readSeed(std::ifstream& Ifs) {
     Ifs.read(reinterpret_cast<char*>(&HP), sizeof(HP));
 
     return BookSeed(HC, PC, LP, HP);
-}
-
-void writeBookEntry(std::ofstream& Ofs, const BookEntry& BE) {
-    core::Move16 BestMove = BE.bestMove();
-    double WinRate = BE.winRate();
-    double DrawRate = BE.drawRate();
-
-    Ofs.write(BE.huffmanCode().data(),  (long)core::HuffmanCode::size());
-    Ofs.write(reinterpret_cast<const char*>(&BestMove), sizeof(BestMove));
-    Ofs.write(reinterpret_cast<const char*>(&WinRate), sizeof(WinRate));
-    Ofs.write(reinterpret_cast<const char*>(&DrawRate), sizeof(DrawRate));
-}
-
-BookEntry readBookEntry(std::ifstream& Ifs) {
-    char HC[32];
-    core::Move16 Move;
-    double WinRate;
-    double DrawRate;
-
-    Ifs.read(HC, (long)core::HuffmanCode::size());
-    Ifs.read(reinterpret_cast<char*>(&Move), sizeof(Move));
-    Ifs.read(reinterpret_cast<char*>(&WinRate), sizeof(WinRate));
-    Ifs.read(reinterpret_cast<char*>(&DrawRate), sizeof(DrawRate));
-
-    return BookEntry(HC, Move, WinRate, DrawRate);
 }
 
 } // namespace
@@ -132,7 +108,7 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
             continue;
         }
 
-        std::cout << io::sfen::stateToSfen(State) << std::endl;
+        std::cout << ::nshogi::io::sfen::stateToSfen(State) << std::endl;
         std::cout << Seed.logProbability() << std::endl;
 
         std::mutex Mtx;
@@ -220,7 +196,7 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std:
             assert(TL != nullptr);
 
             BookEntry BE(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
-            writeBookEntry(Ofs, BE);
+            io::book::writeBookEntry(Ofs, BE);
 
             std::lock_guard<std::mutex> Lock(Mtx);
             IsCallbackCalled = true;
@@ -251,26 +227,16 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
         return;
     }
 
-    uint64_t UnitSize = 0;
-    {
-        BookEntry Dummy = readBookEntry(Ifs);
-        UnitSize = (uint64_t)Ifs.tellg();
-    }
-
-    Ifs.seekg(0, std::ios::end);
-    std::streampos FileSize = Ifs.tellg();
-    const uint64_t BookCount = (uint64_t)FileSize / UnitSize;
-    std::cout << "BookCount: " << BookCount << std::endl;
-
     // Load the file.
     std::map<core::HuffmanCode, BookEntry> BookEntries;
-    Ifs.seekg(0, std::ios::beg);
-    for (uint64_t I = 0; I < BookCount; ++I) {
-        std::cout << "\rLoading: " << I << std::flush;
-        BookEntry BE = readBookEntry(Ifs);
-        BookEntries.emplace(BE.huffmanCode(), BE);
+    {
+        std::vector<BookEntry> BookEntryTemp = nshogi::engine::io::book::readBook(Ifs);
+        for (const auto& BE : BookEntryTemp) {
+            std::cout << "\rLoading: " << BookEntries.size() << std::flush;
+            BookEntries.emplace(BE.huffmanCode(), BE);
+        }
+        std::cout << std::endl;
     }
-    std::cout << std::endl;
 
     std::set<core::HuffmanCode> Fixed;
     for (const auto& [Huffman, Entry] : BookEntries) {
@@ -288,7 +254,7 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
 
     std::cout << "BookEntries.size(): " << BookEntries.size() << std::endl;
     for (const auto& [Huffman, Entry] : BookEntries) {
-        writeBookEntry(Ofs, Entry);
+        io::book::writeBookEntry(Ofs, Entry);
     }
 }
 
