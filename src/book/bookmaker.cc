@@ -51,6 +51,17 @@ BookSeed readSeed(std::ifstream& Ifs) {
     return BookSeed(HC, PC, LP, HP);
 }
 
+void writeBookEntry(std::ofstream& Ofs, const BookEntry& BE) {
+    core::Move16 BestMove = BE.bestMove();
+    double WinRate = BE.winRate();
+    double DrawRate = BE.drawRate();
+
+    Ofs.write(BE.huffmanCode().data(),  (long)core::HuffmanCode::size());
+    Ofs.write(reinterpret_cast<const char*>(&BestMove), sizeof(BestMove));
+    Ofs.write(reinterpret_cast<const char*>(&WinRate), sizeof(WinRate));
+    Ofs.write(reinterpret_cast<const char*>(&DrawRate), sizeof(DrawRate));
+}
+
 } // namespace
 
 BookMaker::BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger) {
@@ -151,11 +162,16 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
     }
 }
 
-void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath) {
+void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath) {
     std::ifstream Ifs(BookSeedPath, std::ios::in | std::ios::binary);
-
     if (!Ifs) {
         std::cerr << "Failed to open " << BookSeedPath << std::endl;
+        return;
+    }
+
+    std::ofstream Ofs(OutPath, std::ios::out | std::ios::binary);
+    if (!Ofs) {
+        std::cerr << "Failed to open " << OutPath << std::endl;
         return;
     }
 
@@ -171,7 +187,6 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath) {
     Limit L;
     L.NumNodes = 10000;
 
-    std::vector<BookEntry> BookEntries;
     // Think all positions registered in the seed.
     Ifs.seekg(0, std::ios::beg);
     for (std::size_t I = 0; I < SeedCount; ++I) {
@@ -186,7 +201,8 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath) {
         Manager->thinkNextMove(State, Config, L, [&](core::Move32 BestMove, std::unique_ptr<mcts::ThoughtLog> TL) {
             assert(TL != nullptr);
 
-            BookEntries.emplace_back(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
+            BookEntry BE(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
+            writeBookEntry(Ofs, BE);
 
             std::lock_guard<std::mutex> Lock(Mtx);
             IsCallbackCalled = true;

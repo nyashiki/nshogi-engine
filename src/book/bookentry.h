@@ -21,6 +21,11 @@ struct BookEntry {
  public:
     BookEntry(core::HuffmanCode, core::Move16, double, double);
 
+    const core::HuffmanCode& huffmanCode() const;
+    core::Move16 bestMove() const;
+    double winRate() const;
+    double drawRate() const;
+
  private:
     core::HuffmanCode HuffmanCode;
     core::Move16 BestMove;
