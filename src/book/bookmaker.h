@@ -31,7 +31,7 @@ class BookMaker {
 
     void enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path);
     void makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath);
-    void refineBook(const std::string& UnrefinedPath);
+    void refineBook(const std::string& UnrefinedPath, const std::string& OutPath);
 
  private:
     BookEntry doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, std::set<core::HuffmanCode>& Fixed);

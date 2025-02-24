@@ -308,10 +308,12 @@ void nshogiExtension(std::istringstream& Stream) {
         bookMaker.makeBookFromBookSeed(BookSeedPath, OutPath);
     } else if (Token == "refinebook") {
         std::string UnrefinedPath = "book_unrefined.bin";
+        std::string OutPath = "book.bin";
         Stream >> UnrefinedPath;
+        Stream >> OutPath;
 
         nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
-        bookMaker.refineBook(UnrefinedPath);
+        bookMaker.refineBook(UnrefinedPath, OutPath);
     }
 }
 

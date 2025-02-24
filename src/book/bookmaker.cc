@@ -187,9 +187,15 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std:
         return;
     }
 
+    uint64_t UnitSize = 0;
+    {
+        BookSeed Dummy = readSeed(Ifs);
+        UnitSize = (uint64_t)Ifs.tellg();
+    }
+
     Ifs.seekg(0, std::ios::end);
     std::streampos FileSize = Ifs.tellg();
-    const uint64_t SeedCount = (uint64_t)FileSize / sizeof(BookSeed);
+    const uint64_t SeedCount = (uint64_t)FileSize / UnitSize;
 
     Manager->setIsThoughtLogEnabled(true);
 
@@ -228,18 +234,32 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std:
 
         std::cout << "Progress: " << (double)(I + 1) / (double)SeedCount * 100.0 << std::endl;
     }
+
+    std::cout << "SeedCount: " << SeedCount << std::endl;
 }
 
-void BookMaker::refineBook(const std::string& UnrefinedPath) {
+void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& OutPath) {
     std::ifstream Ifs(UnrefinedPath, std::ios::in | std::ios::binary);
     if (!Ifs) {
         std::cerr << "Failed to open " << UnrefinedPath << std::endl;
         return;
     }
 
+    std::ofstream Ofs(OutPath, std::ios::out | std::ios::binary);
+    if (!Ofs) {
+        std::cerr << "Failed to open " << OutPath << std::endl;
+        return;
+    }
+
+    uint64_t UnitSize = 0;
+    {
+        BookEntry Dummy = readBookEntry(Ifs);
+        UnitSize = (uint64_t)Ifs.tellg();
+    }
+
     Ifs.seekg(0, std::ios::end);
     std::streampos FileSize = Ifs.tellg();
-    const uint64_t BookCount = (uint64_t)FileSize / sizeof(BookEntry);
+    const uint64_t BookCount = (uint64_t)FileSize / UnitSize;
     std::cout << "BookCount: " << BookCount << std::endl;
 
     // Load the file.
@@ -254,10 +274,21 @@ void BookMaker::refineBook(const std::string& UnrefinedPath) {
 
     std::set<core::HuffmanCode> Fixed;
     for (const auto& [Huffman, Entry] : BookEntries) {
-        std::cout << "Progress: " << (double)Fixed.size() / (double)BookEntries.size() * 100.0 << std::endl;
         const auto Position = core::HuffmanCode::decode(Huffman);
         auto State = core::StateBuilder::newState(Position);
         doMinMaxSearchOnBook(&State, BookEntries, Fixed);
+        std::printf("\rProgress: %.2f", (double)Fixed.size() / (double)BookEntries.size() * 100.0);
+        std::cout << std::flush;
+
+        if (Fixed.size() == BookEntries.size()) {
+            break;
+        }
+    }
+    std::cout << std::endl;
+
+    std::cout << "BookEntries.size(): " << BookEntries.size() << std::endl;
+    for (const auto& [Huffman, Entry] : BookEntries) {
+        writeBookEntry(Ofs, Entry);
     }
 }
 
@@ -265,6 +296,11 @@ BookEntry BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::Huf
     BookEntry& ThisEntry = BookEntries.find(core::HuffmanCode::encode(State->getPosition()))->second;
 
     if (Fixed.contains(ThisEntry.huffmanCode())) {
+        return ThisEntry;
+    }
+
+    core::RepetitionStatus RS = State->getRepetitionStatus();
+    if (RS != core::RepetitionStatus::NoRepetition) {
         return ThisEntry;
     }
 
@@ -277,18 +313,19 @@ BookEntry BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::Huf
         State->doMove(Move);
 
         if (BookEntries.find(core::HuffmanCode::encode(State->getPosition())) == BookEntries.end()) {
+            State->undoMove();
             continue;
         }
 
         const BookEntry& BE = doMinMaxSearchOnBook(State, BookEntries, Fixed);
+        State->undoMove();
+
         double ChildWinRate = 1.0 - BE.winRate();
         if (ChildWinRate > BestWinRate) {
             BestWinRate = ChildWinRate;
             BestMove = Move;
             BestEntry = &BE;
         }
-
-        State->undoMove();
     }
 
     if (core::Move16(BestMove) == ThisEntry.bestMove()) {
