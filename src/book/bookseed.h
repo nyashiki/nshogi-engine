@@ -19,8 +19,10 @@ namespace book {
 
 struct BookSeed {
  public:
+    BookSeed();
     BookSeed(const core::State& State, double LogProbability);
     BookSeed(const core::State& State, double LogProbability, const core::HuffmanCode& ParentHuffman);
+    BookSeed(const char* Huffman, const char* ParentHuffman, double LogProbability, bool HasParent_);
 
     const core::HuffmanCode& huffmanCode() const;
     double logProbability() const;

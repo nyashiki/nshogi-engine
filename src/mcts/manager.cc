@@ -284,6 +284,14 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
             TL->VisitCounts.emplace_back(Edge->getMove(), ChildVisits);
         }
+
+        TL->WinRate = 0.0;
+        TL->DrawRate = 0.0;
+        const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+        if (Visits > 0) {
+            TL->WinRate = RootNode->getWinRateAccumulated() / (double)Visits;
+            TL->DrawRate = RootNode->getDrawRateAccumulated() / (double)Visits;
+        }
     }
 
     // Update the root node here for the garbage collectors
