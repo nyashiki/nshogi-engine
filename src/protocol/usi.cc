@@ -323,8 +323,11 @@ void nshogiExtension(std::istringstream& Stream) {
     Stream >> Token;
 
     if (Token == "makebook") {
+        std::string OutputPath = "bookseed.bin";
+        Stream >> OutputPath;
+
         nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
-        bookMaker.enumerateBookSeeds(10000);
+        bookMaker.enumerateBookSeeds(10000, OutputPath);
     }
 }
 

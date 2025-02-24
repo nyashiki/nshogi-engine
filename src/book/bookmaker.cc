@@ -14,6 +14,7 @@
 #include <set>
 #include <cmath>
 #include <iostream>
+#include <fstream>
 
 #include <nshogi/core/statebuilder.h>
 #include <nshogi/core/movegenerator.h>
@@ -27,7 +28,13 @@ BookMaker::BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Log
     Manager = std::make_unique<mcts::Manager>(Context, Logger);
 }
 
-void BookMaker::enumerateBookSeeds(uint64_t NumGenerates) {
+void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path) {
+    std::ofstream Ofs(Path, std::ios::out | std::ios::binary);
+    if (!Ofs) {
+        std::cerr << "Failed to open " << Path << std::endl;
+        return;
+    }
+
     Manager->setIsThoughtLogEnabled(true);
 
     core::StateConfig Config;
@@ -50,11 +57,11 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates) {
     std::set<core::HuffmanCode> Visited;
     uint64_t Count = 0;
     while (!Queue.empty()) {
-        if (Count > NumGenerates) {
+        if (Count >= NumGenerates) {
             break;
         }
 
-        const auto Seed = Queue.top();
+        const BookSeed Seed = Queue.top();
         Queue.pop();
 
         // Check duplication.
@@ -62,6 +69,7 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates) {
             continue;
         }
         Visited.emplace(Seed.huffmanCode());
+        Ofs.write(reinterpret_cast<const char*>(&Seed), sizeof(BookSeed));
 
         // Retrieve the state.
         const auto Position = core::HuffmanCode::decode(Seed.huffmanCode());
