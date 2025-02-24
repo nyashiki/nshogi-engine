@@ -37,6 +37,7 @@ SOURCES :=                              \
 	src/context.cc                      \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
+    src/book/bookentry.cc               \
     src/book/bookseed.cc                \
     src/book/bookmaker.cc               \
 	src/mcts/checkmateworker.cc         \

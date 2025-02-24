@@ -11,8 +11,11 @@
 #define NSHOGI_ENGINE_BOOK_BOOKMAKER_H
 
 #include <memory>
+#include <set>
+#include <map>
 #include <cinttypes>
 
+#include "bookentry.h"
 #include "../context.h"
 #include "../mcts/manager.h"
 
@@ -28,8 +31,10 @@ class BookMaker {
 
     void enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path);
     void makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath);
+    void refineBook(const std::string& UnrefinedPath);
 
  private:
+    BookEntry doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, std::set<core::HuffmanCode>& Fixed);
     std::unique_ptr<mcts::Manager> Manager;
 };
 

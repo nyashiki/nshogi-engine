@@ -7,12 +7,10 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "bookentry.h"
 #include "bookmaker.h"
 #include "bookseed.h"
 
 #include <queue>
-#include <set>
 #include <cmath>
 #include <iostream>
 #include <fstream>
@@ -60,6 +58,20 @@ void writeBookEntry(std::ofstream& Ofs, const BookEntry& BE) {
     Ofs.write(reinterpret_cast<const char*>(&BestMove), sizeof(BestMove));
     Ofs.write(reinterpret_cast<const char*>(&WinRate), sizeof(WinRate));
     Ofs.write(reinterpret_cast<const char*>(&DrawRate), sizeof(DrawRate));
+}
+
+BookEntry readBookEntry(std::ifstream& Ifs) {
+    char HC[32];
+    core::Move16 Move;
+    double WinRate;
+    double DrawRate;
+
+    Ifs.read(HC, (long)core::HuffmanCode::size());
+    Ifs.read(reinterpret_cast<char*>(&Move), sizeof(Move));
+    Ifs.read(reinterpret_cast<char*>(&WinRate), sizeof(WinRate));
+    Ifs.read(reinterpret_cast<char*>(&DrawRate), sizeof(DrawRate));
+
+    return BookEntry(HC, Move, WinRate, DrawRate);
 }
 
 } // namespace
@@ -216,6 +228,82 @@ void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std:
 
         std::cout << "Progress: " << (double)(I + 1) / (double)SeedCount * 100.0 << std::endl;
     }
+}
+
+void BookMaker::refineBook(const std::string& UnrefinedPath) {
+    std::cout << "refinebook" << std::endl;
+
+    std::ifstream Ifs(UnrefinedPath, std::ios::in | std::ios::binary);
+    if (!Ifs) {
+        std::cerr << "Failed to open " << UnrefinedPath << std::endl;
+        return;
+    }
+
+    Ifs.seekg(0, std::ios::end);
+    std::streampos FileSize = Ifs.tellg();
+    const uint64_t BookCount = (uint64_t)FileSize / sizeof(BookEntry);
+    std::cout << "BookCount: " << BookCount << std::endl;
+
+    // Load the file.
+    std::map<core::HuffmanCode, BookEntry> BookEntries;
+    Ifs.seekg(0, std::ios::beg);
+    for (uint64_t I = 0; I < BookCount; ++I) {
+        std::cout << "\rLoading: " << I << std::flush;
+        BookEntry BE = readBookEntry(Ifs);
+        BookEntries.emplace(BE.huffmanCode(), BE);
+    }
+    std::cout << std::endl;
+
+    std::set<core::HuffmanCode> Fixed;
+    for (const auto& [Huffman, Entry] : BookEntries) {
+        std::cout << "Progress: " << (double)Fixed.size() / (double)BookEntries.size() * 100.0 << std::endl;
+        const auto Position = core::HuffmanCode::decode(Huffman);
+        auto State = core::StateBuilder::newState(Position);
+        doMinMaxSearchOnBook(&State, BookEntries, Fixed);
+    }
+}
+
+BookEntry BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, std::set<core::HuffmanCode>& Fixed) {
+    BookEntry& ThisEntry = BookEntries.find(core::HuffmanCode::encode(State->getPosition()))->second;
+
+    if (Fixed.contains(ThisEntry.huffmanCode())) {
+        return ThisEntry;
+    }
+
+    auto NextMoves = core::MoveGenerator::generateLegalMoves(*State);
+    const BookEntry* BestEntry = nullptr;
+    core::Move32 BestMove = core::Move32::MoveNone();
+    double BestWinRate = -1.0;
+
+    for (const auto& Move : NextMoves) {
+        State->doMove(Move);
+
+        if (BookEntries.find(core::HuffmanCode::encode(State->getPosition())) == BookEntries.end()) {
+            continue;
+        }
+
+        const BookEntry& BE = doMinMaxSearchOnBook(State, BookEntries, Fixed);
+        double ChildWinRate = 1.0 - BE.winRate();
+        if (ChildWinRate > BestWinRate) {
+            BestWinRate = ChildWinRate;
+            BestMove = Move;
+            BestEntry = &BE;
+        }
+
+        State->undoMove();
+    }
+
+    if (core::Move16(BestMove) == ThisEntry.bestMove()) {
+        ThisEntry.setWinRate(BestEntry->winRate());
+        ThisEntry.setDrawRate(BestEntry->drawRate());
+    } else if (BestWinRate > ThisEntry.winRate()) {
+        ThisEntry.setBestMove(BestMove);
+        ThisEntry.setWinRate(BestWinRate);
+        ThisEntry.setDrawRate(BestEntry->drawRate());
+    }
+    Fixed.emplace(ThisEntry.huffmanCode());
+
+    return ThisEntry;
 }
 
 } // namespace book

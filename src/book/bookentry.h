@@ -26,6 +26,10 @@ struct BookEntry {
     double winRate() const;
     double drawRate() const;
 
+    void setBestMove(core::Move16 Move);
+    void setWinRate(double);
+    void setDrawRate(double);
+
  private:
     core::HuffmanCode HuffmanCode;
     core::Move16 BestMove;
