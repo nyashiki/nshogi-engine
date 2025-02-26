@@ -69,7 +69,7 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
     Config.MaxPly = 320;
     Config.Rule = core::ER_Declare27;
     Limit L;
-    L.NumNodes = 1600;
+    L.NumNodes = 1000;
 
     auto SeedComparingFunction = [](const BookSeed& S1, const BookSeed& S2) {
         return S1.logProbability() < S2.logProbability();
@@ -97,7 +97,6 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
             continue;
         }
         Visited.emplace(Seed.huffmanCode());
-        writeSeed(Ofs, Seed);
 
         // Retrieve the state.
         const auto Position = core::HuffmanCode::decode(Seed.huffmanCode());
@@ -115,7 +114,8 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
         bool IsCallbackCalled = false;
         std::condition_variable CV;
         std::vector<std::pair<core::Move32, double>> Policy;
-        Manager->thinkNextMove(State, Config, L, [&](core::Move32, std::unique_ptr<mcts::ThoughtLog> TL) {
+        double PolicyMax = 0.0;
+        Manager->thinkNextMove(State, Config, L, [&](core::Move32 BestMove, std::unique_ptr<mcts::ThoughtLog> TL) {
             assert(TL != nullptr);
             Policy.resize(TL->VisitCounts.size());
             uint64_t VisitSum = 0;
@@ -126,10 +126,15 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
             }
             for (std::size_t I = 0; I < Policy.size(); ++I) {
                 Policy[I].second /= (double)VisitSum;
+                PolicyMax = std::max(PolicyMax, Policy[I].second);
             }
 
-            std::lock_guard<std::mutex> Lock(Mtx);
-            IsCallbackCalled = true;
+            BookEntry BE(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
+            io::book::writeBookEntry(Ofs, BE);
+            {
+                std::lock_guard<std::mutex> Lock(Mtx);
+                IsCallbackCalled = true;
+            }
             CV.notify_one();
         });
 
@@ -147,6 +152,7 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
         }
 
         ++Count;
+        std::cout << "Progress: " << (double)Count / (double)NumGenerates * 100.0 << std::endl;
     }
 }
 
@@ -295,7 +301,7 @@ BookEntry BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::Huf
     }
 
     if (core::Move16(BestMove) == ThisEntry.bestMove()) {
-        ThisEntry.setWinRate(BestEntry->winRate());
+        ThisEntry.setWinRate(BestWinRate);
         ThisEntry.setDrawRate(BestEntry->drawRate());
     } else if (BestWinRate > ThisEntry.winRate()) {
         ThisEntry.setBestMove(BestMove);
