@@ -251,13 +251,15 @@ void Manager::doSupervisorWork(bool CallCallback) {
     const auto BookEntryIt = Book.find(core::HuffmanCode::encode(CurrentState->getPosition()));
 
     std::unique_ptr<ThoughtLog> TL;
-    if (BookEntryIt != Book.end()) {
+    if (BookEntryIt != Book.end() && CurrentState->getRepetitionStatus() == core::RepetitionStatus::NoRepetition) {
+        PLogger->printLog("Found a book move.");
+        BestMove = CurrentState->getMove32FromMove16(BookEntryIt->second.bestMove());
+
         logger::PVLog Log;
         Log.WinRate = BookEntryIt->second.winRate();
         Log.DrawRate = BookEntryIt->second.drawRate();
-        PLogger->printLog("Found a book move.");
+        Log.PV.emplace_back(BestMove);
         PLogger->printPVLog(Log);
-        BestMove = BookEntryIt->second.bestMove();
     } else {
         // Start thinking.
         assert(EQueue->count() == 0);
