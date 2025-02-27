@@ -56,7 +56,7 @@ BookMaker::BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Log
     Manager = std::make_unique<mcts::Manager>(Context, Logger);
 }
 
-void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path) {
+void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionPath) {
     std::ofstream Ofs(Path, std::ios::out | std::ios::binary);
     if (!Ofs) {
         std::cerr << "Failed to open " << Path << std::endl;
@@ -69,7 +69,7 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
     Config.MaxPly = 320;
     Config.Rule = core::ER_Declare27;
     Limit L;
-    L.NumNodes = 1000;
+    L.NumNodes = 100000;
 
     auto SeedComparingFunction = [](const BookSeed& S1, const BookSeed& S2) {
         return S1.logProbability() < S2.logProbability();
@@ -77,6 +77,21 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
     std::priority_queue<BookSeed, std::vector<BookSeed>, decltype(SeedComparingFunction)> Queue;
 
     // Prepare initial position(s).
+    std::ifstream InitialPositionsIfs(InitialPositionPath);
+    uint64_t LoadedCount = 0;
+    if (InitialPositionsIfs) {
+        std::string Sfen;
+        while (std::getline(InitialPositionsIfs, Sfen)) {
+            if (Sfen.size() == 0 || Sfen[0] == '#') {
+                continue;
+            }
+
+            core::State S = ::nshogi::io::sfen::StateBuilder::newState(Sfen);
+            Queue.emplace(S, 0);
+            ++LoadedCount;
+        }
+        std::cout << LoadedCount << " initial positions are loaded." << std::endl;
+    }
     {
         core::State S = core::StateBuilder::getInitialState();
         Queue.emplace(S, 0);
@@ -145,6 +160,9 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
 
         // Push the next states.
         for (const auto& [Move, P] : Policy) {
+            if (P < PolicyMax * 0.1) {
+                continue;
+            }
             const double NextLogProbability = Seed.logProbability() + std::log(P);
             State.doMove(Move);
             Queue.emplace(State, NextLogProbability, Seed.huffmanCode());
@@ -272,8 +290,12 @@ BookEntry BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::Huf
     }
 
     core::RepetitionStatus RS = State->getRepetitionStatus();
-    if (RS != core::RepetitionStatus::NoRepetition) {
-        return ThisEntry;
+    if (RS == core::RepetitionStatus::WinRepetition || RS == core::RepetitionStatus::SuperiorRepetition) {
+        return BookEntry(ThisEntry.huffmanCode(), ThisEntry.bestMove(), 1.0, 0.0);
+    } else if (RS == core::RepetitionStatus::LossRepetition || RS == core::RepetitionStatus::InferiorRepetition) {
+        return BookEntry(ThisEntry.huffmanCode(), ThisEntry.bestMove(), 0.0, 0.0);
+    } else if (RS == core::RepetitionStatus::Repetition) {
+        return BookEntry(ThisEntry.huffmanCode(), ThisEntry.bestMove(), 0.5, 1.0);
     }
 
     auto NextMoves = core::MoveGenerator::generateLegalMoves(*State);
