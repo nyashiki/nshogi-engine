@@ -224,10 +224,9 @@ void Manager::setupSupervisor() {
                 }
             }
 
-            doSupervisorWork(true);
-
             {
                 std::lock_guard<std::mutex> Lock(MutexSupervisor);
+                doSupervisorWork(true);
                 WakeUpSupervisor = false;
             }
         }
