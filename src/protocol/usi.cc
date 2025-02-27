@@ -323,19 +323,21 @@ void nshogiExtension(std::istringstream& Stream) {
     Stream >> Token;
 
     if (Token == "genbookseed") {
-        std::string OutputPath = "bookseed.bin";
-        Stream >> OutputPath;
-
-        nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
-        bookMaker.enumerateBookSeeds(10000, OutputPath);
-    } else if (Token == "makebook") {
-        std::string BookSeedPath = "bookseed.bin";
         std::string OutPath = "book_unrefined.bin";
-        Stream >> BookSeedPath;
+        std::string InitialPositionPath = "initial_positions.sfen";
         Stream >> OutPath;
+        Stream >> InitialPositionPath;
 
         nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
-        bookMaker.makeBookFromBookSeed(BookSeedPath, OutPath);
+        bookMaker.enumerateBookSeeds(100000, OutPath, InitialPositionPath);
+    // } else if (Token == "makebook") {
+    //     std::string BookSeedPath = "bookseed.bin";
+    //     std::string OutPath = "book_unrefined.bin";
+    //     Stream >> BookSeedPath;
+    //     Stream >> OutPath;
+
+    //     nshogi::engine::book::BookMaker bookMaker(Executor->getContext(), Logger);
+    //     bookMaker.makeBookFromBookSeed(BookSeedPath, OutPath);
     } else if (Token == "refinebook") {
         std::string UnrefinedPath = "book_unrefined.bin";
         std::string OutPath = "book.bin";

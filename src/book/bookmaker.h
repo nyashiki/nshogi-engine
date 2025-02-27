@@ -29,7 +29,7 @@ class BookMaker {
  public:
     BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger);
 
-    void enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path);
+    void enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionsPath);
     void makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath);
     void refineBook(const std::string& UnrefinedPath, const std::string& OutPath);
 
