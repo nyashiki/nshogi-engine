@@ -24,39 +24,11 @@ namespace nshogi {
 namespace engine {
 namespace book {
 
-namespace {
-
-void writeSeed(std::ofstream& Ofs, const BookSeed& BS) {
-    double LP = BS.logProbability();
-    bool HP = BS.hasParent();
-
-    Ofs.write(BS.huffmanCode().data(),  (long)core::HuffmanCode::size());
-    Ofs.write(BS.parentCode().data(),  (long)core::HuffmanCode::size());
-    Ofs.write(reinterpret_cast<const char*>(&LP), sizeof(LP));
-    Ofs.write(reinterpret_cast<const char*>(&HP), sizeof(HP));
-}
-
-BookSeed readSeed(std::ifstream& Ifs) {
-    char HC[32];
-    char PC[32];
-    double LP;
-    bool HP;
-
-    Ifs.read(HC, (long)core::HuffmanCode::size());
-    Ifs.read(PC, (long)core::HuffmanCode::size());
-    Ifs.read(reinterpret_cast<char*>(&LP), sizeof(LP));
-    Ifs.read(reinterpret_cast<char*>(&HP), sizeof(HP));
-
-    return BookSeed(HC, PC, LP, HP);
-}
-
-} // namespace
-
 BookMaker::BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger) {
     Manager = std::make_unique<mcts::Manager>(Context, Logger);
 }
 
-void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionPath) {
+void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionPath) {
     std::ofstream Ofs(Path, std::ios::out | std::ios::binary);
     if (!Ofs) {
         std::cerr << "Failed to open " << Path << std::endl;
@@ -174,70 +146,6 @@ void BookMaker::enumerateBookSeeds(uint64_t NumGenerates, const std::string& Pat
     }
 }
 
-void BookMaker::makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath) {
-    std::ifstream Ifs(BookSeedPath, std::ios::in | std::ios::binary);
-    if (!Ifs) {
-        std::cerr << "Failed to open " << BookSeedPath << std::endl;
-        return;
-    }
-
-    std::ofstream Ofs(OutPath, std::ios::out | std::ios::binary);
-    if (!Ofs) {
-        std::cerr << "Failed to open " << OutPath << std::endl;
-        return;
-    }
-
-    uint64_t UnitSize = 0;
-    {
-        BookSeed Dummy = readSeed(Ifs);
-        UnitSize = (uint64_t)Ifs.tellg();
-    }
-
-    Ifs.seekg(0, std::ios::end);
-    std::streampos FileSize = Ifs.tellg();
-    const uint64_t SeedCount = (uint64_t)FileSize / UnitSize;
-
-    Manager->setIsThoughtLogEnabled(true);
-
-    core::StateConfig Config;
-    Config.MaxPly = 320;
-    Config.Rule = core::ER_Declare27;
-    Limit L;
-    L.NumNodes = 10000;
-
-    // Think all positions registered in the seed.
-    Ifs.seekg(0, std::ios::beg);
-    for (std::size_t I = 0; I < SeedCount; ++I) {
-        BookSeed Seed = readSeed(Ifs);
-
-        const auto Position = core::HuffmanCode::decode(Seed.huffmanCode());
-        auto State = core::StateBuilder::newState(Position);
-
-        std::mutex Mtx;
-        bool IsCallbackCalled = false;
-        std::condition_variable CV;
-        Manager->thinkNextMove(State, Config, L, [&](core::Move32 BestMove, std::unique_ptr<mcts::ThoughtLog> TL) {
-            assert(TL != nullptr);
-
-            BookEntry BE(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
-            io::book::writeBookEntry(Ofs, BE);
-
-            std::lock_guard<std::mutex> Lock(Mtx);
-            IsCallbackCalled = true;
-            CV.notify_one();
-        });
-
-        {
-            std::unique_lock<std::mutex> Lock(Mtx);
-            CV.wait(Lock, [&]() { return IsCallbackCalled; });
-        }
-
-        std::cout << "Progress: " << (double)(I + 1) / (double)SeedCount * 100.0 << std::endl;
-    }
-
-    std::cout << "SeedCount: " << SeedCount << std::endl;
-}
-
 void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& OutPath) {
     std::ifstream Ifs(UnrefinedPath, std::ios::in | std::ios::binary);
     if (!Ifs) {
@@ -262,19 +170,23 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
         std::cout << std::endl;
     }
 
-    std::set<core::HuffmanCode> Fixed;
-    for (const auto& [Huffman, Entry] : BookEntries) {
-        const auto Position = core::HuffmanCode::decode(Huffman);
-        auto State = core::StateBuilder::newState(Position);
-        doMinMaxSearchOnBook(&State, BookEntries, Fixed);
-        std::printf("\rProgress: %.2f", (double)Fixed.size() / (double)BookEntries.size() * 100.0);
-        std::cout << std::flush;
+    uint64_t MaxIteration = 100;
+    for (uint64_t Iteration = 0; Iteration < MaxIteration; ++Iteration) {
+        uint64_t UpdatedCount = 0;
 
-        if (Fixed.size() == BookEntries.size()) {
+        for (const auto& [Huffman, Entry] : BookEntries) {
+            const auto Position = core::HuffmanCode::decode(Huffman);
+            auto State = core::StateBuilder::newState(Position);
+            if (doMinMaxSearchOnBook(&State, BookEntries)) {
+                ++UpdatedCount;
+            }
+        }
+        std::cout << "Iteration: " << Iteration << ", UpdatedCount: " << UpdatedCount << std::endl;
+
+        if (UpdatedCount == 0) {
             break;
         }
     }
-    std::cout << std::endl;
 
     std::cout << "BookEntries.size(): " << BookEntries.size() << std::endl;
     for (const auto& [Huffman, Entry] : BookEntries) {
@@ -282,57 +194,51 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
     }
 }
 
-BookEntry BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, std::set<core::HuffmanCode>& Fixed) {
+bool BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, double Alpha) {
+    bool Updated = false;
+
     BookEntry& ThisEntry = BookEntries.find(core::HuffmanCode::encode(State->getPosition()))->second;
-
-    if (Fixed.contains(ThisEntry.huffmanCode())) {
-        return ThisEntry;
-    }
-
-    core::RepetitionStatus RS = State->getRepetitionStatus();
-    if (RS == core::RepetitionStatus::WinRepetition || RS == core::RepetitionStatus::SuperiorRepetition) {
-        return BookEntry(ThisEntry.huffmanCode(), ThisEntry.bestMove(), 1.0, 0.0);
-    } else if (RS == core::RepetitionStatus::LossRepetition || RS == core::RepetitionStatus::InferiorRepetition) {
-        return BookEntry(ThisEntry.huffmanCode(), ThisEntry.bestMove(), 0.0, 0.0);
-    } else if (RS == core::RepetitionStatus::Repetition) {
-        return BookEntry(ThisEntry.huffmanCode(), ThisEntry.bestMove(), 0.5, 1.0);
-    }
 
     auto NextMoves = core::MoveGenerator::generateLegalMoves(*State);
     const BookEntry* BestEntry = nullptr;
     core::Move32 BestMove = core::Move32::MoveNone();
-    double BestWinRate = -1.0;
+    double BestValue = -1.0;
 
     for (const auto& Move : NextMoves) {
         State->doMove(Move);
 
-        if (BookEntries.find(core::HuffmanCode::encode(State->getPosition())) == BookEntries.end()) {
-            State->undoMove();
-            continue;
+        const auto ChildEntryit = BookEntries.find(core::HuffmanCode::encode(State->getPosition()));
+        if (ChildEntryit != BookEntries.end()) {
+            const double ChildWinRate = 1.0 - ChildEntryit->second.winRate();
+            const double ChildDrawRate = ChildEntryit->second.drawRate();
+            const double ChildValue = ChildWinRate * (1.0 - ChildDrawRate) + 0.5 * ChildDrawRate;
+            if (ChildValue > BestValue) {
+                BestValue = ChildValue;
+                BestMove = Move;
+                BestEntry = &ChildEntryit->second;
+            }
         }
 
-        const BookEntry& BE = doMinMaxSearchOnBook(State, BookEntries, Fixed);
         State->undoMove();
+    }
 
-        double ChildWinRate = 1.0 - BE.winRate();
-        if (ChildWinRate > BestWinRate) {
-            BestWinRate = ChildWinRate;
-            BestMove = Move;
-            BestEntry = &BE;
+    if (BestEntry != nullptr) {
+        const double ThisValue = ThisEntry.winRate() * (1.0 - ThisEntry.drawRate()) + 0.5 * ThisEntry.drawRate();
+        const double NewWinRate = Alpha * ThisEntry.winRate() + (1.0 - Alpha) * (1.0 - BestEntry->winRate());
+        const double NewDrawRate = Alpha * ThisEntry.drawRate() + (1.0 - Alpha) * BestEntry->drawRate();
+        if (core::Move16(BestMove) == ThisEntry.bestMove()) {
+            ThisEntry.setWinRate(NewWinRate);
+            ThisEntry.setDrawRate(NewDrawRate);
+            Updated = true;
+        } else if (BestValue > ThisValue) {
+            ThisEntry.setBestMove(BestMove);
+            ThisEntry.setWinRate(NewWinRate);
+            ThisEntry.setDrawRate(NewDrawRate);
+            Updated = true;
         }
     }
 
-    if (core::Move16(BestMove) == ThisEntry.bestMove()) {
-        ThisEntry.setWinRate(BestWinRate);
-        ThisEntry.setDrawRate(BestEntry->drawRate());
-    } else if (BestWinRate > ThisEntry.winRate()) {
-        ThisEntry.setBestMove(BestMove);
-        ThisEntry.setWinRate(BestWinRate);
-        ThisEntry.setDrawRate(BestEntry->drawRate());
-    }
-    Fixed.emplace(ThisEntry.huffmanCode());
-
-    return ThisEntry;
+    return Updated;
 }
 
 } // namespace book
