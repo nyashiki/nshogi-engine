@@ -29,12 +29,11 @@ class BookMaker {
  public:
     BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger);
 
-    void enumerateBookSeeds(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionsPath);
-    void makeBookFromBookSeed(const std::string& BookSeedPath, const std::string& OutPath);
+    void makeBook(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionsPath);
     void refineBook(const std::string& UnrefinedPath, const std::string& OutPath);
 
  private:
-    BookEntry doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, std::set<core::HuffmanCode>& Fixed);
+    bool doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, double Alpha = 0.90);
     std::unique_ptr<mcts::Manager> Manager;
 };
 
