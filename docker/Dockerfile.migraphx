@@ -1,0 +1,50 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y vim && \
+    apt-get install -y git sudo clang curl
+
+RUN apt-get install -y gnupg2 wget
+
+RUN wget https://repo.radeon.com/amdgpu-install/6.3.3/ubuntu/noble/amdgpu-install_6.3.60303-1_all.deb
+RUN sudo apt-get install -y ./amdgpu-install_6.3.60303-1_all.deb
+RUN apt-get -y update
+
+RUN apt-get install -y rocm rocm-libs
+RUN apt-get install -y \
+    cmake \
+    libnuma-dev \
+    miopen-hip-dev \
+    openmp-extras \
+    python3-dev \
+    python3-pip \
+    python3-venv \
+    rocblas-dev \
+    libgfortran5 \
+    hipblas-dev \
+    hipblaslt-dev \
+    hipcc \
+    rocm-cmake \
+    rocm-llvm-dev \
+    libtbb-dev
+
+RUN apt install -y python3-setuptools python3-wheel
+RUN apt install -y python3-onnx python3-numpy python3-pytest python3-packaging python3-protobuf
+
+RUN git clone https://github.com/ROCm/AMDMIGraphX.git --depth 1 -b rocm-6.3.3
+
+WORKDIR /AMDMIGraphX
+
+RUN mkdir build
+
+WORKDIR /AMDMIGraphX/build
+
+RUN apt-get install -y nlohmann-json3-dev
+RUN apt-get install -y libsqlite3-dev
+RUN apt-get install -y libmsgpack-dev
+RUN apt-get install -y libprotobuf-dev
+RUN apt-get install -y pybind11-dev
+
+RUN CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS=gfx1201
+RUN make -j
