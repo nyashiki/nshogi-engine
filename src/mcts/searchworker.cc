@@ -323,7 +323,8 @@ Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             // we can break the loop here because if its visit count
             // is zero, a child that has higher policy has higher UCB value.
             // The relationship can be broken if the visit count is not zero,
-            // but in that case, there is no unvisited child previously in this loop.
+            // but in that case, there is no unvisited child previously in this
+            // loop.
             break;
         }
 
