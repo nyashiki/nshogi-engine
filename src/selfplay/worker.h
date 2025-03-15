@@ -71,6 +71,7 @@ class Worker : public worker::Worker {
 
     mcts::EvalCache* EvalCache;
 
+    std::random_device SeedGen;
     mutable std::mt19937_64 MT;
 
     std::vector<core::Position>* InitialPositions;
