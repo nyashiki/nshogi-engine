@@ -35,6 +35,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EvalCache(EC)
+    , MT(SeedGen())
     , InitialPositions(InitialPositionsToPlay)
     , USE_SHOGI816K(UseShogi816k)
     , SInfo(SI) {
