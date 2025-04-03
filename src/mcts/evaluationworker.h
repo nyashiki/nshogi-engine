@@ -33,7 +33,7 @@ template <typename Features>
 class EvaluationWorker : public worker::Worker {
  public:
     EvaluationWorker(const Context*, std::size_t GPUId, std::size_t BatchSize,
-                   EvaluationQueue<Features>*, EvalCache*);
+                     EvaluationQueue<Features>*, EvalCache*);
     ~EvaluationWorker();
 
  private:

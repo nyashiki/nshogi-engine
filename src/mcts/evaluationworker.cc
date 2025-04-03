@@ -49,10 +49,11 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-EvaluationWorker<Features>::EvaluationWorker(const Context* C, std::size_t GPUId,
-                                         std::size_t BatchSize,
-                                         EvaluationQueue<Features>* EQ,
-                                         EvalCache* EC)
+EvaluationWorker<Features>::EvaluationWorker(const Context* C,
+                                             std::size_t GPUId,
+                                             std::size_t BatchSize,
+                                             EvaluationQueue<Features>* EQ,
+                                             EvalCache* EC)
     : worker::Worker(true)
     , PContext(C)
     , BatchSizeMax(BatchSize)
@@ -197,8 +198,8 @@ void EvaluationWorker<Features>::feedResults(std::size_t BatchSize) {
 
 template <typename Features>
 void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
-                                          const float* Policy, float WinRate,
-                                          float DrawRate, uint64_t Hash) {
+                                            const float* Policy, float WinRate,
+                                            float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
         constexpr float P[] = {1.0};
