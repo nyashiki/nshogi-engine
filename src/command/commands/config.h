@@ -43,6 +43,8 @@ enum class Configurable {
     HashMemoryMB,
     EvalCacheMemoryMB,
     ThinkingTimeMargin,
+    MinimumThinkingTime,
+    MaximumThinkingTime,
 
     // Double config.
     BlackDrawValue,

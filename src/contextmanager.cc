@@ -24,6 +24,14 @@ void ContextManager::setPonderingEnabled(bool Value) {
     Context_->PonderingEnabled = Value;
 }
 
+void ContextManager::setMinimumThinkinTimeMilliSeconds(uint32_t Value) {
+    Context_->MinimumThinkingTimeMilliSeconds = Value;
+}
+
+void ContextManager::setMaximumThinkinTimeMilliSeconds(uint32_t Value) {
+    Context_->MaximumThinkingTimeMilliSeconds = Value;
+}
+
 void ContextManager::setNumGPUs(std::size_t GPUs) {
     Context_->NumGPUs = GPUs;
 }

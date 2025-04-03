@@ -155,6 +155,14 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
         return false;
     }
 
+    if (Elapsed >= PContext->getMaximumThinkingTimeMilliseconds()) {
+        return true;
+    }
+
+    if (Elapsed < PContext->getMinimumThinkingTimeMilliseconds()) {
+        return false;
+    }
+
     if (Elapsed < ElapsedPrevious + 470) {
         return false;
     }

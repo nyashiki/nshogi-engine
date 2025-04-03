@@ -20,6 +20,10 @@ class Context {
  public:
     bool getPonderingEnabled() const;
 
+    uint32_t getMinimumThinkingTimeMilliseconds() const;
+
+    uint32_t getMaximumThinkingTimeMilliseconds() const;
+
     std::size_t getNumGPUs() const;
 
     std::size_t getNumSearchThreads() const;
