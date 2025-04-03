@@ -54,7 +54,7 @@ Manager::~Manager() {
     for (auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker.reset(nullptr);
     }
-    for (auto& EvaluationWorker : EvaluateWorkers) {
+    for (auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker.reset(nullptr);
     }
     for (auto& SearchWorker : SearchWorkers) {
@@ -81,7 +81,7 @@ void Manager::thinkNextMove(const core::State& State,
         SearchWorker->await();
     }
     std::cerr << "[thinkNextMove()] await search worker ok ... " << std::endl;
-    for (const auto& EvaluationWorker : EvaluateWorkers) {
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->await();
     }
     std::cerr << "[thinkNextMove()] await evaluation worker ok ... "
@@ -120,7 +120,7 @@ void Manager::interrupt() {
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
     }
-    for (const auto& EvaluationWorker : EvaluateWorkers) {
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->await();
     }
     for (const auto& CheckmateWorker : CheckmateWorkers) {
@@ -161,8 +161,8 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
                                      std::size_t NumEvaluationWorkersPerGPU) {
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
-            EvaluateWorkers.emplace_back(
-                std::make_unique<EvaluateWorker<global_config::FeatureType>>(
+            EvaluationWorkers.emplace_back(
+                std::make_unique<EvaluationWorker<global_config::FeatureType>>(
                     PContext, I, BatchSize, EQueue.get(), ECache.get()));
         }
     }
@@ -253,8 +253,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
         SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
         SearchWorker->start();
     }
-    for (const auto& EvaluateWorker : EvaluateWorkers) {
-        EvaluateWorker->start();
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
+        EvaluationWorker->start();
     }
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->start();
@@ -275,8 +275,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
     }
     std::cerr << "[doSupervisorWork()] await search workers ... ok."
               << std::endl;
-    for (const auto& EvaluateWorker : EvaluateWorkers) {
-        EvaluateWorker->await();
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
+        EvaluationWorker->await();
     }
     std::cerr << "[doSupervisorWork()] await evaluation workers ... ok."
               << std::endl;
@@ -317,8 +317,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
                                              RootNodePondering);
                     SearchWorker->start();
                 }
-                for (const auto& EvaluateWorker : EvaluateWorkers) {
-                    EvaluateWorker->start();
+                for (const auto& EvaluationWorker : EvaluationWorkers) {
+                    EvaluationWorker->start();
                 }
                 for (const auto& CheckmateWorker : CheckmateWorkers) {
                     CheckmateWorker->start();
@@ -346,7 +346,7 @@ void Manager::stopWorkers() {
     }
 
     EQueue->close();
-    for (const auto& EvaluationWorker : EvaluateWorkers) {
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->stop();
     }
 

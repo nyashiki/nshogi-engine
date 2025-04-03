@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "evaluateworker.h"
+#include "evaluationworker.h"
 #include "../globalconfig.h"
 
 #ifdef CUDA_ENABLED
@@ -49,10 +49,11 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-EvaluateWorker<Features>::EvaluateWorker(const Context* C, std::size_t GPUId,
-                                         std::size_t BatchSize,
-                                         EvaluationQueue<Features>* EQ,
-                                         EvalCache* EC)
+EvaluationWorker<Features>::EvaluationWorker(const Context* C,
+                                             std::size_t GPUId,
+                                             std::size_t BatchSize,
+                                             EvaluationQueue<Features>* EQ,
+                                             EvalCache* EC)
     : worker::Worker(true)
     , PContext(C)
     , BatchSizeMax(BatchSize)
@@ -69,7 +70,7 @@ EvaluateWorker<Features>::EvaluateWorker(const Context* C, std::size_t GPUId,
 }
 
 template <typename Features>
-EvaluateWorker<Features>::~EvaluateWorker() {
+EvaluationWorker<Features>::~EvaluationWorker() {
 #ifdef CUDA_ENABLED
     cudaFree(FeatureBitboards);
 #else
@@ -78,7 +79,7 @@ EvaluateWorker<Features>::~EvaluateWorker() {
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::initializationTask() {
+void EvaluationWorker<Features>::initializationTask() {
 #ifdef CUDA_ENABLED
     cudaMallocHost(&FeatureBitboards, BatchSizeMax * Features::size() *
                                           sizeof(ml::FeatureBitboard));
@@ -104,7 +105,7 @@ void EvaluateWorker<Features>::initializationTask() {
 }
 
 template <typename Features>
-bool EvaluateWorker<Features>::doTask() {
+bool EvaluationWorker<Features>::doTask() {
     getBatch();
     const std::size_t BatchSize = PendingSideToMoves.size();
 
@@ -139,7 +140,7 @@ bool EvaluateWorker<Features>::doTask() {
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::getBatch() {
+void EvaluationWorker<Features>::getBatch() {
     if (PendingSideToMoves.size() >= BatchSizeMax) {
         return;
     }
@@ -164,7 +165,7 @@ void EvaluateWorker<Features>::getBatch() {
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::flattenFeatures(std::size_t BatchSize) {
+void EvaluationWorker<Features>::flattenFeatures(std::size_t BatchSize) {
     const std::size_t UnitSize = PendingFeatures[0].size();
 
     for (std::size_t I = 0; I < BatchSize; ++I) {
@@ -176,12 +177,12 @@ void EvaluateWorker<Features>::flattenFeatures(std::size_t BatchSize) {
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::doInference(std::size_t BatchSize) {
+void EvaluationWorker<Features>::doInference(std::size_t BatchSize) {
     Evaluator->computeBlocking(FeatureBitboards, BatchSize);
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
+void EvaluationWorker<Features>::feedResults(std::size_t BatchSize) {
     for (std::size_t I = 0; I < BatchSize; ++I) {
         const float* Policy =
             Evaluator->getPolicy() + 27 * core::NumSquares * I;
@@ -196,9 +197,9 @@ void EvaluateWorker<Features>::feedResults(std::size_t BatchSize) {
 }
 
 template <typename Features>
-void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N,
-                                          const float* Policy, float WinRate,
-                                          float DrawRate, uint64_t Hash) {
+void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
+                                            const float* Policy, float WinRate,
+                                            float DrawRate, uint64_t Hash) {
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
         constexpr float P[] = {1.0};
@@ -221,8 +222,8 @@ void EvaluateWorker<Features>::feedResult(core::Color SideToMove, Node* N,
     }
 }
 
-template class EvaluateWorker<evaluate::preset::SimpleFeatures>;
-template class EvaluateWorker<evaluate::preset::CustomFeaturesV1>;
+template class EvaluationWorker<evaluate::preset::SimpleFeatures>;
+template class EvaluationWorker<evaluate::preset::CustomFeaturesV1>;
 
 } // namespace mcts
 } // namespace engine

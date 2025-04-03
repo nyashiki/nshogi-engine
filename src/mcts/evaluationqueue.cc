@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "evaluatequeue.h"
+#include "evaluationqueue.h"
 
 #include "../evaluate/preset.h"
 

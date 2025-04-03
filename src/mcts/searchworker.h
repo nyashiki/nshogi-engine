@@ -15,7 +15,7 @@
 #include "checkmatequeue.h"
 #include "edge.h"
 #include "evalcache.h"
-#include "evaluatequeue.h"
+#include "evaluationqueue.h"
 #include "mutexpool.h"
 #include "node.h"
 
