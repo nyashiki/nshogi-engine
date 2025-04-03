@@ -59,8 +59,10 @@ constexpr static const char* USI_OPTION_THINKING_TIME_MARGIN =
     "ThinkingTimeMargin";
 constexpr static const char* USI_OPTION_BLACK_DRAW_VALUE = "BlackDrawValue";
 constexpr static const char* USI_OPTION_WHITE_DRAW_VALUE = "WhiteDrawValue";
-constexpr static const char* USI_OPTION_MINIMUM_THINKING_TIME = "MinimumThinkingTimeMilliSeconds";
-constexpr static const char* USI_OPTION_MAXIMUM_THINKING_TIME = "MaximumThinkingTimeMilliSeconds";
+constexpr static const char* USI_OPTION_MINIMUM_THINKING_TIME =
+    "MinimumThinkingTimeMilliSeconds";
+constexpr static const char* USI_OPTION_MAXIMUM_THINKING_TIME =
+    "MaximumThinkingTimeMilliSeconds";
 constexpr static const char* USI_OPTION_REPETITION_BOOK_ALLOWED =
     "RepetitionBookAllowed";
 
@@ -91,9 +93,11 @@ void setupOption(const Context* C) {
     Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE,
                         (int)(C->getWhiteDrawValue() * 100.0f), 0, 100);
     Option.addIntOption(USI_OPTION_MINIMUM_THINKING_TIME,
-                        (int)C->getMinimumThinkingTimeMilliseconds(), 0, 9999999);
+                        (int)C->getMinimumThinkingTimeMilliseconds(), 0,
+                        9999999);
     Option.addIntOption(USI_OPTION_MAXIMUM_THINKING_TIME,
-                        (int)C->getMaximumThinkingTimeMilliseconds(), 0, 9999999);
+                        (int)C->getMaximumThinkingTimeMilliseconds(), 0,
+                        9999999);
     Option.addBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED,
                          C->isRepetitionBookAllowed());
 }

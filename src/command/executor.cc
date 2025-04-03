@@ -148,7 +148,8 @@ void Executor::setConfig(const commands::BoolConfig* Config) {
 void Executor::setConfig(const commands::IntegerConfig* Config) {
     if (Config->configurable() == commands::Configurable::MinimumThinkingTime) {
         CManager.setMinimumThinkinTimeMilliSeconds(Config->value());
-    } else if (Config->configurable() == commands::Configurable::MaximumThinkingTime) {
+    } else if (Config->configurable() ==
+               commands::Configurable::MaximumThinkingTime) {
         CManager.setMaximumThinkinTimeMilliSeconds(Config->value());
     } else if (Config->configurable() == commands::Configurable::MaxPly) {
         StateConfig->MaxPly = (uint16_t)Config->value();
