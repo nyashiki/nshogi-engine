@@ -7,8 +7,8 @@
 // SPDX-License-Identifier: MIT
 //
 
-#ifndef NSHOGI_ENGINE_MCTS_EVALUATEQUEUE_H
-#define NSHOGI_ENGINE_MCTS_EVALUATEQUEUE_H
+#ifndef NSHOGI_ENGINE_MCTS_EVALUATIONQUEUE_H
+#define NSHOGI_ENGINE_MCTS_EVALUATIONQUEUE_H
 
 #include "node.h"
 
@@ -46,4 +46,4 @@ class EvaluationQueue {
 } // namespace engine
 } // namespace nshogi
 
-#endif // #ifndef NSHOGI_ENGINE_MCTS_EVALUATEQUEUE_H
+#endif // #ifndef NSHOGI_ENGINE_MCTS_EVALUATIONQUEUE_H

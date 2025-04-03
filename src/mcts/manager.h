@@ -19,8 +19,8 @@
 #include "checkmatequeue.h"
 #include "checkmateworker.h"
 #include "evalcache.h"
-#include "evaluatequeue.h"
-#include "evaluateworker.h"
+#include "evaluationqueue.h"
+#include "evaluationworker.h"
 #include "garbagecollector.h"
 #include "searchworker.h"
 #include "tree.h"
@@ -83,8 +83,8 @@ class Manager {
     std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>>
         SearchWorkers;
-    std::vector<std::unique_ptr<EvaluateWorker<global_config::FeatureType>>>
-        EvaluateWorkers;
+    std::vector<std::unique_ptr<EvaluationWorker<global_config::FeatureType>>>
+        EvaluationWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::shared_ptr<logger::Logger> PLogger;

@@ -7,15 +7,15 @@
 // SPDX-License-Identifier: MIT
 //
 
-#ifndef NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
-#define NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
+#ifndef NSHOGI_ENGINE_MCTS_EVALUATIONWORKER_H
+#define NSHOGI_ENGINE_MCTS_EVALUATIONWORKER_H
 
 #include "../context.h"
 #include "../evaluate/evaluator.h"
 #include "../infer/infer.h"
 #include "../worker/worker.h"
 #include "evalcache.h"
-#include "evaluatequeue.h"
+#include "evaluationqueue.h"
 #include "node.h"
 
 #include <atomic>
@@ -30,11 +30,11 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-class EvaluateWorker : public worker::Worker {
+class EvaluationWorker : public worker::Worker {
  public:
-    EvaluateWorker(const Context*, std::size_t GPUId, std::size_t BatchSize,
+    EvaluationWorker(const Context*, std::size_t GPUId, std::size_t BatchSize,
                    EvaluationQueue<Features>*, EvalCache*);
-    ~EvaluateWorker();
+    ~EvaluationWorker();
 
  private:
     static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
@@ -72,4 +72,4 @@ class EvaluateWorker : public worker::Worker {
 } // namespace engine
 } // namespace nshogi
 
-#endif // #ifndef NSHOGI_ENGINE_MCTS_EVALUATEWORKER_H
+#endif // #ifndef NSHOGI_ENGINE_MCTS_EVALUATIONWORKER_H
