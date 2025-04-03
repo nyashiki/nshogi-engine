@@ -16,6 +16,14 @@ bool Context::getPonderingEnabled() const {
     return PonderingEnabled;
 }
 
+uint32_t Context::getMinimumThinkingTimeMilliseconds() const {
+    return MinimumThinkingTimeMilliSeconds;
+}
+
+uint32_t Context::getMaximumThinkingTimeMilliseconds() const {
+    return MaximumThinkingTimeMilliSeconds;
+}
+
 std::size_t Context::getNumGPUs() const {
     return NumGPUs;
 }

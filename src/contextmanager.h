@@ -25,6 +25,10 @@ class ContextManager {
 
     void setPonderingEnabled(bool Value);
 
+    void setMinimumThinkinTimeMilliSeconds(uint32_t Value);
+
+    void setMaximumThinkinTimeMilliSeconds(uint32_t Value);
+
     void setNumGPUs(std::size_t GPUs);
 
     void setNumSearchThreads(std::size_t NumThreads);
