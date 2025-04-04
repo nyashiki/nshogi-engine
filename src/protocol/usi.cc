@@ -305,7 +305,10 @@ void debug() {
     const Context* C = Executor->getContext();
     std::cout << "===== ENGINE CONFIG =====" << std::endl;
 
-    std::cout << "PonderingEnabled: " << C->getPonderingEnabled() << std::endl;
+    std::cout << "MinimumThinkingTimeMilliSeconds: " << C->getMinimumThinkingTimeMilliseconds() << std::endl;
+    std::cout << "MaximumThinkingTimeMilliSeconds: " << C->getMaximumThinkingTimeMilliseconds() << std::endl;
+    std::cout << "PonderingEnabled: " << C->isPonderingEnabled() << std::endl;
+    std::cout << "NShogiExtensionLogEnabled: " << C->isNShogiExtensionLogEnabled() << std::endl;
 
     std::cout << "=========================" << std::endl;
 }
