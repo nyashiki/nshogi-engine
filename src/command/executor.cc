@@ -112,8 +112,6 @@ void Executor::executeCommand(const commands::IConfig* Command) {
 
 void Executor::executeCommand(const commands::GetReady*) {
     Manager = std::make_unique<mcts::Manager>(CManager.getContext(), PLogger);
-    Manager->setIsPonderingEnabled(
-        CManager.getContext()->getPonderingEnabled());
 }
 
 void Executor::executeCommand(const commands::SetPosition* Command) {
@@ -136,21 +134,24 @@ void Executor::executeCommand(const commands::Stop*) {
 
 void Executor::setConfig(const commands::BoolConfig* Config) {
     if (Config->configurable() == commands::Configurable::PonderEnabled) {
-        CManager.setPonderingEnabled(Config->value());
+        CManager.setIsPonderingEnabled(Config->value());
     } else if (Config->configurable() == commands::Configurable::BookEnabled) {
         CManager.setBookEnabled(Config->value());
     } else if (Config->configurable() ==
                commands::Configurable::RepetitionBookAllowed) {
         CManager.setRepetitionBookAllowed(Config->value());
+    } else if (Config->configurable() ==
+               commands::Configurable::NShogiExtensionLogEnabled) {
+        CManager.setIsNShogiExtensionLogEnabled(Config->value());
     }
 }
 
 void Executor::setConfig(const commands::IntegerConfig* Config) {
     if (Config->configurable() == commands::Configurable::MinimumThinkingTime) {
-        CManager.setMinimumThinkinTimeMilliSeconds(Config->value());
+        CManager.setMinimumThinkinTimeMilliSeconds((uint32_t)Config->value());
     } else if (Config->configurable() ==
                commands::Configurable::MaximumThinkingTime) {
-        CManager.setMaximumThinkinTimeMilliSeconds(Config->value());
+        CManager.setMaximumThinkinTimeMilliSeconds((uint32_t)Config->value());
     } else if (Config->configurable() == commands::Configurable::MaxPly) {
         StateConfig->MaxPly = (uint16_t)Config->value();
     } else if (Config->configurable() == commands::Configurable::NumGPUs) {

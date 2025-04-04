@@ -143,6 +143,14 @@ bool Watchdog::checkThinkingTimeBudget(uint32_t Elapsed) const {
         return false;
     }
 
+    if (Elapsed >= PContext->getMaximumThinkingTimeMilliseconds()) {
+        return true;
+    }
+
+    if (Elapsed < PContext->getMinimumThinkingTimeMilliseconds()) {
+        return false;
+    }
+
     const uint32_t Budget = Limit->TimeLimitMilliSeconds +
                             Limit->ByoyomiMilliSeconds +
                             Limit->IncreaseMilliSeconds;
@@ -155,15 +163,11 @@ bool Watchdog::hasMadeUpMind(uint32_t Elapsed) {
         return false;
     }
 
-    if (Elapsed >= PContext->getMaximumThinkingTimeMilliseconds()) {
-        return true;
-    }
-
-    if (Elapsed < PContext->getMinimumThinkingTimeMilliseconds()) {
+    if (Elapsed < ElapsedPrevious + 470) {
         return false;
     }
 
-    if (Elapsed < ElapsedPrevious + 470) {
+    if (Elapsed < PContext->getMinimumThinkingTimeMilliseconds()) {
         return false;
     }
 

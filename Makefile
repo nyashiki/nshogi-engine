@@ -50,6 +50,7 @@ SOURCES :=                              \
 	src/mcts/watchdog.cc                \
 	src/worker/worker.cc                \
 	src/evaluate/batch.cc               \
+    src/logger/logger.cc                \
 	src/protocol/usi.cc                 \
 	src/protocol/usilogger.cc           \
 	src/command/executor.cc             \

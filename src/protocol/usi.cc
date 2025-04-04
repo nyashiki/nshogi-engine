@@ -65,12 +65,14 @@ constexpr static const char* USI_OPTION_MAXIMUM_THINKING_TIME =
     "MaximumThinkingTimeMilliSeconds";
 constexpr static const char* USI_OPTION_REPETITION_BOOK_ALLOWED =
     "RepetitionBookAllowed";
+constexpr static const char* USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED =
+    "NShogiExtensionLogEnabled";
 
 void setupOption(const Context* C) {
     Option.addIntOption(USI_OPTION_MAX_PLY, 320, 1, 99999);
     Option.addIntOption(USI_OPTION_HASH, (int64_t)C->getAvailableMemoryMB(),
                         1024LL, 1024 * 1024LL);
-    Option.addBoolOption(USI_OPTION_PONDER, C->getPonderingEnabled());
+    Option.addBoolOption(USI_OPTION_PONDER, C->isPonderingEnabled());
     Option.addIntOption(USI_OPTION_NUM_GPUS, (int64_t)C->getNumGPUs(), 1, 16);
     Option.addIntOption(USI_OPTION_NUM_SEARCH_THREADS,
                         (int64_t)C->getNumSearchThreads(), 1, 2048);
@@ -100,6 +102,8 @@ void setupOption(const Context* C) {
                         9999999);
     Option.addBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED,
                          C->isRepetitionBookAllowed());
+    Option.addBoolOption(USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED,
+                         C->isNShogiExtensionLogEnabled());
 }
 
 void showOption() {
@@ -182,6 +186,10 @@ void isready() {
     Executor->pushCommand(std::make_shared<StringConfig>(
         Configurable::BookPath,
         Option.getFileNameOption(USI_OPTION_BOOK_PATH)));
+
+    Executor->pushCommand(std::make_shared<BoolConfig>(
+        Configurable::NShogiExtensionLogEnabled,
+        Option.getBoolOption(USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED)));
 
     Executor->pushCommand(std::make_shared<GetReady>(), true);
 
@@ -298,7 +306,13 @@ void debug() {
     const Context* C = Executor->getContext();
     std::cout << "===== ENGINE CONFIG =====" << std::endl;
 
-    std::cout << "PonderingEnabled: " << C->getPonderingEnabled() << std::endl;
+    std::cout << "MinimumThinkingTimeMilliSeconds: "
+              << C->getMinimumThinkingTimeMilliseconds() << std::endl;
+    std::cout << "MaximumThinkingTimeMilliSeconds: "
+              << C->getMaximumThinkingTimeMilliseconds() << std::endl;
+    std::cout << "PonderingEnabled: " << C->isPonderingEnabled() << std::endl;
+    std::cout << "NShogiExtensionLogEnabled: "
+              << C->isNShogiExtensionLogEnabled() << std::endl;
 
     std::cout << "=========================" << std::endl;
 }

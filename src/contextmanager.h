@@ -23,7 +23,7 @@ class ContextManager {
 
     const Context* getContext() const;
 
-    void setPonderingEnabled(bool Value);
+    void setIsPonderingEnabled(bool Value);
 
     void setMinimumThinkinTimeMilliSeconds(uint32_t Value);
 
@@ -60,6 +60,8 @@ class ContextManager {
     void setRepetitionBookAllowed(bool Value);
 
     void setBookPath(const std::string& Path);
+
+    void setIsNShogiExtensionLogEnabled(bool Value);
 
  private:
     const std::unique_ptr<Context> Context_;

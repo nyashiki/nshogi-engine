@@ -18,7 +18,7 @@ namespace engine {
 
 class Context {
  public:
-    bool getPonderingEnabled() const;
+    bool isPonderingEnabled() const;
 
     uint32_t getMinimumThinkingTimeMilliseconds() const;
 
@@ -58,8 +58,10 @@ class Context {
 
     bool isRepetitionBookAllowed() const;
 
+    bool isNShogiExtensionLogEnabled() const;
+
  private:
-    bool PonderingEnabled = true;
+    bool IsPonderingEnabled = true;
 
     uint32_t MinimumThinkingTimeMilliSeconds = 0;
     uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000; // one hour.
@@ -90,6 +92,8 @@ class Context {
 
     bool IsBookEnabled = false;
     std::string Bookpath = "";
+
+    bool IsNShogiExtensionLogEnabled = true;
 
     friend class ContextManager;
 };

@@ -22,11 +22,6 @@ namespace usi {
 
 class USILogger : public logger::Logger {
  public:
-    enum class ScoreFormatType {
-        CentiPawn,
-        WinDraw,
-    };
-
     USILogger();
     ~USILogger() = default;
 
@@ -47,14 +42,12 @@ class USILogger : public logger::Logger {
     }
 
     void setIsInverse(bool Value) override;
-    void setScoreFormatType(ScoreFormatType);
 
- public:
+ private:
     int32_t getScoreFromWinRate(double WinRate, double DrawRate,
                                 double DrawValue) const;
-    bool IsInverse;
-    ScoreFormatType SFType;
 
+    bool IsInverse;
     mutable std::mutex Mtx;
 };
 

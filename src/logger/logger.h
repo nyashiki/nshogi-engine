@@ -39,6 +39,10 @@ class Logger {
     virtual void printLog(const char* Message) const = 0;
 
     virtual void setIsInverse(bool Value) = 0;
+    void setIsNShogiExtensionLogEnabled(bool Value);
+
+ protected:
+    bool IsNShogiExtensionEnabled;
 };
 
 } // namespace logger

@@ -20,8 +20,8 @@ const Context* ContextManager::getContext() const {
     return Context_.get();
 }
 
-void ContextManager::setPonderingEnabled(bool Value) {
-    Context_->PonderingEnabled = Value;
+void ContextManager::setIsPonderingEnabled(bool Value) {
+    Context_->IsPonderingEnabled = Value;
 }
 
 void ContextManager::setMinimumThinkinTimeMilliSeconds(uint32_t Value) {
@@ -95,6 +95,10 @@ void ContextManager::setRepetitionBookAllowed(bool Value) {
 
 void ContextManager::setBookPath(const std::string& Path) {
     Context_->Bookpath = Path;
+}
+
+void ContextManager::setIsNShogiExtensionLogEnabled(bool Value) {
+    Context_->IsNShogiExtensionLogEnabled = Value;
 }
 
 } // namespace engine
