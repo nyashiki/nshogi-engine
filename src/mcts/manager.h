@@ -39,8 +39,6 @@ class Manager {
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
-    void setIsPonderingEnabled(bool Value);
-
     void thinkNextMove(const core::State&, const core::StateConfig&,
                        engine::Limit,
                        std::function<void(core::Move32)> Callback);
@@ -100,7 +98,6 @@ class Manager {
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
     std::function<void(core::Move32)> BestMoveCallback;
-    bool IsPonderingEnabled;
 
     bool IsExiting;
 };

@@ -12,8 +12,8 @@
 namespace nshogi {
 namespace engine {
 
-bool Context::getPonderingEnabled() const {
-    return PonderingEnabled;
+bool Context::isPonderingEnabled() const {
+    return IsPonderingEnabled;
 }
 
 uint32_t Context::getMinimumThinkingTimeMilliseconds() const {

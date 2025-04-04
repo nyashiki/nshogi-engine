@@ -112,8 +112,6 @@ void Executor::executeCommand(const commands::IConfig* Command) {
 
 void Executor::executeCommand(const commands::GetReady*) {
     Manager = std::make_unique<mcts::Manager>(CManager.getContext(), PLogger);
-    Manager->setIsPonderingEnabled(
-        CManager.getContext()->getPonderingEnabled());
 }
 
 void Executor::executeCommand(const commands::SetPosition* Command) {
@@ -136,7 +134,7 @@ void Executor::executeCommand(const commands::Stop*) {
 
 void Executor::setConfig(const commands::BoolConfig* Config) {
     if (Config->configurable() == commands::Configurable::PonderEnabled) {
-        CManager.setPonderingEnabled(Config->value());
+        CManager.setIsPonderingEnabled(Config->value());
     } else if (Config->configurable() == commands::Configurable::BookEnabled) {
         CManager.setBookEnabled(Config->value());
     } else if (Config->configurable() ==

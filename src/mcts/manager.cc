@@ -21,7 +21,6 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     , PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
     , HasInterruptReceived(false)
-    , IsPonderingEnabled(false)
     , IsExiting(false) {
     setupAllocator();
     setupGarbageCollector();
@@ -67,10 +66,6 @@ Manager::~Manager() {
     // GarbageCollector is released. Hence,
     // call the destructor explicitly here.
     SearchTree.reset(nullptr);
-}
-
-void Manager::setIsPonderingEnabled(bool Value) {
-    IsPonderingEnabled = Value;
 }
 
 void Manager::thinkNextMove(const core::State& State,
@@ -299,7 +294,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (IsPonderingEnabled && !BestMove.isNone() && !BestMove.isWin() &&
+        if (PContext->isPonderingEnabled() && !BestMove.isNone() && !BestMove.isWin() &&
             !HasInterruptReceived.load() && !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {

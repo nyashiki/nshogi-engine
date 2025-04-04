@@ -23,7 +23,7 @@ class ContextManager {
 
     const Context* getContext() const;
 
-    void setPonderingEnabled(bool Value);
+    void setIsPonderingEnabled(bool Value);
 
     void setMinimumThinkinTimeMilliSeconds(uint32_t Value);
 
