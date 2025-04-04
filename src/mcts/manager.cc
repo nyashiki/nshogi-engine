@@ -37,7 +37,8 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     setupSupervisor();
     setupWatchDog();
 
-    PLogger->setIsNShogiExtensionLogEnabled(PContext->isNShogiExtensionLogEnabled());
+    PLogger->setIsNShogiExtensionLogEnabled(
+        PContext->isNShogiExtensionLogEnabled());
 }
 
 Manager::~Manager() {
@@ -294,8 +295,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (PContext->isPonderingEnabled() && !BestMove.isNone() && !BestMove.isWin() &&
-            !HasInterruptReceived.load() && !checkMemoryBudgetForPondering()) {
+        if (PContext->isPonderingEnabled() && !BestMove.isNone() &&
+            !BestMove.isWin() && !HasInterruptReceived.load() &&
+            !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {
                 Limit = std::make_unique<engine::Limit>(NoLimit);

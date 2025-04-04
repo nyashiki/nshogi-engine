@@ -19,4 +19,4 @@ void Logger::setIsNShogiExtensionLogEnabled(bool Value) {
 
 } // namespace logger
 } // namespace engine
-} // namespace logger
+} // namespace nshogi

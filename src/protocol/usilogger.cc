@@ -53,9 +53,12 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
 
     if (IsNShogiExtensionEnabled) {
         const double WinRate = (1.0 - Log.DrawRate) * Log.WinRate;
-        const double BlackWinRate = (!IsInverse) ? WinRate : (1.0 - Log.DrawRate - WinRate);
+        const double BlackWinRate =
+            (!IsInverse) ? WinRate : (1.0 - Log.DrawRate - WinRate);
         const double WhiteWinRate = 1.0 - Log.DrawRate - BlackWinRate;
-        std::cout << "info nshogiext black_win_rate " << BlackWinRate << " draw_rate " << Log.DrawRate << " white_win_rate " << WhiteWinRate << std::endl;
+        std::cout << "info nshogiext black_win_rate " << BlackWinRate
+                  << " draw_rate " << Log.DrawRate << " white_win_rate "
+                  << WhiteWinRate << std::endl;
     }
 }
 

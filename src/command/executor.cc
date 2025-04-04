@@ -141,7 +141,7 @@ void Executor::setConfig(const commands::BoolConfig* Config) {
                commands::Configurable::RepetitionBookAllowed) {
         CManager.setRepetitionBookAllowed(Config->value());
     } else if (Config->configurable() ==
-                commands::Configurable::NShogiExtensionLogEnabled) {
+               commands::Configurable::NShogiExtensionLogEnabled) {
         CManager.setIsNShogiExtensionLogEnabled(Config->value());
     }
 }

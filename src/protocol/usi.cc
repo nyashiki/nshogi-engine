@@ -65,7 +65,8 @@ constexpr static const char* USI_OPTION_MAXIMUM_THINKING_TIME =
     "MaximumThinkingTimeMilliSeconds";
 constexpr static const char* USI_OPTION_REPETITION_BOOK_ALLOWED =
     "RepetitionBookAllowed";
-constexpr static const char* USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED = "NShogiExtensionLogEnabled";
+constexpr static const char* USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED =
+    "NShogiExtensionLogEnabled";
 
 void setupOption(const Context* C) {
     Option.addIntOption(USI_OPTION_MAX_PLY, 320, 1, 99999);
@@ -305,10 +306,13 @@ void debug() {
     const Context* C = Executor->getContext();
     std::cout << "===== ENGINE CONFIG =====" << std::endl;
 
-    std::cout << "MinimumThinkingTimeMilliSeconds: " << C->getMinimumThinkingTimeMilliseconds() << std::endl;
-    std::cout << "MaximumThinkingTimeMilliSeconds: " << C->getMaximumThinkingTimeMilliseconds() << std::endl;
+    std::cout << "MinimumThinkingTimeMilliSeconds: "
+              << C->getMinimumThinkingTimeMilliseconds() << std::endl;
+    std::cout << "MaximumThinkingTimeMilliSeconds: "
+              << C->getMaximumThinkingTimeMilliseconds() << std::endl;
     std::cout << "PonderingEnabled: " << C->isPonderingEnabled() << std::endl;
-    std::cout << "NShogiExtensionLogEnabled: " << C->isNShogiExtensionLogEnabled() << std::endl;
+    std::cout << "NShogiExtensionLogEnabled: "
+              << C->isNShogiExtensionLogEnabled() << std::endl;
 
     std::cout << "=========================" << std::endl;
 }
