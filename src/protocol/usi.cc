@@ -100,6 +100,8 @@ void setupOption(const Context* C) {
                         9999999);
     Option.addBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED,
                          C->isRepetitionBookAllowed());
+    Option.addBoolOption(USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED,
+                         C->isNShogiExtensionLogEnabled());
 }
 
 void showOption() {
@@ -182,6 +184,10 @@ void isready() {
     Executor->pushCommand(std::make_shared<StringConfig>(
         Configurable::BookPath,
         Option.getFileNameOption(USI_OPTION_BOOK_PATH)));
+
+    Executor->pushCommand(std::make_shared<BoolConfig>(
+        Configurable::NShogiExtensionLogEnabled,
+        Option.getBoolOption(USI_OPTION_NSHOGI_EXTENSION_LOG_ENABLED)));
 
     Executor->pushCommand(std::make_shared<GetReady>(), true);
 

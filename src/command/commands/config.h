@@ -32,6 +32,7 @@ enum class Configurable {
     PonderEnabled,
     BookEnabled,
     RepetitionBookAllowed,
+    NShogiExtensionLogEnabled,
 
     // Integer config.
     MaxPly,

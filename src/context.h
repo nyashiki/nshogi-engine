@@ -91,6 +91,8 @@ class Context {
     bool IsBookEnabled = false;
     std::string Bookpath = "";
 
+    bool IsNShogiExtensionLogEnabled = true;
+
     friend class ContextManager;
 };
 

@@ -37,6 +37,8 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
     setupWatchDog();
+
+    PLogger->setIsNShogiExtensionLogEnabled(PContext->isNShogiExtensionLogEnabled());
 }
 
 Manager::~Manager() {

@@ -61,6 +61,8 @@ class ContextManager {
 
     void setBookPath(const std::string& Path);
 
+    void setIsNShogiExtensionLogEnabled(bool Value);
+
  private:
     const std::unique_ptr<Context> Context_;
 };

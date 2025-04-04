@@ -92,5 +92,9 @@ bool Context::isRepetitionBookAllowed() const {
     return IsRepetitionBookAllowed;
 }
 
+bool Context::isNShogiExtensionLogEnabled() const {
+    return IsNShogiExtensionLogEnabled;
+}
+
 } // namespace engine
 } // namespace nshogi
