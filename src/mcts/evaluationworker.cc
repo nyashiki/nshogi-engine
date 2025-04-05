@@ -34,8 +34,6 @@
 
 #endif
 
-#include <chrono>
-
 #include <nshogi/ml/math.h>
 
 namespace nshogi {
