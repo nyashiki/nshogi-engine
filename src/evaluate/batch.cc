@@ -43,7 +43,7 @@ void Batch<Features>::doInference() {
     assert(Count > 0);
     assert(Count <= BatchSizeMax);
 
-    PEvaluator->computeBlocking(FeatureStacks.data(), Count);
+    PEvaluator->computeBlocking(Count);
 }
 
 template <typename Features>
@@ -51,7 +51,7 @@ void Batch<Features>::doInferenceNonBlocking() {
     assert(Count > 0);
     assert(Count <= BatchSizeMax);
 
-    PEvaluator->computeNonBlocking(FeatureStacks.data(), Count);
+    PEvaluator->computeNonBlocking(Count);
 }
 
 template <typename Features>

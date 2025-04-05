@@ -32,7 +32,7 @@ namespace mcts {
 template <typename Features>
 class EvaluationWorker : public worker::Worker {
  public:
-    EvaluationWorker(const Context*, std::size_t GPUId, std::size_t BatchSize,
+    EvaluationWorker(const Context*, std::size_t ThreadId, std::size_t GPUId, std::size_t BatchSize,
                      EvaluationQueue<Features>*, EvalCache*);
     ~EvaluationWorker();
 
@@ -50,6 +50,8 @@ class EvaluationWorker : public worker::Worker {
 
     const Context* PContext;
 
+    const std::size_t MyThreadId;
+
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;
     EvalCache* const ECache;
@@ -58,7 +60,6 @@ class EvaluationWorker : public worker::Worker {
     std::unique_ptr<evaluate::Evaluator> Evaluator;
     std::size_t GPUId_;
 
-    ml::FeatureBitboard* FeatureBitboards;
     float LegalPolicy[ml::MoveIndexMax];
 
     std::vector<core::Color> PendingSideToMoves;

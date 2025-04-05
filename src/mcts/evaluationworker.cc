@@ -10,12 +10,6 @@
 #include "evaluationworker.h"
 #include "../globalconfig.h"
 
-#ifdef CUDA_ENABLED
-
-#include <cuda_runtime.h>
-
-#endif
-
 #ifdef EXECUTOR_ZERO
 
 #include "../infer/zero.h"
@@ -50,12 +44,14 @@ namespace mcts {
 
 template <typename Features>
 EvaluationWorker<Features>::EvaluationWorker(const Context* C,
+                                             std::size_t ThreadId,
                                              std::size_t GPUId,
                                              std::size_t BatchSize,
                                              EvaluationQueue<Features>* EQ,
                                              EvalCache* EC)
     : worker::Worker(true)
     , PContext(C)
+    , MyThreadId(ThreadId)
     , BatchSizeMax(BatchSize)
     , EQueue(EQ)
     , ECache(EC)
@@ -71,21 +67,10 @@ EvaluationWorker<Features>::EvaluationWorker(const Context* C,
 
 template <typename Features>
 EvaluationWorker<Features>::~EvaluationWorker() {
-#ifdef CUDA_ENABLED
-    cudaFree(FeatureBitboards);
-#else
-    delete[] FeatureBitboards;
-#endif
 }
 
 template <typename Features>
 void EvaluationWorker<Features>::initializationTask() {
-#ifdef CUDA_ENABLED
-    cudaMallocHost(&FeatureBitboards, BatchSizeMax * Features::size() *
-                                          sizeof(ml::FeatureBitboard));
-#else
-    FeatureBitboards = new ml::FeatureBitboard[BatchSizeMax * Features::size()];
-#endif
 
 #if defined(EXECUTOR_ZERO)
     Infer = std::make_unique<infer::Zero>();
@@ -101,7 +86,7 @@ void EvaluationWorker<Features>::initializationTask() {
     Infer = std::move(TRT);
 #endif
     Evaluator =
-        std::make_unique<evaluate::Evaluator>(BatchSizeMax, Infer.get());
+        std::make_unique<evaluate::Evaluator>(MyThreadId, Features::size(), BatchSizeMax, Infer.get());
 }
 
 template <typename Features>
@@ -170,15 +155,15 @@ void EvaluationWorker<Features>::flattenFeatures(std::size_t BatchSize) {
 
     for (std::size_t I = 0; I < BatchSize; ++I) {
         std::memcpy(
-            static_cast<void*>((ml::FeatureBitboard*)(FeatureBitboards) +
-                               I * UnitSize),
-            PendingFeatures[I].data(), UnitSize * sizeof(ml::FeatureBitboard));
+            static_cast<void*>(Evaluator->getFeatureBitboards() + I * UnitSize),
+            PendingFeatures[I].data(),
+            UnitSize * sizeof(ml::FeatureBitboard));
     }
 }
 
 template <typename Features>
 void EvaluationWorker<Features>::doInference(std::size_t BatchSize) {
-    Evaluator->computeBlocking(FeatureBitboards, BatchSize);
+    Evaluator->computeBlocking(BatchSize);
 }
 
 template <typename Features>

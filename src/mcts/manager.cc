@@ -157,11 +157,13 @@ void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
 
 void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
                                      std::size_t NumEvaluationWorkersPerGPU) {
+    std::size_t ThreadId = 0;
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
             EvaluationWorkers.emplace_back(
                 std::make_unique<EvaluationWorker<global_config::FeatureType>>(
-                    PContext, I, BatchSize, EQueue.get(), ECache.get()));
+                    PContext, ThreadId, I, BatchSize, EQueue.get(), ECache.get()));
+            ++ThreadId;
         }
     }
 }

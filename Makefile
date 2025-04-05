@@ -50,6 +50,7 @@ SOURCES :=                              \
 	src/mcts/watchdog.cc                \
 	src/worker/worker.cc                \
 	src/evaluate/batch.cc               \
+    src/evaluate/evaluator.cc           \
     src/logger/logger.cc                \
 	src/protocol/usi.cc                 \
 	src/protocol/usilogger.cc           \
@@ -90,6 +91,11 @@ ifeq ($(CUDA_ENABLED), 1)
 	SOURCES += src/infer/trt.cc
 	CUDA_SOURCES := src/cuda/extractbit.cu src/cuda/math.cu
 	TEST_SOURCES += src/test/test_extractbit.cc src/test/test_cuda_math.cc
+endif
+
+ifeq ($(NUMA_ENABLED), 1)
+    CXX_FLAGS += -DNUMA_ENABLED
+    LINKS += -lnuma
 endif
 
 ifeq ($(EXECUTOR), zero)
