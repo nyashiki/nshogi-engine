@@ -49,7 +49,6 @@ SOURCES :=                              \
 	src/mcts/evalcache.cc               \
 	src/mcts/watchdog.cc                \
 	src/worker/worker.cc                \
-	src/evaluate/batch.cc               \
     src/evaluate/evaluator.cc           \
     src/logger/logger.cc                \
 	src/protocol/usi.cc                 \
