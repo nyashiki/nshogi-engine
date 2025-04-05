@@ -69,7 +69,6 @@ EvaluationWorker<Features>::~EvaluationWorker() {
 
 template <typename Features>
 void EvaluationWorker<Features>::initializationTask() {
-
 #if defined(EXECUTOR_ZERO)
     Infer = std::make_unique<infer::Zero>();
 #elif defined(EXECUTOR_NOTHING)
