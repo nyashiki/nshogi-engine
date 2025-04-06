@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 #include "../infer/infer.h"
 
@@ -63,6 +64,9 @@ class Evaluator {
         return PInfer;
     }
 
+    void* allocateMemoryByNumaIfAvailable(std::size_t Size) const;
+    void freeMemory(void** Memory, std::size_t Size) const;
+
  private:
     ml::FeatureBitboard* FeatureBitboards;
     float* Policy;
@@ -70,9 +74,12 @@ class Evaluator {
     float* DrawRate;
 
     infer::Infer* const PInfer;
-    std::size_t MyFeatureSize;
-    std::size_t BatchSizeMax;
-    bool NumaUsed;
+    const std::size_t MyFeatureSize;
+    const std::size_t BatchSizeMax;
+    [[maybe_unused]] bool NumaUsed;
+
+    std::vector<int> AvailableNumaNodes;
+    [[maybe_unused]] int MyNumaId;
 };
 
 } // namespace evaluate

@@ -28,40 +28,67 @@ namespace nshogi {
 namespace engine {
 namespace evaluate {
 
-Evaluator::Evaluator(std::size_t ThreadId, std::size_t FeatureSize, std::size_t BatchSize, infer::Infer* In)
+Evaluator::Evaluator([[maybe_unused]] std::size_t ThreadId, std::size_t FeatureSize, std::size_t BatchSize, infer::Infer* In)
     : PInfer(In)
     , MyFeatureSize(FeatureSize)
     , BatchSizeMax(BatchSize)
-    , NumaUsed(false) {
+    , NumaUsed(false)
+    , MyNumaId(0) {
 #ifdef NUMA_ENABLED
     const int NumaAvailable = numa_available();
     if (NumaAvailable < 0) {
         std::cout << "Warning: numa is enabled by numa_available() returns " << NumaAvailable << std::endl;
-        FeatureBitboards = new ml::FeatureBitboard[BatchSizeMax * MyFeatureSize];
-        Policy = new float[ml::MoveIndexMax * BatchSizeMax];
-        WinRate = new float[BatchSizeMax];
-        DrawRate = new float[BatchSizeMax];
     } else {
-        const int NumaMaxNode = numa_max_node();
-        const int BindId = (int)ThreadId % (NumaMaxNode + 1);
+        // Fetch available NUMA nodes.
+        struct bitmask *NumaNodes = numa_all_nodes_ptr;
+        for (unsigned int I = 0; I < NumaNodes->size; ++I) {
+            if (numa_bitmask_isbitset(NumaNodes, I)) {
+                AvailableNumaNodes.push_back((int)I);
+            }
+        }
 
-        numa_run_on_node(BindId);
+        // Specify my numa node.
+        MyNumaId = AvailableNumaNodes[ThreadId % AvailableNumaNodes.size()];
 
-        FeatureBitboards = static_cast<ml::FeatureBitboard*>(numa_alloc_local(BatchSizeMax * MyFeatureSize * sizeof(ml::FeatureBitboard)));
-        Policy = static_cast<float*>(numa_alloc_local(ml::MoveIndexMax * BatchSizeMax * sizeof(float)));
-        WinRate = static_cast<float*>(numa_alloc_local(BatchSizeMax * sizeof(float)));
-        DrawRate = static_cast<float*>(numa_alloc_local(BatchSizeMax * sizeof(float)));
+        // Fetch thread indices associated with my numa node.
+        struct bitmask *CPUMask = numa_allocate_cpumask();
+        numa_node_to_cpus(MyNumaId, CPUMask);
+
+        std::cout << "ThreadId: " << ThreadId << ", NumaId: " << MyNumaId << ", ";
+
+        // Set affinity.
+        const std::size_t CPUSetSize = CPU_ALLOC_SIZE(CPUMask->size);
+        cpu_set_t *CPUSet = CPU_ALLOC(CPUMask->size);
+        CPU_ZERO_S(CPUSetSize, CPUSet);
+
+        std::cout << "CPUMask: ";
+        for (unsigned int I = 0; I < CPUMask->size; ++I) {
+            if (numa_bitmask_isbitset(CPUMask, I)) {
+                CPU_SET_S(I, CPUSetSize, CPUSet);
+                std::cout << I << ", ";
+            }
+        }
+        std::cout << std::endl;
+        sched_setaffinity(0, CPUSetSize, CPUSet);
+
+        // Release the resources.
+        CPU_FREE(CPUSet);
+        numa_free_cpumask(CPUMask);
 
         NumaUsed = true;
     }
-#else
-    FeatureBitboards = new ml::FeatureBitboard[BatchSizeMax * MyFeatureSize];
-    Policy = new float[ml::MoveIndexMax * BatchSizeMax];
-    WinRate = new float[BatchSizeMax];
-    DrawRate = new float[BatchSizeMax];
 #endif
+    FeatureBitboards = static_cast<ml::FeatureBitboard*>(allocateMemoryByNumaIfAvailable(
+                BatchSizeMax * MyFeatureSize * sizeof(ml::FeatureBitboard)));
+    Policy = static_cast<float*>(allocateMemoryByNumaIfAvailable(
+                ml::MoveIndexMax * BatchSizeMax * sizeof(float)));
+    WinRate = static_cast<float*>(allocateMemoryByNumaIfAvailable(
+                BatchSizeMax * sizeof(float)));
+    DrawRate = static_cast<float*>(allocateMemoryByNumaIfAvailable(
+                BatchSizeMax * sizeof(float)));
 
 #ifdef CUDA_ENABLED
+    // Pin the memory.
     cudaHostRegister(FeatureBitboards, BatchSizeMax * MyFeatureSize * sizeof(ml::FeatureBitboard), cudaHostRegisterDefault);
     cudaHostRegister(Policy, ml::MoveIndexMax * BatchSizeMax * sizeof(float), cudaHostRegisterDefault);
     cudaHostRegister(WinRate, BatchSizeMax * sizeof(float), cudaHostRegisterDefault);
@@ -77,26 +104,33 @@ Evaluator::~Evaluator() {
     cudaHostUnregister(DrawRate);
 #endif
 
-#ifdef NUMA_ENABLED
-    if (NumaUsed) {
-        numa_free(FeatureBitboards, BatchSizeMax * MyFeatureSize * sizeof(ml::FeatureBitboard));
-        numa_free(Policy, ml::MoveIndexMax * BatchSizeMax * sizeof(float));
-        numa_free(WinRate, BatchSizeMax * sizeof(float));
-        numa_free(DrawRate, BatchSizeMax * sizeof(float));
-    } else {
-        delete[] FeatureBitboards;
-        delete[] Policy;
-        delete[] WinRate;
-        delete[] DrawRate;
-    }
-#else
-    delete[] FeatureBitboards;
-    delete[] Policy;
-    delete[] WinRate;
-    delete[] DrawRate;
-#endif
+    freeMemory(reinterpret_cast<void**>(&FeatureBitboards), BatchSizeMax * MyFeatureSize * sizeof(ml::FeatureBitboard));
+    freeMemory(reinterpret_cast<void**>(&Policy), ml::MoveIndexMax * BatchSizeMax * sizeof(float));
+    freeMemory(reinterpret_cast<void**>(&WinRate), BatchSizeMax * sizeof(float));
+    freeMemory(reinterpret_cast<void**>(&DrawRate), BatchSizeMax * sizeof(float));
 }
 
+void* Evaluator::allocateMemoryByNumaIfAvailable(std::size_t Size) const {
+#ifdef NUMA_ENABLED
+    if (NumaUsed) {
+        void* Memory = numa_alloc_onnode(Size, MyNumaId);
+        return Memory;
+    }
+#endif
+    void* Memory = std::malloc(Size);
+    return Memory;
+}
+
+void Evaluator::freeMemory(void** Memory, [[maybe_unused]] std::size_t Size) const {
+#ifdef NUMA_ENABLED
+    if (NumaUsed) {
+        numa_free(*Memory, Size);
+        *Memory = nullptr;
+        return;
+    }
+#endif
+    std::free(*Memory);
+}
 
 } // namespace evaluate
 } // namespace engine

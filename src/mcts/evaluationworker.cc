@@ -54,17 +54,28 @@ EvaluationWorker<Features>::EvaluationWorker(const Context* C,
     , EQueue(EQ)
     , ECache(EC)
     , GPUId_(GPUId)
+    , BatchCount(0)
+    , PendingSideToMoves(nullptr)
+    , PendingNodes(nullptr)
+    , PendingHashes(nullptr)
     , SequentialSkip(0) {
-    PendingSideToMoves.reserve(BatchSize);
-    PendingNodes.reserve(BatchSize);
-    PendingFeatures.reserve(BatchSize);
-    PendingHashes.reserve(BatchSize);
 
     spawnThread();
 }
 
 template <typename Features>
 EvaluationWorker<Features>::~EvaluationWorker() {
+    if (Evaluator != nullptr) {
+        Evaluator->freeMemory(
+                reinterpret_cast<void**>(&PendingSideToMoves),
+                BatchSizeMax * sizeof(core::Color));
+        Evaluator->freeMemory(
+                reinterpret_cast<void**>(&PendingNodes),
+                BatchSizeMax * sizeof(Node*));
+        Evaluator->freeMemory(
+                reinterpret_cast<void**>(&PendingHashes),
+                BatchSizeMax * sizeof(uint64_t));
+    }
 }
 
 template <typename Features>
@@ -82,16 +93,23 @@ void EvaluationWorker<Features>::initializationTask() {
     TRT->resetGPU();
     Infer = std::move(TRT);
 #endif
+
     Evaluator =
         std::make_unique<evaluate::Evaluator>(MyThreadId, Features::size(), BatchSizeMax, Infer.get());
+
+    PendingSideToMoves = static_cast<core::Color*>(Evaluator->allocateMemoryByNumaIfAvailable(
+            BatchSizeMax * sizeof(core::Color)));
+    PendingNodes = static_cast<Node**>(Evaluator->allocateMemoryByNumaIfAvailable(
+            BatchSizeMax * sizeof(Node*)));
+    PendingHashes = static_cast<uint64_t*>(Evaluator->allocateMemoryByNumaIfAvailable(
+            BatchSizeMax * sizeof(uint64_t)));
 }
 
 template <typename Features>
 bool EvaluationWorker<Features>::doTask() {
     getBatch();
-    const std::size_t BatchSize = PendingSideToMoves.size();
 
-    if (BatchSize == 0) {
+    if (BatchCount == 0) {
         std::this_thread::yield();
         // As the batch size is zero, there is no tasks to do, so
         // return false to notify this thread can be stopped.
@@ -99,21 +117,17 @@ bool EvaluationWorker<Features>::doTask() {
     }
 
     if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD &&
-        BatchSize < BatchSizeMax / 2) {
+        BatchCount < BatchSizeMax / 2) {
         ++SequentialSkip;
         std::this_thread::yield();
         // There are tasks to do so return true not to stop this worker.
         return true;
     }
 
-    flattenFeatures(BatchSize);
-    doInference(BatchSize);
-    feedResults(BatchSize);
+    doInference();
+    feedResults();
 
-    PendingNodes.clear();
-    PendingSideToMoves.clear();
-    PendingFeatures.clear();
-    PendingHashes.clear();
+    BatchCount = 0;
     SequentialSkip = 0;
 
     // There may be tasks (a next batch) to do so return true not to stop this
@@ -123,49 +137,44 @@ bool EvaluationWorker<Features>::doTask() {
 
 template <typename Features>
 void EvaluationWorker<Features>::getBatch() {
-    if (PendingSideToMoves.size() >= BatchSizeMax) {
+    if (BatchCount >= BatchSizeMax) {
         return;
     }
 
-    auto Elements = EQueue->get(BatchSizeMax - PendingSideToMoves.size());
+    auto Elements = EQueue->get(BatchSizeMax - BatchCount);
 
     auto SideToMoves = std::move(std::get<0>(Elements));
-    auto Nodes = std::move(std::get<1>(Elements));
-    auto FeatureStacks = std::move(std::get<2>(Elements));
-    auto Hashes = std::move(std::get<3>(Elements));
 
     if (SideToMoves.size() == 0) {
         return;
     }
 
-    std::move(SideToMoves.begin(), SideToMoves.end(),
-              std::back_inserter(PendingSideToMoves));
-    std::move(Nodes.begin(), Nodes.end(), std::back_inserter(PendingNodes));
-    std::move(FeatureStacks.begin(), FeatureStacks.end(),
-              std::back_inserter(PendingFeatures));
-    std::move(Hashes.begin(), Hashes.end(), std::back_inserter(PendingHashes));
-}
+    auto Nodes = std::move(std::get<1>(Elements));
+    auto FeatureStacks = std::move(std::get<2>(Elements));
+    auto Hashes = std::move(std::get<3>(Elements));
 
-template <typename Features>
-void EvaluationWorker<Features>::flattenFeatures(std::size_t BatchSize) {
-    const std::size_t UnitSize = PendingFeatures[0].size();
+    for (std::size_t I = 0; I < SideToMoves.size(); ++I) {
+        PendingSideToMoves[BatchCount] = SideToMoves[I];
+        PendingNodes[BatchCount] = Nodes[I];
+        PendingHashes[BatchCount] = Hashes[I];
 
-    for (std::size_t I = 0; I < BatchSize; ++I) {
         std::memcpy(
-            static_cast<void*>(Evaluator->getFeatureBitboards() + I * UnitSize),
-            PendingFeatures[I].data(),
-            UnitSize * sizeof(ml::FeatureBitboard));
+            static_cast<void*>(Evaluator->getFeatureBitboards() + BatchCount * Features::size()),
+            FeatureStacks[I].data(),
+            Features::size() * sizeof(ml::FeatureBitboard));
+
+        ++BatchCount;
     }
 }
 
 template <typename Features>
-void EvaluationWorker<Features>::doInference(std::size_t BatchSize) {
-    Evaluator->computeBlocking(BatchSize);
+void EvaluationWorker<Features>::doInference() {
+    Evaluator->computeBlocking(BatchCount);
 }
 
 template <typename Features>
-void EvaluationWorker<Features>::feedResults(std::size_t BatchSize) {
-    for (std::size_t I = 0; I < BatchSize; ++I) {
+void EvaluationWorker<Features>::feedResults() {
+    for (std::size_t I = 0; I < BatchCount; ++I) {
         const float* Policy =
             Evaluator->getPolicy() + 27 * core::NumSquares * I;
         const float WinRate = *(Evaluator->getWinRate() + I);

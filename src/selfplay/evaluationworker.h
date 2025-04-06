@@ -22,7 +22,7 @@ namespace selfplay {
 
 class EvaluationWorker : public worker::Worker {
  public:
-    EvaluationWorker(std::size_t GPUId, std::size_t, const char* WeightPath,
+    EvaluationWorker(std::size_t ThreadId, std::size_t GPUId, std::size_t, const char* WeightPath,
                      FrameQueue*, FrameQueue*, SelfplayInfo*);
     ~EvaluationWorker();
 
@@ -30,7 +30,7 @@ class EvaluationWorker : public worker::Worker {
     void initializationTask() override;
     bool doTask() override;
 
-    void prepareInfer(std::size_t, const char* WeightPath);
+    void prepareInfer(std::size_t ThreadId, std::size_t GPUId, const char* WeightPath);
     void allocate();
 
     std::unique_ptr<infer::Infer> Infer;

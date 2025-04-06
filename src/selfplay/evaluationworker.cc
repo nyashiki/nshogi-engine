@@ -63,7 +63,8 @@ bool isnan_(double X) {
 
 } // namespace
 
-EvaluationWorker::EvaluationWorker([[maybe_unused]] std::size_t GPUId,
+EvaluationWorker::EvaluationWorker(std::size_t ThreadId,
+                                   [[maybe_unused]] std::size_t GPUId,
                                    std::size_t BSize,
                                    [[maybe_unused]] const char* WeightPath,
                                    FrameQueue* EQ, FrameQueue* SQ,
@@ -74,7 +75,7 @@ EvaluationWorker::EvaluationWorker([[maybe_unused]] std::size_t GPUId,
     , SearchQueue(SQ)
     , SInfo(SI) {
 
-    prepareInfer(GPUId, WeightPath);
+    prepareInfer(ThreadId, GPUId, WeightPath);
     allocate();
 
     spawnThread();
@@ -119,7 +120,7 @@ bool EvaluationWorker::doTask() {
             *Tasks.at(I)->getState(), *Tasks.at(I)->getStateConfig());
     }
 
-    Evaluator->computeBlocking(FeatureBitboards, Tasks.size());
+    Evaluator->computeBlocking(Tasks.size());
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         assert(!isnan_(Evaluator->getWinRate()[I]));
@@ -138,7 +139,8 @@ bool EvaluationWorker::doTask() {
     return false;
 }
 
-void EvaluationWorker::prepareInfer([[maybe_unused]] std::size_t GPUId,
+void EvaluationWorker::prepareInfer(std::size_t ThreadId,
+                                    [[maybe_unused]] std::size_t GPUId,
                                     [[maybe_unused]] const char* WeightPath) {
 #if defined(EXECUTOR_ZERO)
     Infer = std::make_unique<infer::Zero>();
@@ -152,7 +154,11 @@ void EvaluationWorker::prepareInfer([[maybe_unused]] std::size_t GPUId,
     TRT->load(WeightPath, true);
     Infer = std::move(TRT);
 #endif
-    Evaluator = std::make_unique<evaluate::Evaluator>(BatchSize, Infer.get());
+    Evaluator = std::make_unique<evaluate::Evaluator>(
+            ThreadId,
+            evaluate::preset::CustomFeaturesV1::size(),
+            BatchSize,
+            Infer.get());
 }
 
 void EvaluationWorker::allocate() {

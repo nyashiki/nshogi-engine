@@ -42,9 +42,8 @@ class EvaluationWorker : public worker::Worker {
     void initializationTask() override;
     bool doTask() override;
     void getBatch();
-    void flattenFeatures(std::size_t BatchSize);
-    void doInference(std::size_t BatchSize);
-    void feedResults(std::size_t BatchSize);
+    void doInference();
+    void feedResults();
     void feedResult(core::Color, Node*, const float* Policy, float WinRate,
                     float DrawRate, uint64_t Hash);
 
@@ -62,10 +61,10 @@ class EvaluationWorker : public worker::Worker {
 
     float LegalPolicy[ml::MoveIndexMax];
 
-    std::vector<core::Color> PendingSideToMoves;
-    std::vector<Node*> PendingNodes;
-    std::vector<Features> PendingFeatures;
-    std::vector<uint64_t> PendingHashes;
+    std::size_t BatchCount;
+    core::Color* PendingSideToMoves;
+    Node** PendingNodes;
+    uint64_t* PendingHashes;
     std::size_t SequentialSkip;
 };
 
