@@ -13,6 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: install numa
+      if: runner.os == 'Linux'
+      run: sudo apt-get install libnuma-dev -y
     - name: install googletest
       if: runner.os == 'Linux'
       run: sudo apt-get install libgtest-dev -y

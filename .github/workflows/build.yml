@@ -13,6 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: install numa
+      if: runner.os == 'Linux'
+      run: sudo apt-get install libnuma-dev -y
     - name: install nshogi
       run: |
         git clone https://github.com/nyashiki/nshogi.git
