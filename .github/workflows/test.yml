@@ -32,4 +32,4 @@ jobs:
       run: sudo ldconfig
     - name: run test
       working-directory: ${{ env.working-directory }}
-      run: make EXECUTOR=random runtest
+      run: make NUMA_ENABLED=1 EXECUTOR=random runtest

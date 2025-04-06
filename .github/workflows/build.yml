@@ -19,4 +19,4 @@ jobs:
         cd nshogi && sudo make install
     - name: make engine
       working-directory: ${{ env.working-directory }}
-      run: make EXECUTOR=random engine
+      run: make NUMA_ENABLED=1 EXECUTOR=random engine
