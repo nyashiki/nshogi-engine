@@ -130,6 +130,7 @@ void Evaluator::freeMemory(void** Memory, [[maybe_unused]] std::size_t Size) con
     }
 #endif
     std::free(*Memory);
+    *Memory = nullptr;
 }
 
 } // namespace evaluate
