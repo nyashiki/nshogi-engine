@@ -93,8 +93,10 @@ ifeq ($(CUDA_ENABLED), 1)
 endif
 
 ifeq ($(NUMA_ENABLED), 1)
-    CXX_FLAGS += -DNUMA_ENABLED
-    LINKS += -lnuma
+    ifneq ($(shell uname), Darwin)
+        CXX_FLAGS += -DNUMA_ENABLED
+        LINKS += -lnuma
+    endif
 endif
 
 ifeq ($(EXECUTOR), zero)
