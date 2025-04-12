@@ -17,7 +17,7 @@
 
 ///
 /// @fn getRandom
-/// @brief Samppling a random number in [0, 1).
+/// @brief Sampling a random number in [0, 1).
 /// @return A random number in [0, 1).
 ///
 static double getRandom() {
