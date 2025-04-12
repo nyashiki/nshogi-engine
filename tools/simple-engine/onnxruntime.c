@@ -11,6 +11,10 @@
 
 #include <math.h>
 
+///
+/// @fn sigmoid
+/// @brief Do sigmoid computation.
+///
 static float sigmoid(float x) {
     return 1.0 / (1.0 + expf(-x));
 }
@@ -52,6 +56,19 @@ onnxruntime_t* createOnnxRuntimeInstance(const char* model_path) {
     onnxruntime->policy = (float*)malloc(1 * 27 * 9 * 9 * sizeof(float));
     onnxruntime->value = (float*)malloc(1 * sizeof(float));
     onnxruntime->draw = (float*)malloc(1 * sizeof(float));
+
+    onnxruntime->input_tensor = NULL;
+    const int64_t dims[4] = {1, 93, 9, 9};
+    size_t num_dims = sizeof(dims) / sizeof(dims[0]);
+    onnxruntime->ort->CreateTensorWithDataAsOrtValue(
+            onnxruntime->memory_info,
+            onnxruntime->input,
+            1 * 93 * 9 * 9 * sizeof(float),
+            dims,
+            num_dims,
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
+            &onnxruntime->input_tensor);
+
     return onnxruntime;
 }
 
@@ -74,19 +91,6 @@ void runSession(onnxruntime_t* onnxruntime) {
 
     const char* input_names[1] = {"input"};
     const char* output_names[3] = {"policy", "value", "draw"};
-
-    onnxruntime->input_tensor = NULL;
-
-    const int64_t dims[4] = {1, 93, 9, 9};
-    size_t num_dims = sizeof(dims) / sizeof(dims[0]);
-    onnxruntime->ort->CreateTensorWithDataAsOrtValue(
-            onnxruntime->memory_info,
-            onnxruntime->input,
-            1 * 93 * 9 * 9 * sizeof(float),
-            dims,
-            num_dims,
-            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
-            &onnxruntime->input_tensor);
 
     onnxruntime->ort->Run(
             onnxruntime->session,
@@ -112,5 +116,4 @@ void runSession(onnxruntime_t* onnxruntime) {
     onnxruntime->ort->ReleaseValue(output_tensors[0]);
     onnxruntime->ort->ReleaseValue(output_tensors[1]);
     onnxruntime->ort->ReleaseValue(output_tensors[2]);
-    onnxruntime->ort->ReleaseValue(onnxruntime->input_tensor);
 }

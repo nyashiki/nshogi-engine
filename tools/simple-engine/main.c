@@ -25,12 +25,20 @@ int main(int argc, char* argv[]) {
     char* line = NULL;
 
     nshogi_state_t* state = NULL;
-    nshogi_state_config_t* state_config = state_api->createStateConfig();
 
+    nshogi_state_config_t* state_config = state_api->createStateConfig();
+    state_api->setMaxPly(state_config, 512);
+    state_api->setBlackDrawValue(state_config, 0.48f);
+    state_api->setWhiteDrawValue(state_config, 0.52f);
+
+    // Main USI loop.
     while ((read = getline(&line, &len, stdin)) != -1) {
+        // Strip the last new-line charactor if any.
         if (read > 0 && line[read - 1] == '\n') {
             line[read - 1] = '\0';
         }
+
+        // Parse the usi command.
         if (strncmp(line, "usi", 3) == 0) {
             printf("id name simple-engine\n");
             printf("id author nyashiki\n");
@@ -42,25 +50,32 @@ int main(int argc, char* argv[]) {
             printf("readyok\n");
             fflush(stdout);
         } else if (strncmp(line, "usinewgame", 10) == 0) {
-
+            // Nothing to do.
         } else if (strncmp(line, "position", 8) == 0) {
             // Set the state.
             if (state != NULL) {
                 state_api->destroyState(state);
             }
             if (strncmp(line + 9, "sfen", 4) == 0) {
-                printf("DEBUG SFEN:%s\n", line + 14);
                 state = io_api->createStateFromSfen(line + 14);
             } else {
                 state = io_api->createStateFromSfen(line + 9);
             }
         } else if (strncmp(line, "go", 2) == 0) {
-            nshogi_move_t best_move = startSearch(state, state_config, 800, onnx_runtime);
+            // If the number of plies of the state is less than 30,
+            // set the temperature to 10.0. Otherwise, set it to 0.0 (greedy).
+            float temperature = state_api->getPly(state) < 30 ? 10.0 : 0.0;
+
+            // Start thinking.
+            nshogi_move_t best_move = startSearch(state, state_config, 800, onnx_runtime, temperature);
+
+            // Print the best move.
             char* sfen = io_api->moveToSfen(best_move);
             printf("bestmove %s\n", sfen);
-            fflush(stdout);
             free(sfen);
+            fflush(stdout);
         } else if (strncmp(line, "debug", 5) == 0) {
+            // Print all legal moves.
             nshogi_move_t moves[600];
             int move_count = state_api->generateMoves(state, 1, moves);
             printf("move_count: %d\n", move_count);
