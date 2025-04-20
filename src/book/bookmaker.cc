@@ -35,8 +35,6 @@ void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const s
         return;
     }
 
-    Manager->setIsThoughtLogEnabled(true);
-
     core::StateConfig Config;
     Config.MaxPly = 320;
     Config.Rule = core::ER_Declare27;
@@ -116,7 +114,7 @@ void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const s
                 PolicyMax = std::max(PolicyMax, Policy[I].second);
             }
 
-            BookEntry BE(Seed.huffmanCode(), BestMove, TL->WinRate, TL->DrawRate);
+            BookEntry BE(Seed.huffmanCode(), core::Move16(BestMove), TL->WinRate, TL->DrawRate);
             io::book::writeBookEntry(Ofs, BE);
             {
                 std::lock_guard<std::mutex> Lock(Mtx);
@@ -231,7 +229,7 @@ bool BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanC
             ThisEntry.setDrawRate(NewDrawRate);
             Updated = true;
         } else if (BestValue > ThisValue) {
-            ThisEntry.setBestMove(BestMove);
+            ThisEntry.setBestMove(core::Move16(BestMove));
             ThisEntry.setWinRate(NewWinRate);
             ThisEntry.setDrawRate(NewDrawRate);
             Updated = true;

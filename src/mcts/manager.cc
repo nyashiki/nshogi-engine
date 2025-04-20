@@ -268,8 +268,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
             SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
             SearchWorker->start();
         }
-        for (const auto& EvaluateWorker : EvaluateWorkers) {
-            EvaluateWorker->start();
+        for (const auto& EvaluationWorker : EvaluationWorkers) {
+            EvaluationWorker->start();
         }
         for (const auto& CheckmateWorker : CheckmateWorkers) {
             CheckmateWorker->start();
