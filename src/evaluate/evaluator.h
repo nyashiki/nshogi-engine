@@ -25,15 +25,18 @@ namespace evaluate {
 
 class Evaluator {
  public:
-    Evaluator(std::size_t ThreadId, std::size_t FeatureSize, std::size_t BatchSize, infer::Infer* In);
+    Evaluator(std::size_t ThreadId, std::size_t FeatureSize,
+              std::size_t BatchSize, infer::Infer* In);
     ~Evaluator();
 
     void computeNonBlocking(std::size_t BatchSize) {
-        PInfer->computeNonBlocking(FeatureBitboards, BatchSize, Policy, WinRate, DrawRate);
+        PInfer->computeNonBlocking(FeatureBitboards, BatchSize, Policy, WinRate,
+                                   DrawRate);
     }
 
     void computeBlocking(std::size_t BatchSize) {
-        PInfer->computeBlocking(FeatureBitboards, BatchSize, Policy, WinRate, DrawRate);
+        PInfer->computeBlocking(FeatureBitboards, BatchSize, Policy, WinRate,
+                                DrawRate);
     }
 
     void await() {

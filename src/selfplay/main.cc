@@ -149,9 +149,8 @@ int main(int Argc, char* Argv[]) {
     for (std::size_t I = 0; I < NUM_GPUS; ++I) {
         for (std::size_t J = 0; J < NUM_EVALUATION_WORKERS_PER_GPU; ++J) {
             EvaluationWorkers.emplace_back(std::make_unique<EvaluationWorker>(
-                EvaluationWorkers.size(),
-                I, BATCH_SIZE, WEIGHT_PATH.c_str(), EvaluationQueue.get(),
-                SearchQueue.get(), SInfo.get()));
+                EvaluationWorkers.size(), I, BATCH_SIZE, WEIGHT_PATH.c_str(),
+                EvaluationQueue.get(), SearchQueue.get(), SInfo.get()));
         }
     }
 

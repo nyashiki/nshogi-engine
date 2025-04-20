@@ -41,12 +41,9 @@ namespace engine {
 namespace mcts {
 
 template <typename Features>
-EvaluationWorker<Features>::EvaluationWorker(const Context* C,
-                                             std::size_t ThreadId,
-                                             std::size_t GPUId,
-                                             std::size_t BatchSize,
-                                             EvaluationQueue<Features>* EQ,
-                                             EvalCache* EC)
+EvaluationWorker<Features>::EvaluationWorker(
+    const Context* C, std::size_t ThreadId, std::size_t GPUId,
+    std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
     : worker::Worker(true)
     , PContext(C)
     , MyThreadId(ThreadId)
@@ -66,15 +63,12 @@ EvaluationWorker<Features>::EvaluationWorker(const Context* C,
 template <typename Features>
 EvaluationWorker<Features>::~EvaluationWorker() {
     if (Evaluator != nullptr) {
-        Evaluator->freeMemory(
-                reinterpret_cast<void**>(&PendingSideToMoves),
-                BatchSizeMax * sizeof(core::Color));
-        Evaluator->freeMemory(
-                reinterpret_cast<void**>(&PendingNodes),
-                BatchSizeMax * sizeof(Node*));
-        Evaluator->freeMemory(
-                reinterpret_cast<void**>(&PendingHashes),
-                BatchSizeMax * sizeof(uint64_t));
+        Evaluator->freeMemory(reinterpret_cast<void**>(&PendingSideToMoves),
+                              BatchSizeMax * sizeof(core::Color));
+        Evaluator->freeMemory(reinterpret_cast<void**>(&PendingNodes),
+                              BatchSizeMax * sizeof(Node*));
+        Evaluator->freeMemory(reinterpret_cast<void**>(&PendingHashes),
+                              BatchSizeMax * sizeof(uint64_t));
     }
 }
 
@@ -94,14 +88,17 @@ void EvaluationWorker<Features>::initializationTask() {
     Infer = std::move(TRT);
 #endif
 
-    Evaluator =
-        std::make_unique<evaluate::Evaluator>(MyThreadId, Features::size(), BatchSizeMax, Infer.get());
+    Evaluator = std::make_unique<evaluate::Evaluator>(
+        MyThreadId, Features::size(), BatchSizeMax, Infer.get());
 
-    PendingSideToMoves = static_cast<core::Color*>(Evaluator->allocateMemoryByNumaIfAvailable(
+    PendingSideToMoves =
+        static_cast<core::Color*>(Evaluator->allocateMemoryByNumaIfAvailable(
             BatchSizeMax * sizeof(core::Color)));
-    PendingNodes = static_cast<Node**>(Evaluator->allocateMemoryByNumaIfAvailable(
+    PendingNodes =
+        static_cast<Node**>(Evaluator->allocateMemoryByNumaIfAvailable(
             BatchSizeMax * sizeof(Node*)));
-    PendingHashes = static_cast<uint64_t*>(Evaluator->allocateMemoryByNumaIfAvailable(
+    PendingHashes =
+        static_cast<uint64_t*>(Evaluator->allocateMemoryByNumaIfAvailable(
             BatchSizeMax * sizeof(uint64_t)));
 }
 
@@ -158,10 +155,10 @@ void EvaluationWorker<Features>::getBatch() {
         PendingNodes[BatchCount] = Nodes[I];
         PendingHashes[BatchCount] = Hashes[I];
 
-        std::memcpy(
-            static_cast<void*>(Evaluator->getFeatureBitboards() + BatchCount * Features::size()),
-            FeatureStacks[I].data(),
-            Features::size() * sizeof(ml::FeatureBitboard));
+        std::memcpy(static_cast<void*>(Evaluator->getFeatureBitboards() +
+                                       BatchCount * Features::size()),
+                    FeatureStacks[I].data(),
+                    Features::size() * sizeof(ml::FeatureBitboard));
 
         ++BatchCount;
     }

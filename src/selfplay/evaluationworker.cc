@@ -155,10 +155,8 @@ void EvaluationWorker::prepareInfer(std::size_t ThreadId,
     Infer = std::move(TRT);
 #endif
     Evaluator = std::make_unique<evaluate::Evaluator>(
-            ThreadId,
-            evaluate::preset::CustomFeaturesV1::size(),
-            BatchSize,
-            Infer.get());
+        ThreadId, evaluate::preset::CustomFeaturesV1::size(), BatchSize,
+        Infer.get());
 }
 
 void EvaluationWorker::allocate() {
