@@ -13,10 +13,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: install numa
+      if: runner.os == 'Linux'
+      run: sudo apt-get install libnuma-dev -y
     - name: install nshogi
       run: |
         git clone https://github.com/nyashiki/nshogi.git
         cd nshogi && sudo make install
     - name: make engine
       working-directory: ${{ env.working-directory }}
-      run: make EXECUTOR=random engine
+      run: make NUMA_ENABLED=1 EXECUTOR=random engine

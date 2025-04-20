@@ -12,17 +12,12 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 #include "../infer/infer.h"
 
 #include <nshogi/ml/common.h>
 #include <nshogi/ml/featurebitboard.h>
-
-#ifdef CUDA_ENABLED
-
-#include <cuda_runtime.h>
-
-#endif
 
 namespace nshogi {
 namespace engine {
@@ -30,40 +25,18 @@ namespace evaluate {
 
 class Evaluator {
  public:
-    Evaluator(std::size_t BatchSize, infer::Infer* In)
-        : PInfer(In) {
-#ifdef CUDA_ENABLED
-        cudaMallocHost(&Policy, ml::MoveIndexMax * BatchSize * sizeof(float));
-        cudaMallocHost(&WinRate, BatchSize * sizeof(float));
-        cudaMallocHost(&DrawRate, BatchSize * sizeof(float));
-#else
-        Policy = new float[ml::MoveIndexMax * BatchSize];
-        WinRate = new float[BatchSize];
-        DrawRate = new float[BatchSize];
-#endif
-    }
+    Evaluator(std::size_t ThreadId, std::size_t FeatureSize,
+              std::size_t BatchSize, infer::Infer* In);
+    ~Evaluator();
 
-    ~Evaluator() {
-#ifdef CUDA_ENABLED
-        cudaFree(Policy);
-        cudaFree(WinRate);
-        cudaFree(DrawRate);
-#else
-        delete[] Policy;
-        delete[] WinRate;
-        delete[] DrawRate;
-#endif
-    }
-
-    void computeNonBlocking(const ml::FeatureBitboard* Features,
-                            std::size_t BatchSize) {
-        PInfer->computeNonBlocking(Features, BatchSize, Policy, WinRate,
+    void computeNonBlocking(std::size_t BatchSize) {
+        PInfer->computeNonBlocking(FeatureBitboards, BatchSize, Policy, WinRate,
                                    DrawRate);
     }
 
-    void computeBlocking(const ml::FeatureBitboard* Features,
-                         std::size_t BatchSize) {
-        PInfer->computeBlocking(Features, BatchSize, Policy, WinRate, DrawRate);
+    void computeBlocking(std::size_t BatchSize) {
+        PInfer->computeBlocking(FeatureBitboards, BatchSize, Policy, WinRate,
+                                DrawRate);
     }
 
     void await() {
@@ -72,6 +45,10 @@ class Evaluator {
 
     bool isComputing() {
         return PInfer->isComputing();
+    }
+
+    inline ml::FeatureBitboard* getFeatureBitboards() {
+        return FeatureBitboards;
     }
 
     inline const float* getPolicy() const {
@@ -90,12 +67,22 @@ class Evaluator {
         return PInfer;
     }
 
+    void* allocateMemoryByNumaIfAvailable(std::size_t Size) const;
+    void freeMemory(void** Memory, std::size_t Size) const;
+
  private:
+    ml::FeatureBitboard* FeatureBitboards;
     float* Policy;
     float* WinRate;
     float* DrawRate;
 
     infer::Infer* const PInfer;
+    const std::size_t MyFeatureSize;
+    const std::size_t BatchSizeMax;
+    [[maybe_unused]] bool NumaUsed;
+
+    std::vector<int> AvailableNumaNodes;
+    [[maybe_unused]] int MyNumaId;
 };
 
 } // namespace evaluate

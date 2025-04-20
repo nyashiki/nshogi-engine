@@ -32,8 +32,9 @@ namespace mcts {
 template <typename Features>
 class EvaluationWorker : public worker::Worker {
  public:
-    EvaluationWorker(const Context*, std::size_t GPUId, std::size_t BatchSize,
-                     EvaluationQueue<Features>*, EvalCache*);
+    EvaluationWorker(const Context*, std::size_t ThreadId, std::size_t GPUId,
+                     std::size_t BatchSize, EvaluationQueue<Features>*,
+                     EvalCache*);
     ~EvaluationWorker();
 
  private:
@@ -42,13 +43,14 @@ class EvaluationWorker : public worker::Worker {
     void initializationTask() override;
     bool doTask() override;
     void getBatch();
-    void flattenFeatures(std::size_t BatchSize);
-    void doInference(std::size_t BatchSize);
-    void feedResults(std::size_t BatchSize);
+    void doInference();
+    void feedResults();
     void feedResult(core::Color, Node*, const float* Policy, float WinRate,
                     float DrawRate, uint64_t Hash);
 
     const Context* PContext;
+
+    const std::size_t MyThreadId;
 
     const std::size_t BatchSizeMax;
     EvaluationQueue<Features>* const EQueue;
@@ -58,13 +60,12 @@ class EvaluationWorker : public worker::Worker {
     std::unique_ptr<evaluate::Evaluator> Evaluator;
     std::size_t GPUId_;
 
-    ml::FeatureBitboard* FeatureBitboards;
     float LegalPolicy[ml::MoveIndexMax];
 
-    std::vector<core::Color> PendingSideToMoves;
-    std::vector<Node*> PendingNodes;
-    std::vector<Features> PendingFeatures;
-    std::vector<uint64_t> PendingHashes;
+    std::size_t BatchCount;
+    core::Color* PendingSideToMoves;
+    Node** PendingNodes;
+    uint64_t* PendingHashes;
     std::size_t SequentialSkip;
 };
 
