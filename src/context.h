@@ -20,6 +20,8 @@ class Context {
  public:
     bool isPonderingEnabled() const;
 
+    bool isThoughtLogEnabled() const;
+
     uint32_t getMinimumThinkingTimeMilliseconds() const;
 
     uint32_t getMaximumThinkingTimeMilliseconds() const;
@@ -64,6 +66,7 @@ class Context {
 
  private:
     bool IsPonderingEnabled = true;
+    bool IsThoughtLogEnabled = true;
 
     uint32_t MinimumThinkingTimeMilliSeconds = 0;
     uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000; // one hour.

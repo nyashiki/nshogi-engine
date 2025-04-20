@@ -1,6 +1,5 @@
 //
 // Copyright (c) 2025 @nyashiki
-//
 // This software is licensed under the MIT license.
 // For details, see the LICENSE file in the root of this repository.
 //
@@ -34,6 +33,10 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
+struct ThoughtLog {
+    std::vector<std::pair<core::Move16, uint64_t>> VisitCounts;
+};
+
 class Manager {
  public:
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
@@ -41,7 +44,7 @@ class Manager {
 
     void thinkNextMove(const core::State&, const core::StateConfig&,
                        engine::Limit,
-                       std::function<void(core::Move32)> Callback);
+                       std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback);
     void interrupt();
 
  private:
@@ -97,7 +100,7 @@ class Manager {
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
-    std::function<void(core::Move32)> BestMoveCallback;
+    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> BestMoveCallback;
 
     bool IsExiting;
 };
