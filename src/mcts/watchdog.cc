@@ -263,6 +263,7 @@ logger::PVLog Watchdog::getPVLog() const {
     }
 
     Log.NumNodes = Visits;
+    Log.CurrentSideToMove = State->getSideToMove();
     Log.SolvedGameEndPly = N->getPlyToTerminalSolved();
     Log.WinRate = N->getWinRateAccumulated() / (double)Visits;
     Log.DrawRate = N->getDrawRateAccumulated() / (double)Visits;
