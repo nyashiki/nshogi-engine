@@ -181,6 +181,7 @@ void TensorRT::load(const std::string& Path,
 void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
                                   std::size_t BatchSize, float* DstPolicy,
                                   float* DstWinRate, float* DstDrawRate) {
+    assert(BatchSize <= BatchSizeM);
     assert(!isComputing());
 
     cudaMemcpyAsync(DeviceInput, Features,
