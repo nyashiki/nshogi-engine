@@ -196,7 +196,8 @@ void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
             if (Parent == nullptr) {
                 WinRate = 0.5f;
             } else {
-                const double ParentWinRate = Parent->getWinRateAccumulated() /
+                const double ParentWinRate =
+                    Parent->getWinRateAccumulated() /
                     (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
                 WinRate = (float)(1.0 - ParentWinRate);
             }
@@ -208,7 +209,8 @@ void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
             if (Parent == nullptr) {
                 DrawRate = 0.0f;
             } else {
-                const double ParentDrawRate = Parent->getDrawRateAccumulated() /
+                const double ParentDrawRate =
+                    Parent->getDrawRateAccumulated() /
                     (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
                 DrawRate = (float)ParentDrawRate;
             }

@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_MATH_MATH_H
 #define NSHOGI_ENGINE_MATH_MATH_H
 
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 
 namespace nshogi {
 namespace engine {
