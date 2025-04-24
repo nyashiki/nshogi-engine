@@ -278,21 +278,26 @@ class CSAClient:
                 info = self.engine.get_latest_info()
 
                 cp = 0
-                win_rate, draw_rate = 0.5, 0.0
+                black_win_rate, draw_rate = 0.5, 0.0
                 pv = None
                 if info is not None:
                     if "win_rate" in info:
-                        win_rate, draw_rate = info["win_rate"], info["draw_rate"]
+                        win_rate, draw_rate_ = info["win_rate"], info["draw_rate"]
 
                         if self._state.side_to_move == nshogi.Color(1):
-                            win_rate = 1.0 - win_rate - draw_rate
+                            win_rate = 1.0 - win_rate - draw_rate_
 
-                        cp = self.convert_win_rate_to_cp(win_rate, draw_rate)
+                        cp = self.convert_win_rate_to_cp(win_rate, draw_rate_)
+
+                    if "nshogiext" in info:
+                        nshogiExt = info["nshogiext"]
+                        if "black_win_rate" in nshogiExt and "draw_rate" in nshogiExt:
+                            black_win_rate, draw_rate = nshogiExt["black_win_rate"], nshogiExt["draw_rate"]
 
                     if "pv" in info:
                         pv = info["pv"]
 
-                self.evaluation_history[self._state.ply] = (win_rate, draw_rate)
+                self.evaluation_history[self._state.ply] = (black_win_rate, draw_rate)
                 if not config["client"]["send_pv"]:
                     message = f"{csa_move}"
                 else:
@@ -465,6 +470,16 @@ class CSAClient:
             "remaining_time": remaining_time,
             "evaluation_history": None if self._state is None else self.evaluation_history[:self._state.ply]
         })
+
+        if "nshogiext" in message:
+            if "black_win_rate" in message and "draw_rate" in message and "white_win_rate" in message:
+                self.socketio.emit("update", {
+                    "nshogiext": {
+                        "black_win_rate": split[split.index("black_win_rate") + 1],
+                        "white_win_rate": split[split.index("white_win_rate") + 1],
+                        "draw_rate": split[split.index("draw_rate") + 1],
+                    },
+                })
 
         if "pv" in message:
             clone_state = self._state.clone()

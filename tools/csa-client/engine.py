@@ -71,36 +71,37 @@ class Engine:
                 print("Engine (stderr) >", message)
 
     def _parse_info(self, message):
-        splitted = message.split(" ")
+        split = message.split(" ")
 
         info = dict()
 
-        index = 0
-        while index < len(splitted):
-            if splitted[index] == "nps":
-                info["nps"] = int(splitted[index + 1])
-                index += 1
+        if "nps" in split:
+            info["nps"] = int(split[split.index("nps") + 1])
 
-            elif splitted[index] == "score":
-                if splitted[index + 1] == "mate":
-                    ply = int(splitted[index + 2])
-                    info["draw_rate"] = 0
-                    info["win_rate"] = 1 if ply > 0 else 0
-                elif splitted[index + 1] == "cp":
-                    info["draw_rate"] = 0
-                    score = int(splitted[index + 2])
-                    info["win_rate"] = 1 / (1 + math.exp(-score / 600))
-                elif splitted[index + 1] == "windraw":
-                    info["win_rate"] = float(splitted[index + 2])
-                    info["draw_rate"] = float(splitted[index + 3])
+        if "score" in split:
+            if split[split.index("score") + 1] == "mate":
+                ply = int(split[split.index("score") + 2])
+                info["draw_rate"] = 0
+                info["win_rate"] = 1 if ply > 0 else 0
+            elif split[split.index("score") + 1] == "cp":
+                info["draw_rate"] = 0
+                score = int(split[split.index("score") + 2])
+                info["win_rate"] = 1 / (1 + math.exp(-score / 600))
 
-                index += 2
+        if "pv" in split:
+            info["pv"] = split[split.index("pv") + 1 :]
 
-            elif splitted[index] == "pv":
-                info["pv"] = splitted[index + 1 :]
-                break
+        if "nshogiext" in split:
+            info["nshogiext"] = { }
 
-            index += 1
+            if "black_win_rate" in split:
+                info["nshogiext"]["black_win_rate"] = float(split[split.index("black_win_rate") + 1])
+
+            if "white_win_rate" in split:
+                info["nshogiext"]["white_win_rate"] = float(split[split.index("white_win_rate") + 1])
+
+            if "draw_rate" in split:
+                info["nshogiext"]["draw_rate"] = float(split[split.index("draw_rate") + 1])
 
         return info
 

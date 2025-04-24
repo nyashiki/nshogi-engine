@@ -46,34 +46,6 @@
                         usiLog.append(newElement);
                         usiLog.scrollTop = usiLog.scrollHeight;
 
-                        if (data["usi_log"]["message"].includes("score")) {
-                            const split = data["usi_log"]["message"].split(" ");
-                            const index = split.indexOf("score");
-
-                            var blackRate = 0;
-                            var drawRate = 0;
-                            if (split[index + 1] === "windraw") {
-                                blackRate = parseFloat(split[index + 2]);
-                                drawRate = parseFloat(split[index + 3]);
-                            } else if (split[index + 1] === "cp") {
-                                const score = parseInt(split[index + 2]);
-                                blackRate = 1 / (1 + Math.exp(-score / 500));
-
-                            } else if (split[index + 1] === "mate") {
-                                if (split[index + 2][0] === "-") {
-                                    blackRate = 0;
-                                } else {
-                                    blackRate = 1;
-                                }
-                            }
-
-                            if (data["usi_log"]["my_turn"] === "WHITE") {
-                                blackRate = 1 - blackRate - drawRate;
-                            }
-
-                            drawEvaluation(blackRate, drawRate);
-                        }
-
                         if (data["usi_log"]["message"].includes("nps")) {
                             const split = data["usi_log"]["message"].split(" ");
                             const index = split.indexOf("nps");
@@ -106,6 +78,13 @@
 
                     if ("evaluation_history" in data) {
                         updateEvalutionHistoryChart(data["evaluation_history"]);
+                    }
+
+                    if ("nshogiext" in data) {
+                        nExt = data["nshogiext"]
+                        if ("black_win_rate" in nExt && "draw_rate" in nExt) {
+                            drawEvaluation(parseFloat(nExt["black_win_rate"]), parseFloat(nExt["draw_rate"]))
+                        }
                     }
 
                     var lastMovePos = ("last_move_position" in data) ? data["last_move_position"] : null;
@@ -517,6 +496,7 @@
                             y: {
                                 max: 10000,
                                 min: 0,
+                                grace: "10%",
                                 ticks: {
                                     color: "#a9b1d6"
                                 },
@@ -538,16 +518,24 @@
                                     pause: false,
                                     onRefresh: (chart) => {
                                         const now = Date.now();
-                                        npsHistoryChart.data.datasets.forEach((dataset) => {
-                                            dataset.data.push({
-                                                x: now,
-                                                y: lastNPS,
-                                            });
-                                        });
+                                        const dataset = chart.data.datasets[0].data;
 
-                                        npsMax = Math.max(npsMax, lastNPS);
-                                        npsHistoryChart.options.scales.y.max =
-                                            Math.ceil(npsMax * 1.5 / 20000) * 20000;
+                                        dataset.push({ x: now, y: lastNPS });
+
+                                        const windowStart = now - chart.options.scales.x.realtime.duration;
+                                        const visible = dataset.filter(pt => pt.x >= windowStart);
+
+                                        const ys = visible.map(pt => pt.y);
+                                        const minY = Math.min(...ys);
+                                        const maxY = Math.max(...ys);
+
+                                        const padHigh = maxY * 0.2;
+                                        const padLow  = minY * 0.05;
+
+                                        chart.options.scales.y.min = Math.max(0, Math.floor(minY - padLow));
+                                        chart.options.scales.y.max = Math.ceil(maxY + padHigh);
+
+                                        chart.update('none');
                                     }
                                 },
                                 ticks: {
