@@ -20,6 +20,7 @@ namespace logger {
 
 struct PVLog {
     uint32_t ElapsedMilliSeconds = 0;
+    core::Color CurrentSideToMove = core::NoColor;
     double WinRate = 0;
     double DrawRate = 0;
     double DrawValue = 0.5;
