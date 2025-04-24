@@ -96,5 +96,9 @@ bool Context::isNShogiExtensionLogEnabled() const {
     return IsNShogiExtensionLogEnabled;
 }
 
+bool Context::isNaNFallbackEnabled() const {
+    return IsNaNFallbackEnabled;
+}
+
 } // namespace engine
 } // namespace nshogi

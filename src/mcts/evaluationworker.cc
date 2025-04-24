@@ -34,6 +34,7 @@
 
 #endif
 
+#include "../math/math.h"
 #include <nshogi/ml/math.h>
 
 namespace nshogi {
@@ -177,8 +178,6 @@ void EvaluationWorker<Features>::feedResults() {
         const float WinRate = *(Evaluator->getWinRate() + I);
         const float DrawRate = *(Evaluator->getDrawRate() + I);
 
-        assert(WinRate >= 0.0f && WinRate <= 1.0f);
-        assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
         feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate,
                    DrawRate, PendingHashes[I]);
     }
@@ -188,15 +187,61 @@ template <typename Features>
 void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
                                             const float* Policy, float WinRate,
                                             float DrawRate, uint64_t Hash) {
+    bool NaNFound = false;
+    if (PContext->isNaNFallbackEnabled()) {
+        if (math::isnan_(WinRate)) {
+            std::cerr << "WINRATE NAN FOUND" << std::endl;
+            NaNFound = true;
+            const Node* Parent = N->getParent();
+            if (Parent == nullptr) {
+                WinRate = 0.5f;
+            } else {
+                const double ParentWinRate = Parent->getWinRateAccumulated() /
+                    (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
+                WinRate = (float)(1.0 - ParentWinRate);
+            }
+        }
+        if (math::isnan_(DrawRate)) {
+            std::cerr << "DRAWRATE NAN FOUND" << std::endl;
+            NaNFound = true;
+            const Node* Parent = N->getParent();
+            if (Parent == nullptr) {
+                DrawRate = 0.0f;
+            } else {
+                const double ParentDrawRate = Parent->getDrawRateAccumulated() /
+                    (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
+                DrawRate = (float)ParentDrawRate;
+            }
+        }
+    }
+
+    assert(WinRate >= 0.0f && WinRate <= 1.0f);
+    assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
+
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
         constexpr float P[] = {1.0};
         N->setEvaluation(P, WinRate, DrawRate);
     } else {
-        for (uint16_t I = 0; I < NumChildren; ++I) {
-            const std::size_t MoveIndex =
-                ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
-            LegalPolicy[I] = Policy[MoveIndex];
+        if (PContext->isNaNFallbackEnabled()) {
+            for (uint16_t I = 0; I < NumChildren; ++I) {
+                const std::size_t MoveIndex =
+                    ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
+                LegalPolicy[I] = Policy[MoveIndex];
+                if (math::isnan_(LegalPolicy[I])) {
+                    NaNFound = true;
+                    for (uint16_t J = 0; J < NumChildren; ++J) {
+                        LegalPolicy[J] = 1.0f;
+                    }
+                    break;
+                }
+            }
+        } else {
+            for (uint16_t I = 0; I < NumChildren; ++I) {
+                const std::size_t MoveIndex =
+                    ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
+                LegalPolicy[I] = Policy[MoveIndex];
+            }
         }
         ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
         N->setEvaluation(LegalPolicy, WinRate, DrawRate);
@@ -205,7 +250,7 @@ void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
 
     N->updateAncestors(WinRate, DrawRate);
 
-    if (ECache != nullptr) {
+    if (ECache != nullptr && !NaNFound) {
         ECache->store(Hash, NumChildren, LegalPolicy, WinRate, DrawRate);
     }
 }

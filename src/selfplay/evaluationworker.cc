@@ -9,6 +9,7 @@
 
 #include "evaluationworker.h"
 #include "../evaluate/preset.h"
+#include "../math/math.h"
 
 #ifdef CUDA_ENABLED
 
@@ -43,25 +44,6 @@
 namespace nshogi {
 namespace engine {
 namespace selfplay {
-
-namespace {
-
-// Since std::isnan is not available when -ffast-math is specified,
-// we manually check for NaN using bitwise comparison based on the IEEE 754
-// standard.
-bool isnan_(double X) {
-    union {
-        double D;
-        uint64_t I;
-    } U;
-    U.D = X;
-    const uint64_t ExponentMask = 0x7FF0000000000000ULL;
-    const uint64_t FractionMask = 0x000FFFFFFFFFFFFFULL;
-    return ((U.I & ExponentMask) == ExponentMask) &&
-           ((U.I & FractionMask) != 0);
-}
-
-} // namespace
 
 EvaluationWorker::EvaluationWorker(std::size_t ThreadId,
                                    [[maybe_unused]] std::size_t GPUId,
@@ -123,8 +105,8 @@ bool EvaluationWorker::doTask() {
     Evaluator->computeBlocking(Tasks.size());
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
-        assert(!isnan_(Evaluator->getWinRate()[I]));
-        assert(!isnan_(Evaluator->getDrawRate()[I]));
+        assert(!math::isnan_(Evaluator->getWinRate()[I]));
+        assert(!math::isnan_(Evaluator->getDrawRate()[I]));
 
         Tasks.at(I)->setEvaluation<false>(
             Evaluator->getPolicy() + 27 * core::NumSquares * I,
