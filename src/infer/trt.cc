@@ -138,6 +138,7 @@ void TensorRT::load(const std::string& Path,
         if (Builder->platformHasFastFp16()) {
             BuilderConfig->setFlag(nvinfer1::BuilderFlag::kFP16);
         }
+        BuilderConfig->setFlag(nvinfer1::BuilderFlag::kTF32);
 
         BuilderConfig->setProfileStream(Stream);
         Plan.reset(Builder->buildSerializedNetwork(*Network, *BuilderConfig));
