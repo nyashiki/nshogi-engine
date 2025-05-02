@@ -180,7 +180,7 @@ void SaveWorker::save(Frame* F) {
         const auto NextMove =
             F->getState()->getHistoryMove(Replay.getPly(false));
         STeacher.setState(Replay);
-        STeacher.setNextMove(NextMove);
+        STeacher.setNextMove(core::Move16(NextMove));
         io::file::simple_teacher::save(Ofs, STeacher);
 
         Replay.doMove(F->getState()->getHistoryMove(Replay.getPly(false)));

@@ -19,10 +19,15 @@ struct Limit {
     uint32_t TimeLimitMilliSeconds = 0;
     uint32_t ByoyomiMilliSeconds = 0;
     uint32_t IncreaseMilliSeconds = 0;
+    uint64_t NumNodes = 0;
 
-    bool isNoLimit() const {
+    bool isNoLimitAboutTime() const {
         return (TimeLimitMilliSeconds == 0) && (ByoyomiMilliSeconds == 0) &&
                (IncreaseMilliSeconds == 0);
+    }
+
+    bool isNoLimit() const {
+        return isNoLimitAboutTime() && (NumNodes == 0);
     }
 };
 

@@ -9,6 +9,7 @@
 
 #include "usi.h"
 
+#include "../book/bookmaker.h"
 #include "../command/executor.h"
 #include "usilogger.h"
 #include "usioption.h"
@@ -222,7 +223,8 @@ void position(std::istringstream& Stream) {
     // std::make_unique<nshogi::core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
 }
 
-void bestMoveCallBackFunction(nshogi::core::Move32 Move) {
+void bestMoveCallBackFunction(nshogi::core::Move32 Move,
+                              std::unique_ptr<mcts::ThoughtLog>) {
     Logger->printBestMove(Move);
 }
 
@@ -317,6 +319,31 @@ void debug() {
     std::cout << "=========================" << std::endl;
 }
 
+void nshogiExtension(std::istringstream& Stream) {
+    std::string Token;
+    Stream >> Token;
+
+    if (Token == "makebook") {
+        std::string OutPath = "book_unrefined.bin";
+        std::string InitialPositionPath = "initial_positions.sfen";
+        Stream >> OutPath;
+        Stream >> InitialPositionPath;
+
+        nshogi::engine::book::BookMaker bookMaker(Executor->getContext(),
+                                                  Logger);
+        bookMaker.makeBook(100000, OutPath, InitialPositionPath);
+    } else if (Token == "refinebook") {
+        std::string UnrefinedPath = "book_unrefined.bin";
+        std::string OutPath = "book.bin";
+        Stream >> UnrefinedPath;
+        Stream >> OutPath;
+
+        nshogi::engine::book::BookMaker bookMaker(Executor->getContext(),
+                                                  Logger);
+        bookMaker.refineBook(UnrefinedPath, OutPath);
+    }
+}
+
 } // namespace
 
 void mainLoop() {
@@ -344,6 +371,8 @@ void mainLoop() {
         } else if (Command == "quit" || Command == "exit") {
             quit();
             break;
+        } else if (Command == "nshogiext") {
+            nshogiExtension(Stream);
         } else if (Command == "") {
             continue;
         } else {

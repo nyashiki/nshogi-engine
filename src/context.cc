@@ -16,6 +16,10 @@ bool Context::isPonderingEnabled() const {
     return IsPonderingEnabled;
 }
 
+bool Context::isThoughtLogEnabled() const {
+    return IsThoughtLogEnabled;
+}
+
 uint32_t Context::getMinimumThinkingTimeMilliseconds() const {
     return MinimumThinkingTimeMilliSeconds;
 }

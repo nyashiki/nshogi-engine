@@ -257,8 +257,7 @@ void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
     }
 }
 
-template class EvaluationWorker<evaluate::preset::SimpleFeatures>;
-template class EvaluationWorker<evaluate::preset::CustomFeaturesV1>;
+template class EvaluationWorker<global_config::FeatureType>;
 
 } // namespace mcts
 } // namespace engine

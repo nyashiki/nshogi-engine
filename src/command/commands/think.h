@@ -11,6 +11,7 @@
 #define NSHOGI_ENGINE_COMMAND_COMMANDS_THINK
 
 #include "../../limit.h"
+#include "../../mcts/manager.h"
 #include "../command.h"
 
 #include <functional>
@@ -24,15 +25,18 @@ namespace commands {
 class Think : public ICommand {
  public:
     Think(Limit Limits[2],
-          std::function<void(core::Move32)> Callback = nullptr);
+          std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
+              Callback = nullptr);
     ~Think();
 
     CommandType type() const;
     const Limit* limit() const;
-    std::function<void(core::Move32)> callback() const;
+    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
+    callback() const;
 
  private:
-    std::function<void(core::Move32)> CallbackFunc;
+    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
+        CallbackFunc;
     Limit L[2];
 };
 
