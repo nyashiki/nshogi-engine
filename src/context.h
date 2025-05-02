@@ -100,7 +100,7 @@ class Context {
 
     bool IsNShogiExtensionLogEnabled = true;
 
-    bool IsNaNFallbackEnabled = true;
+    bool IsNaNFallbackEnabled = false;
 
     friend class ContextManager;
 };
