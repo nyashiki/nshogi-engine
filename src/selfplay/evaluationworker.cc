@@ -10,6 +10,7 @@
 #include "evaluationworker.h"
 #include "../evaluate/preset.h"
 #include "../math/math.h"
+#include "../globalconfig.h"
 
 #ifdef CUDA_ENABLED
 
@@ -132,24 +133,24 @@ void EvaluationWorker::prepareInfer(std::size_t ThreadId,
     Infer = std::make_unique<infer::Random>(0);
 #elif defined(EXECUTOR_TRT)
     auto TRT = std::make_unique<infer::TensorRT>(
-        GPUId, BatchSize, evaluate::preset::CustomFeaturesV1::size());
+        GPUId, BatchSize, global_config::FeatureType::size());
     TRT->load(WeightPath, true);
     Infer = std::move(TRT);
 #endif
     Evaluator = std::make_unique<evaluate::Evaluator>(
-        ThreadId, evaluate::preset::CustomFeaturesV1::size(), BatchSize,
+        ThreadId, global_config::FeatureType::size(), BatchSize,
         Infer.get());
 }
 
 void EvaluationWorker::allocate() {
 #ifdef CUDA_ENABLED
     cudaMallocHost(&FeatureBitboards,
-                   BatchSize * evaluate::preset::CustomFeaturesV1::size() *
+                   BatchSize * global_config::FeatureType::size() *
                        sizeof(ml::FeatureBitboard));
 #else
     FeatureBitboards =
         new ml::FeatureBitboard[BatchSize *
-                                evaluate::preset::CustomFeaturesV1::size()];
+                                global_config::FeatureType::size()];
 #endif
 }
 

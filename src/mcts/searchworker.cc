@@ -8,7 +8,7 @@
 //
 
 #include "searchworker.h"
-#include "../evaluate/preset.h"
+#include "../globalconfig.h"
 
 #include <cmath>
 #include <limits>
@@ -563,8 +563,7 @@ bool SearchWorker<Features>::doTask() {
     return false;
 }
 
-template class SearchWorker<evaluate::preset::SimpleFeatures>;
-template class SearchWorker<evaluate::preset::CustomFeaturesV1>;
+template class SearchWorker<global_config::FeatureType>;
 
 } // namespace mcts
 } // namespace engine

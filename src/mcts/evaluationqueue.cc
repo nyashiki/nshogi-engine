@@ -8,8 +8,7 @@
 //
 
 #include "evaluationqueue.h"
-
-#include "../evaluate/preset.h"
+#include "../globalconfig.h"
 
 namespace nshogi {
 namespace engine {
@@ -87,8 +86,7 @@ auto EvaluationQueue<Features>::get(std::size_t NumElements)
     return T;
 }
 
-template class EvaluationQueue<evaluate::preset::SimpleFeatures>;
-template class EvaluationQueue<evaluate::preset::CustomFeaturesV1>;
+template class EvaluationQueue<global_config::FeatureType>;
 
 } // namespace mcts
 } // namespace engine
