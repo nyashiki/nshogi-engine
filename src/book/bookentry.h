@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_BOOK_BOOKENTRY_H
 #define NSHOGI_ENGINE_BOOK_BOOKENTRY_H
 
-#include <nshogi/core/types.h>
 #include <nshogi/core/huffman.h>
+#include <nshogi/core/types.h>
 
 namespace nshogi {
 namespace engine {
@@ -39,6 +39,6 @@ struct BookEntry {
 
 } // namespace book
 } // namespace engine
-} // namespsace nshogi
+} // namespace nshogi
 
 #endif // #ifndef NSHOGI_ENGINE_BOOK_BOOKENTRY_H

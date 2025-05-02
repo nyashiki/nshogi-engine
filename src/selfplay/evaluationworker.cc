@@ -9,8 +9,8 @@
 
 #include "evaluationworker.h"
 #include "../evaluate/preset.h"
-#include "../math/math.h"
 #include "../globalconfig.h"
+#include "../math/math.h"
 
 #ifdef CUDA_ENABLED
 
@@ -138,19 +138,17 @@ void EvaluationWorker::prepareInfer(std::size_t ThreadId,
     Infer = std::move(TRT);
 #endif
     Evaluator = std::make_unique<evaluate::Evaluator>(
-        ThreadId, global_config::FeatureType::size(), BatchSize,
-        Infer.get());
+        ThreadId, global_config::FeatureType::size(), BatchSize, Infer.get());
 }
 
 void EvaluationWorker::allocate() {
 #ifdef CUDA_ENABLED
-    cudaMallocHost(&FeatureBitboards,
-                   BatchSize * global_config::FeatureType::size() *
-                       sizeof(ml::FeatureBitboard));
+    cudaMallocHost(&FeatureBitboards, BatchSize *
+                                          global_config::FeatureType::size() *
+                                          sizeof(ml::FeatureBitboard));
 #else
     FeatureBitboards =
-        new ml::FeatureBitboard[BatchSize *
-                                global_config::FeatureType::size()];
+        new ml::FeatureBitboard[BatchSize * global_config::FeatureType::size()];
 #endif
 }
 

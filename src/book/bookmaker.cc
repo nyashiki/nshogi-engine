@@ -8,27 +8,29 @@
 //
 
 #include "bookmaker.h"
-#include "bookseed.h"
 #include "../io/book.h"
+#include "bookseed.h"
 
-#include <queue>
 #include <cmath>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <queue>
 
-#include <nshogi/core/statebuilder.h>
 #include <nshogi/core/movegenerator.h>
+#include <nshogi/core/statebuilder.h>
 #include <nshogi/io/sfen.h>
 
 namespace nshogi {
 namespace engine {
 namespace book {
 
-BookMaker::BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger) {
+BookMaker::BookMaker(const Context* Context,
+                     std::shared_ptr<logger::Logger> Logger) {
     Manager = std::make_unique<mcts::Manager>(Context, Logger);
 }
 
-void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const std::string& InitialPositionPath) {
+void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path,
+                         const std::string& InitialPositionPath) {
     std::ofstream Ofs(Path, std::ios::out | std::ios::binary);
     if (!Ofs) {
         std::cerr << "Failed to open " << Path << std::endl;
@@ -44,7 +46,9 @@ void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const s
     auto SeedComparingFunction = [](const BookSeed& S1, const BookSeed& S2) {
         return S1.logProbability() < S2.logProbability();
     };
-    std::priority_queue<BookSeed, std::vector<BookSeed>, decltype(SeedComparingFunction)> Queue;
+    std::priority_queue<BookSeed, std::vector<BookSeed>,
+                        decltype(SeedComparingFunction)>
+        Queue;
 
     // Prepare initial position(s).
     std::ifstream InitialPositionsIfs(InitialPositionPath);
@@ -60,7 +64,8 @@ void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const s
             Queue.emplace(S, 0);
             ++LoadedCount;
         }
-        std::cout << LoadedCount << " initial positions are loaded." << std::endl;
+        std::cout << LoadedCount << " initial positions are loaded."
+                  << std::endl;
     }
     {
         core::State S = core::StateBuilder::getInitialState();
@@ -100,28 +105,32 @@ void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const s
         std::condition_variable CV;
         std::vector<std::pair<core::Move32, double>> Policy;
         double PolicyMax = 0.0;
-        Manager->thinkNextMove(State, Config, L, [&](core::Move32 BestMove, std::unique_ptr<mcts::ThoughtLog> TL) {
-            assert(TL != nullptr);
-            Policy.resize(TL->VisitCounts.size());
-            uint64_t VisitSum = 0;
-            for (std::size_t I = 0; I < Policy.size(); ++I) {
-                Policy[I].first = State.getMove32FromMove16(TL->VisitCounts[I].first);
-                Policy[I].second = (double)TL->VisitCounts[I].second;
-                VisitSum += TL->VisitCounts[I].second;
-            }
-            for (std::size_t I = 0; I < Policy.size(); ++I) {
-                Policy[I].second /= (double)VisitSum;
-                PolicyMax = std::max(PolicyMax, Policy[I].second);
-            }
+        Manager->thinkNextMove(
+            State, Config, L,
+            [&](core::Move32 BestMove, std::unique_ptr<mcts::ThoughtLog> TL) {
+                assert(TL != nullptr);
+                Policy.resize(TL->VisitCounts.size());
+                uint64_t VisitSum = 0;
+                for (std::size_t I = 0; I < Policy.size(); ++I) {
+                    Policy[I].first =
+                        State.getMove32FromMove16(TL->VisitCounts[I].first);
+                    Policy[I].second = (double)TL->VisitCounts[I].second;
+                    VisitSum += TL->VisitCounts[I].second;
+                }
+                for (std::size_t I = 0; I < Policy.size(); ++I) {
+                    Policy[I].second /= (double)VisitSum;
+                    PolicyMax = std::max(PolicyMax, Policy[I].second);
+                }
 
-            BookEntry BE(Seed.huffmanCode(), core::Move16(BestMove), TL->WinRate, TL->DrawRate);
-            io::book::writeBookEntry(Ofs, BE);
-            {
-                std::lock_guard<std::mutex> Lock(Mtx);
-                IsCallbackCalled = true;
-            }
-            CV.notify_one();
-        });
+                BookEntry BE(Seed.huffmanCode(), core::Move16(BestMove),
+                             TL->WinRate, TL->DrawRate);
+                io::book::writeBookEntry(Ofs, BE);
+                {
+                    std::lock_guard<std::mutex> Lock(Mtx);
+                    IsCallbackCalled = true;
+                }
+                CV.notify_one();
+            });
 
         {
             std::unique_lock<std::mutex> Lock(Mtx);
@@ -133,18 +142,21 @@ void BookMaker::makeBook(uint64_t NumGenerates, const std::string& Path, const s
             if (P < PolicyMax * 0.1) {
                 continue;
             }
-            const double NextLogProbability = Seed.logProbability() + std::log(P);
+            const double NextLogProbability =
+                Seed.logProbability() + std::log(P);
             State.doMove(Move);
             Queue.emplace(State, NextLogProbability, Seed.huffmanCode());
             State.undoMove();
         }
 
         ++Count;
-        std::cout << "Progress: " << (double)Count / (double)NumGenerates * 100.0 << std::endl;
+        std::cout << "Progress: "
+                  << (double)Count / (double)NumGenerates * 100.0 << std::endl;
     }
 }
 
-void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& OutPath) {
+void BookMaker::refineBook(const std::string& UnrefinedPath,
+                           const std::string& OutPath) {
     std::ifstream Ifs(UnrefinedPath, std::ios::in | std::ios::binary);
     if (!Ifs) {
         std::cerr << "Failed to open " << UnrefinedPath << std::endl;
@@ -160,7 +172,8 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
     // Load the file.
     std::map<core::HuffmanCode, BookEntry> BookEntries;
     {
-        std::vector<BookEntry> BookEntryTemp = nshogi::engine::io::book::readBook(Ifs);
+        std::vector<BookEntry> BookEntryTemp =
+            nshogi::engine::io::book::readBook(Ifs);
         for (const auto& BE : BookEntryTemp) {
             std::cout << "\rLoading: " << BookEntries.size() << std::flush;
             BookEntries.emplace(BE.huffmanCode(), BE);
@@ -179,7 +192,8 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
                 ++UpdatedCount;
             }
         }
-        std::cout << "Iteration: " << Iteration << ", UpdatedCount: " << UpdatedCount << std::endl;
+        std::cout << "Iteration: " << Iteration
+                  << ", UpdatedCount: " << UpdatedCount << std::endl;
 
         if (UpdatedCount == 0) {
             break;
@@ -192,10 +206,14 @@ void BookMaker::refineBook(const std::string& UnrefinedPath, const std::string& 
     }
 }
 
-bool BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries, double Alpha) {
+bool BookMaker::doMinMaxSearchOnBook(
+    core::State* State, std::map<core::HuffmanCode, BookEntry>& BookEntries,
+    double Alpha) {
     bool Updated = false;
 
-    BookEntry& ThisEntry = BookEntries.find(core::HuffmanCode::encode(State->getPosition()))->second;
+    BookEntry& ThisEntry =
+        BookEntries.find(core::HuffmanCode::encode(State->getPosition()))
+            ->second;
 
     auto NextMoves = core::MoveGenerator::generateLegalMoves(*State);
     const BookEntry* BestEntry = nullptr;
@@ -205,11 +223,13 @@ bool BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanC
     for (const auto& Move : NextMoves) {
         State->doMove(Move);
 
-        const auto ChildEntryit = BookEntries.find(core::HuffmanCode::encode(State->getPosition()));
+        const auto ChildEntryit =
+            BookEntries.find(core::HuffmanCode::encode(State->getPosition()));
         if (ChildEntryit != BookEntries.end()) {
             const double ChildWinRate = 1.0 - ChildEntryit->second.winRate();
             const double ChildDrawRate = ChildEntryit->second.drawRate();
-            const double ChildValue = ChildWinRate * (1.0 - ChildDrawRate) + 0.5 * ChildDrawRate;
+            const double ChildValue =
+                ChildWinRate * (1.0 - ChildDrawRate) + 0.5 * ChildDrawRate;
             if (ChildValue > BestValue) {
                 BestValue = ChildValue;
                 BestMove = Move;
@@ -221,9 +241,13 @@ bool BookMaker::doMinMaxSearchOnBook(core::State* State, std::map<core::HuffmanC
     }
 
     if (BestEntry != nullptr) {
-        const double ThisValue = ThisEntry.winRate() * (1.0 - ThisEntry.drawRate()) + 0.5 * ThisEntry.drawRate();
-        const double NewWinRate = Alpha * ThisEntry.winRate() + (1.0 - Alpha) * (1.0 - BestEntry->winRate());
-        const double NewDrawRate = Alpha * ThisEntry.drawRate() + (1.0 - Alpha) * BestEntry->drawRate();
+        const double ThisValue =
+            ThisEntry.winRate() * (1.0 - ThisEntry.drawRate()) +
+            0.5 * ThisEntry.drawRate();
+        const double NewWinRate = Alpha * ThisEntry.winRate() +
+                                  (1.0 - Alpha) * (1.0 - BestEntry->winRate());
+        const double NewDrawRate = Alpha * ThisEntry.drawRate() +
+                                   (1.0 - Alpha) * BestEntry->drawRate();
         if (core::Move16(BestMove) == ThisEntry.bestMove()) {
             ThisEntry.setWinRate(NewWinRate);
             ThisEntry.setDrawRate(NewDrawRate);

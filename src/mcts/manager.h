@@ -11,11 +11,11 @@
 
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/segregated_free_list.h"
+#include "../book/bookentry.h"
 #include "../context.h"
 #include "../evaluate/preset.h"
 #include "../globalconfig.h"
 #include "../limit.h"
-#include "../book/bookentry.h"
 #include "checkmatequeue.h"
 #include "checkmateworker.h"
 #include "evalcache.h"
@@ -46,9 +46,10 @@ class Manager {
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
-    void thinkNextMove(const core::State&, const core::StateConfig&,
-                       engine::Limit,
-                       std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback);
+    void
+    thinkNextMove(const core::State&, const core::StateConfig&, engine::Limit,
+                  std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
+                      Callback);
     void interrupt();
 
  private:
@@ -107,7 +108,8 @@ class Manager {
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
-    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> BestMoveCallback;
+    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
+        BestMoveCallback;
 
     bool IsExiting;
 };

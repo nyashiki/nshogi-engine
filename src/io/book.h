@@ -19,10 +19,10 @@ namespace engine {
 namespace io {
 namespace book {
 
-void writeBookEntry(std::ofstream& Ofs, const nshogi::engine::book::BookEntry& BE);
+void writeBookEntry(std::ofstream& Ofs,
+                    const nshogi::engine::book::BookEntry& BE);
 nshogi::engine::book::BookEntry readBookEntry(std::ifstream& Ifs);
 std::vector<nshogi::engine::book::BookEntry> readBook(std::ifstream& Ifs);
-
 
 } // namespace book
 } // namespace io

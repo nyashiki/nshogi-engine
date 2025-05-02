@@ -13,7 +13,8 @@ namespace nshogi {
 namespace engine {
 namespace book {
 
-BookEntry::BookEntry(core::HuffmanCode HC, core::Move16 BM, double WR, double DR)
+BookEntry::BookEntry(core::HuffmanCode HC, core::Move16 BM, double WR,
+                     double DR)
     : HuffmanCode(HC)
     , BestMove(BM)
     , WinRate(WR)

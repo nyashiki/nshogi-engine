@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_BOOK_BOOKSEED_H
 #define NSHOGI_ENGINE_BOOK_BOOKSEED_H
 
-#include <nshogi/core/state.h>
 #include <nshogi/core/huffman.h>
+#include <nshogi/core/state.h>
 
 namespace nshogi {
 namespace engine {
@@ -21,8 +21,10 @@ struct BookSeed {
  public:
     BookSeed();
     BookSeed(const core::State& State, double LogProbability);
-    BookSeed(const core::State& State, double LogProbability, const core::HuffmanCode& ParentHuffman);
-    BookSeed(const char* Huffman, const char* ParentHuffman, double LogProbability, bool HasParent_);
+    BookSeed(const core::State& State, double LogProbability,
+             const core::HuffmanCode& ParentHuffman);
+    BookSeed(const char* Huffman, const char* ParentHuffman,
+             double LogProbability, bool HasParent_);
 
     const core::HuffmanCode& huffmanCode() const;
     double logProbability() const;

@@ -71,9 +71,10 @@ Manager::~Manager() {
     SearchTree.reset(nullptr);
 }
 
-void Manager::thinkNextMove(const core::State& State,
-                            const core::StateConfig& Config, engine::Limit Lim,
-                            std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
+void Manager::thinkNextMove(
+    const core::State& State, const core::StateConfig& Config,
+    engine::Limit Lim,
+    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
     WatchdogWorker->stop();
 
     for (const auto& SearchWorker : SearchWorkers) {
@@ -245,12 +246,15 @@ void Manager::doSupervisorWork(bool CallCallback) {
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 
     core::Move32 BestMove = core::Move32::MoveNone();
-    const auto BookEntryIt = Book.find(core::HuffmanCode::encode(CurrentState->getPosition()));
+    const auto BookEntryIt =
+        Book.find(core::HuffmanCode::encode(CurrentState->getPosition()));
 
     std::unique_ptr<ThoughtLog> TL;
-    if (BookEntryIt != Book.end() && CurrentState->getRepetitionStatus() == core::RepetitionStatus::NoRepetition) {
+    if (BookEntryIt != Book.end() && CurrentState->getRepetitionStatus() ==
+                                         core::RepetitionStatus::NoRepetition) {
         PLogger->printLog("Found a book move.");
-        BestMove = CurrentState->getMove32FromMove16(BookEntryIt->second.bestMove());
+        BestMove =
+            CurrentState->getMove32FromMove16(BookEntryIt->second.bestMove());
 
         logger::PVLog Log;
         Log.WinRate = BookEntryIt->second.winRate();
@@ -275,7 +279,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
             CheckmateWorker->start();
         }
 
-        WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(), RootNode);
+        WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(),
+                                   RootNode);
         WatchdogWorker->setLimit(*Limit);
         WatchdogWorker->start();
 
@@ -304,7 +309,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
                     continue;
                 }
 
-                const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss() & Node::VisitMask;
+                const uint64_t ChildVisits =
+                    Child->getVisitsAndVirtualLoss() & Node::VisitMask;
 
                 if (ChildVisits <= 1) {
                     continue;
@@ -315,10 +321,13 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
             TL->WinRate = 0.0;
             TL->DrawRate = 0.0;
-            const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+            const uint64_t Visits =
+                RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
             if (Visits > 0) {
-                TL->WinRate = RootNode->getWinRateAccumulated() / (double)Visits;
-                TL->DrawRate = RootNode->getDrawRateAccumulated() / (double)Visits;
+                TL->WinRate =
+                    RootNode->getWinRateAccumulated() / (double)Visits;
+                TL->DrawRate =
+                    RootNode->getDrawRateAccumulated() / (double)Visits;
             }
         }
 

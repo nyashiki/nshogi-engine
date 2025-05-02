@@ -27,14 +27,16 @@ BookSeed::BookSeed(const core::State& State, double LogProbability)
     , Parent(0, 0, 0, 0) {
 }
 
-BookSeed::BookSeed(const core::State& State, double LogProbability, const core::HuffmanCode& ParentHuffman)
+BookSeed::BookSeed(const core::State& State, double LogProbability,
+                   const core::HuffmanCode& ParentHuffman)
     : HuffmanCode(core::HuffmanCode::encode(State.getPosition()))
     , LP(LogProbability)
     , HasParent(true)
     , Parent(ParentHuffman) {
 }
 
-BookSeed::BookSeed(const char* Huffman, const char* ParentHuffman, double LogProbability, bool HasParent_)
+BookSeed::BookSeed(const char* Huffman, const char* ParentHuffman,
+                   double LogProbability, bool HasParent_)
     : HuffmanCode(Huffman)
     , LP(LogProbability)
     , HasParent(HasParent_)

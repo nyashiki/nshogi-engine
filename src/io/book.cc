@@ -15,12 +15,13 @@ namespace engine {
 namespace io {
 namespace book {
 
-void writeBookEntry(std::ofstream& Ofs, const nshogi::engine::book::BookEntry& BE) {
+void writeBookEntry(std::ofstream& Ofs,
+                    const nshogi::engine::book::BookEntry& BE) {
     core::Move16 BestMove = BE.bestMove();
     double WinRate = BE.winRate();
     double DrawRate = BE.drawRate();
 
-    Ofs.write(BE.huffmanCode().data(),  (long)core::HuffmanCode::size());
+    Ofs.write(BE.huffmanCode().data(), (long)core::HuffmanCode::size());
     Ofs.write(reinterpret_cast<const char*>(&BestMove), sizeof(BestMove));
     Ofs.write(reinterpret_cast<const char*>(&WinRate), sizeof(WinRate));
     Ofs.write(reinterpret_cast<const char*>(&DrawRate), sizeof(DrawRate));
