@@ -147,7 +147,7 @@ void Manager::setupSearchTree() {
 void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
                                    std::size_t NumEvaluationWorkersPerGPU) {
     EQueue = std::make_unique<EvaluationQueue<global_config::FeatureType>>(
-        BatchSize * NumGPUs * NumEvaluationWorkersPerGPU * 2);
+        BatchSize * NumGPUs * NumEvaluationWorkersPerGPU * 64);
 }
 
 void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
