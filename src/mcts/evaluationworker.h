@@ -66,7 +66,6 @@ class EvaluationWorker : public worker::Worker {
     core::Color* PendingSideToMoves;
     Node** PendingNodes;
     uint64_t* PendingHashes;
-    std::size_t SequentialSkip;
 };
 
 } // namespace mcts
