@@ -55,8 +55,7 @@ EvaluationWorker<Features>::EvaluationWorker(
     , BatchCount(0)
     , PendingSideToMoves(nullptr)
     , PendingNodes(nullptr)
-    , PendingHashes(nullptr)
-    , SequentialSkip(0) {
+    , PendingHashes(nullptr) {
 
     spawnThread();
 }
@@ -114,19 +113,10 @@ bool EvaluationWorker<Features>::doTask() {
         return false;
     }
 
-    if (SequentialSkip <= SEQUENTIAL_SKIP_THRESHOLD &&
-        BatchCount < BatchSizeMax / 2) {
-        ++SequentialSkip;
-        std::this_thread::yield();
-        // There are tasks to do so return true not to stop this worker.
-        return true;
-    }
-
     doInference();
     feedResults();
 
     BatchCount = 0;
-    SequentialSkip = 0;
 
     // There may be tasks (a next batch) to do so return true not to stop this
     // worker.
