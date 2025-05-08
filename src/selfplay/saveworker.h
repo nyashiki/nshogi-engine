@@ -44,15 +44,6 @@ class SaveWorker : public worker::Worker {
         PreviousPrintTime;
     std::string LatestGame;
 
-    struct {
-        uint64_t NumBlackWin = 0;
-        uint64_t NumWhiteWin = 0;
-        uint64_t NumDraw = 0;
-        uint64_t NumDeclare = 0;
-        double AveragePly = 0.0;
-        double AveragePlyDraw = 0.0;
-    } Statistics;
-
     std::vector<std::unique_ptr<Frame>> TasksToAdd;
 };
 

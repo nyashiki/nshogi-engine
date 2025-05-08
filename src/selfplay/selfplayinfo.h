@@ -34,6 +34,26 @@ class SelfplayInfo {
     void incrementCacheMiss();
     double getCacheHitRatio() const;
 
+    uint64_t numBlackWin() const;
+    uint64_t numWhiteWin() const;
+    uint64_t numDraw() const;
+    uint64_t numGenerated() const;
+    uint64_t numDeclare() const;
+    double averagePly() const;
+    double averagePlyDraw() const;
+
+    double blackWinRate() const;
+    double whiteWinRate() const;
+    double drawRate() const;
+    double declareRate() const;
+
+    void incrementBlackWin();
+    void incrementWhiteWin();
+    void incrementDraw();
+    void incrementDeclare();
+    void updateAveragePly(uint16_t Ply);
+    void updateAveragePlyDraw(uint16_t Ply);
+
  private:
     std::size_t NumOnGoingGames;
     double AverageBatchSize;
@@ -42,8 +62,17 @@ class SelfplayInfo {
     std::atomic<uint64_t> NumCacheHit;
     std::atomic<uint64_t> NumCacheMiss;
 
+    // Game statistics.
+    uint64_t NumBlackWin;
+    uint64_t NumWhiteWin;
+    uint64_t NumDraw;
+    uint64_t NumDeclare;
+    double AveragePly;
+    double AveragePlyDraw;
+
     mutable std::mutex Mutex;
     mutable std::mutex MutexInference;
+    mutable std::mutex MutexStatistics;
     std::condition_variable CV;
 };
 
