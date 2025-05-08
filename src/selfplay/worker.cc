@@ -201,8 +201,8 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
 
 SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // This node has been already evaluated.
-    if (F->getNodeToEvalute()->getVisitsAndVirtualLoss() > 0) {
-        assert(F->getNodeToEvalute() != F->getSearchTree()->getRoot());
+    if (F->getNodeToEvaluate()->getVisitsAndVirtualLoss() > 0) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         return SelfplayPhase::Backpropagation;
     }
 
@@ -211,18 +211,18 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition) {
         F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
-        F->getNodeToEvalute()->setRepetitionStatus(RS);
+        F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::LossRepetition) {
         F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
-        F->getNodeToEvalute()->setRepetitionStatus(RS);
+        F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                                     ? F->getStateConfig()->BlackDrawValue
                                     : F->getStateConfig()->WhiteDrawValue;
         F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
-        F->getNodeToEvalute()->setRepetitionStatus(RS);
+        F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     }
 
@@ -272,7 +272,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         }
     }
 
-    F->getNodeToEvalute()->expand(LegalMoves, EA);
+    F->getNodeToEvaluate()->expand(LegalMoves, EA);
 
     // Check evaluation cache.
     assert(EvalCache != nullptr);
@@ -292,9 +292,9 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
 SelfplayPhase Worker::backpropagate(Frame* F) const {
     // Backpropagate win rate and draw rate.
-    F->getNodeToEvalute()->updateAncestors<false>(
-        F->getNodeToEvalute()->getWinRatePredicted(),
-        F->getNodeToEvalute()->getDrawRatePredicted());
+    F->getNodeToEvaluate()->updateAncestors<false>(
+        F->getNodeToEvaluate()->getWinRatePredicted(),
+        F->getNodeToEvaluate()->getDrawRatePredicted());
 
     while (F->getState()->getPly() > F->getRootPly()) {
         F->getState()->undoMove();
@@ -313,7 +313,7 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
 
     // If the node is root node, extract top m moves sorted by
     // gumbel noise and policy.
-    if (F->getNodeToEvalute() == F->getSearchTree()->getRoot()) {
+    if (F->getNodeToEvaluate() == F->getSearchTree()->getRoot()) {
         assert(F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() == 1);
         sampleTopMMoves(F);
     } else {

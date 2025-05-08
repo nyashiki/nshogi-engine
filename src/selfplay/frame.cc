@@ -67,7 +67,7 @@ void Frame::setWinner(core::Color C) {
     Winner = C;
 }
 
-mcts::Node* Frame::getNodeToEvalute() {
+mcts::Node* Frame::getNodeToEvaluate() {
     return NodeToEvaluate;
 }
 
