@@ -71,6 +71,104 @@ double SelfplayInfo::getCacheHitRatio() const {
     return (N == 0) ? 0.0 : ((double)CH / (double)N);
 }
 
+uint64_t SelfplayInfo::numBlackWin() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return NumBlackWin;
+}
+
+uint64_t SelfplayInfo::numWhiteWin() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return NumWhiteWin;
+}
+
+uint64_t SelfplayInfo::numDraw() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return NumDraw;
+}
+
+uint64_t SelfplayInfo::numGenerated() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return NumBlackWin + NumWhiteWin + NumDraw;
+}
+
+uint64_t SelfplayInfo::numDeclare() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return NumDeclare;
+}
+
+double SelfplayInfo::averagePly() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return AveragePly;
+}
+
+double SelfplayInfo::averagePlyDraw() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    return AveragePlyDraw;
+}
+
+double SelfplayInfo::blackWinRate() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    if (NumBlackWin + NumWhiteWin + NumDraw == 0) {
+        return 0.0;
+    }
+    return (double)NumBlackWin / (double)(NumBlackWin + NumWhiteWin + NumDraw);
+}
+
+double SelfplayInfo::whiteWinRate() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    if (NumBlackWin + NumWhiteWin + NumDraw == 0) {
+        return 0.0;
+    }
+    return (double)NumWhiteWin / (double)(NumBlackWin + NumWhiteWin + NumDraw);
+}
+
+double SelfplayInfo::drawRate() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    if (NumBlackWin + NumWhiteWin + NumDraw == 0) {
+        return 0.0;
+    }
+    return (double)NumDraw / (double)(NumBlackWin + NumWhiteWin + NumDraw);
+}
+
+double SelfplayInfo::declareRate() const {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    if (NumBlackWin + NumWhiteWin + NumDraw == 0) {
+        return 0.0;
+    }
+    return (double)NumDeclare / (double)(NumBlackWin + NumWhiteWin + NumDraw);
+}
+
+void SelfplayInfo::incrementBlackWin() {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    ++NumBlackWin;
+}
+
+void SelfplayInfo::incrementWhiteWin() {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    ++NumWhiteWin;
+}
+
+void SelfplayInfo::incrementDraw() {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    ++NumDraw;
+}
+
+void SelfplayInfo::incrementDeclare() {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    ++NumDeclare;
+}
+
+void SelfplayInfo::updateAveragePly(uint16_t Ply) {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    const uint64_t N = NumBlackWin + NumWhiteWin;
+    AveragePly = (AveragePly * (double)N + (double)Ply) / (double)(N + 1);
+}
+
+void SelfplayInfo::updateAveragePlyDraw(uint16_t Ply) {
+    std::lock_guard<std::mutex> Lock(MutexStatistics);
+    AveragePlyDraw = (AveragePly * (double)NumDraw + (double)Ply) / (double)(NumDraw + 1);
+}
+
 } // namespace selfplay
 } // namespace engine
 } // namespace nshogi
