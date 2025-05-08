@@ -54,6 +54,24 @@ bool Worker::doTask() {
 
         assert(Task->getPhase() != SelfplayPhase::Evaluation);
 
+        //
+        // clang-format off
+        //
+        // [selfplay loop]
+        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition --> judge -- (if the game is finished) --> save
+        //     |               |              |                |                                    |              |                                                      |                                      |
+        //     |               |              |                |                                    |              |                                                      |                                      |
+        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                      |                                      |
+        //     |               |              |                                                                    |                                                      |                                      |
+        //     |               |              --<----------- (if it reaches sequential halving threshold) -------<--                                                      |                                      |
+        //     |               |                                                                                                                                          |                                      |
+        //     |               --<----------------------------------------------------- (proceed one move) -------------------------------------------------------------<--                                      |
+        //     |                                                                                                                                                                                                 |
+        //     --<---------------------------------------------------------------------------------------------- (start a new game) ---------------------------------------------------------------------------<--
+        //
+        // clang-format on
+        //
+
         if (Task->getPhase() == SelfplayPhase::Initialization) {
             Task->setPhase(initialize(Task.get()));
         } else if (Task->getPhase() == SelfplayPhase::RootPreparation) {
@@ -341,6 +359,8 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
             // at this node and proceed to a next state.
             if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() >=
                 F->getNumPlayouts() + 1) {
+                // Adding 1 because it consumes one simulation to evaluate
+                // the root node itself.
                 return SelfplayPhase::Transition;
             }
 
@@ -431,6 +451,8 @@ SelfplayPhase Worker::transition(Frame* F) const {
         mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
         assert(Child != nullptr);
+        // All children must be visited equally.
+        assert(Child->getVisitsAndVirtualLoss() == MaxN);
 
         const double Score =
             F->getGumbelNoise().at(I) + Edge->getProbability() +
@@ -725,7 +747,9 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
             F->getGumbelNoise().at(I) + Edge->getProbability() +
             transformQ(
                 computeWinRateOfChild(F, F->getState()->getSideToMove(), Child),
-                MaxN);
+                Child->getVisitsAndVirtualLoss());
+        // Note: (any) Child->Visits == \max_{Child} Child->Visits
+        // holds becasue the children of the root node are visited equally.
         ScoreWithIndex[I].second = I;
     }
 
@@ -736,6 +760,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     NumSort =
         std::max((uint64_t)2, (NumSort + 1) >> F->getSequentialHalvingCount());
 
+    // Gather top moves along policy + gumbel noise.
     std::partial_sort(ScoreWithIndex, ScoreWithIndex + (long)NumSort,
                       ScoreWithIndex + (long)F->getIsTarget().size(),
                       [](const std::pair<double, std::size_t>& Elem1,
