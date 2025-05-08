@@ -39,7 +39,7 @@ struct Frame {
     void setConfig(std::unique_ptr<core::StateConfig>&&);
     void setWinner(core::Color);
 
-    mcts::Node* getNodeToEvalute();
+    mcts::Node* getNodeToEvaluate();
     uint16_t getRootPly() const;
     void setNodeToEvaluate(mcts::Node*);
     void setRootPly(uint16_t);
