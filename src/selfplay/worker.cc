@@ -58,16 +58,16 @@ bool Worker::doTask() {
         // clang-format off
         //
         // [selfplay loop]
-        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition --> judge -- (if the game is finished) --> save
-        //     |               |              |                |                                    |              |                                                      |                                      |
-        //     |               |              |                |                                    |              |                                                      |                                      |
-        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                      |                                      |
-        //     |               |              |                                                                    |                                                      |                                      |
-        //     |               |              --<----------- (if it reaches sequential halving threshold) -------<--                                                      |                                      |
-        //     |               |                                                                                                                                          |                                      |
-        //     |               --<----------------------------------------------------- (proceed one move) -------------------------------------------------------------<--                                      |
-        //     |                                                                                                                                                                                                 |
-        //     --<---------------------------------------------------------------------------------------------- (start a new game) ---------------------------------------------------------------------------<--
+        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition -- (proceed one move) --> judge -- (if the game is finished) --> save
+        //     |               |              |                |                                    |              |                                                                            |                                      |
+        //     |               |              |                |                                    |              |                                                                            |                                      |
+        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                                            |                                      |
+        //     |               |              |                                                                    |                                                                            |                                      |
+        //     |               |              --<----------- (if it reaches sequential halving threshold) -------<--                                                                            |                                      |
+        //     |               |                                                                                                                                                                |                                      |
+        //     |               --<------------------------------------------------------------------------------------------------------------------------------------------------------------<--                                      |
+        //     |                                                                                                                                                                                                                       |
+        //     --<--------------------------------------------------------------------------------------------- (start a new game) --------------------------------------------------------------------------------------------------<--
         //
         // clang-format on
         //
