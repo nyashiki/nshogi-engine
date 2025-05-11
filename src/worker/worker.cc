@@ -9,7 +9,7 @@
 
 #include "worker.h"
 
-#include <iostream>
+#include <stdexcept>
 
 namespace nshogi {
 namespace engine {
@@ -29,19 +29,24 @@ Worker::~Worker() {
         std::lock_guard<std::mutex> Lock(Mutex);
         IsExiting = true;
     }
-    CV.notify_one();
+    TaskRunnerCV.notify_one();
 
-    await();
-    Thread.join();
+    if (Thread.joinable()) {
+        await();
+        Thread.join();
+    }
 }
 
 void Worker::start() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
+        if (IsRunning) {
+            throw std::runtime_error("Worker is already running.");
+        }
         IsRunning = true;
         IsStartNotified = false;
     }
-    CV.notify_one();
+    TaskRunnerCV.notify_one();
 
     // Ensure the thread has started.
     std::unique_lock<std::mutex> Lock(Mutex);
@@ -74,7 +79,13 @@ void Worker::spawnThread() {
 void Worker::initializationTask() {
 }
 
-bool Worker::getIsRunning() {
+void Worker::doPreTask() {
+}
+
+void Worker::doPostTask() {
+}
+
+bool Worker::isRunning() {
     std::lock_guard<std::mutex> Lock(Mutex);
     return IsRunning;
 }
@@ -100,7 +111,7 @@ void Worker::mainLoop() {
         {
             std::unique_lock<std::mutex> Lock(Mutex);
 
-            CV.wait(Lock, [this] { return IsRunning || IsExiting; });
+            TaskRunnerCV.wait(Lock, [this] { return IsRunning || IsExiting; });
 
             // Notify a waiting thread which is in start().
             IsWaiting = false;
@@ -114,22 +125,29 @@ void Worker::mainLoop() {
             break;
         }
 
-        while (true) {
-            bool ToContinue = doTask();
+        doPreTask();
 
-            if (!LoopTaskFlag) {
-                break;
-            }
+        if (LoopTaskFlag) {
+            while (true) {
+                const bool ToContinue = doTask();
 
-            if (ToContinue) {
-                continue;
-            }
+                // If doTask() returns true,
+                // not to release this while loop and
+                // call doTask() once again.
+                if (ToContinue) {
+                    continue;
+                }
 
-            std::lock_guard<std::mutex> Lock(Mutex);
-            if (!IsRunning || IsExiting) {
-                break;
+                std::lock_guard<std::mutex> Lock(Mutex);
+                if (!IsRunning || IsExiting) {
+                    break;
+                }
             }
+        } else {
+            doTask();
         }
+
+        doPostTask();
     }
 
     {

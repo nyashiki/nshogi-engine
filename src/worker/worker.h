@@ -34,7 +34,9 @@ class Worker {
 
     virtual void initializationTask();
     virtual bool doTask() = 0;
-    bool getIsRunning();
+    virtual void doPreTask();
+    virtual void doPostTask();
+    bool isRunning();
 
     bool IsRunning;
     bool IsWaiting;
@@ -50,7 +52,7 @@ class Worker {
     std::thread Thread;
     std::mutex Mutex;
     std::mutex MutexInitialization;
-    std::condition_variable CV;
+    std::condition_variable TaskRunnerCV;
     std::condition_variable CVInitialization;
     std::condition_variable WaitingCV;
 };

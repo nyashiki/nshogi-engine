@@ -40,7 +40,7 @@ bool CheckmateWorker::doTask() {
         std::unique_ptr<CheckmateTask> Task = std::move(Tasks.front());
         Tasks.pop();
 
-        if (!getIsRunning()) {
+        if (!isRunning()) {
             // This solver has been told to stop.
             break;
         }

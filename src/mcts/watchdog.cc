@@ -29,7 +29,7 @@ Watchdog::Watchdog(const Context* C, allocator::Allocator* NodeAllocator,
 }
 
 Watchdog::~Watchdog() {
-    assert(!getIsRunning());
+    assert(!isRunning());
 }
 
 void Watchdog::updateRoot(const core::State* S, const core::StateConfig* SC,
@@ -76,7 +76,7 @@ bool Watchdog::doTask() {
             break;
         }
 
-        if (!getIsRunning()) {
+        if (!isRunning()) {
             break;
         }
 
