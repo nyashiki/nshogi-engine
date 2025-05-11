@@ -24,7 +24,7 @@ namespace selfplay {
 class SaveWorker : public worker::Worker {
  public:
     SaveWorker(SelfplayInfo*, FrameQueue*, FrameQueue*,
-               std::size_t NumSelfplayGames, const char* SavePath);
+               std::size_t NumSelfplayGames, const char* SavePath, bool IgnoreDraw);
 
  private:
     bool doTask() override;
@@ -37,6 +37,7 @@ class SaveWorker : public worker::Worker {
     SelfplayInfo* SInfo;
     FrameQueue* SaveQueue;
     FrameQueue* SearchQueue;
+    const bool IgnoreDrawGames;
     std::ofstream Ofs;
 
     std::chrono::time_point<std::chrono::steady_clock> StartTime;
