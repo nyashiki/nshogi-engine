@@ -22,12 +22,13 @@ namespace engine {
 namespace selfplay {
 
 SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ,
-                       std::size_t NumSelfplayGames, const char* SavePath)
+                       std::size_t NumSelfplayGames, const char* SavePath, bool IgnoreDraw)
     : worker::Worker(true)
     , NumSelfplayGamesToStop(NumSelfplayGames)
     , SInfo(SI)
     , SaveQueue(SVQ)
-    , SearchQueue(SCQ) {
+    , SearchQueue(SCQ)
+    , IgnoreDrawGames(IgnoreDraw) {
 
     Ofs.open(SavePath, std::ios::binary);
     if (!Ofs) {
@@ -50,8 +51,10 @@ bool SaveWorker::doTask() {
         auto Task = std::move(Tasks.front());
         Tasks.pop();
 
-        updateStatistics(Task.get());
-        save(Task.get());
+        if (!IgnoreDrawGames || Task->getWinner() != core::NoColor) {
+            updateStatistics(Task.get());
+            save(Task.get());
+        }
 
         assert(Task->getPhase() == SelfplayPhase::Save);
         if (SInfo->numGenerated() + SInfo->getNumOnGoinggames() < NumSelfplayGamesToStop) {

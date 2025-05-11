@@ -43,6 +43,7 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("initial-positions", "",
                      "Sfen file that contains sfen positions.");
     Parser.addOption("use-shogi816k", "Use shogi816k positions.");
+    Parser.addOption("ignore-draw", "Ignore draw games.");
 
     Parser.parse(Argc, Argv);
 
@@ -159,7 +160,7 @@ int main(int Argc, char* Argv[]) {
     const std::string SAVE_PATH = Parser.getOption("out");
     auto Saver = std::make_unique<SaveWorker>(
         SInfo.get(), SaveQueue.get(), SearchQueue.get(), NUM_SELFPLAY_GAMES,
-        SAVE_PATH.c_str());
+        SAVE_PATH.c_str(), Parser.isSpecified("ignore-draw"));
 
     // Launch workers.
     Saver->start();
