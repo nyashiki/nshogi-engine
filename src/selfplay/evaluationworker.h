@@ -33,7 +33,6 @@ class EvaluationWorker : public worker::Worker {
 
     void prepareInfer(std::size_t ThreadId, std::size_t GPUId,
                       const char* WeightPath);
-    void allocate();
 
     std::unique_ptr<infer::Infer> Infer;
     std::unique_ptr<evaluate::Evaluator> Evaluator;
@@ -42,7 +41,6 @@ class EvaluationWorker : public worker::Worker {
     FrameQueue* SearchQueue;
     SelfplayInfo* SInfo;
 
-    ml::FeatureBitboard* FeatureBitboards;
     std::vector<std::unique_ptr<Frame>> Tasks;
 };
 

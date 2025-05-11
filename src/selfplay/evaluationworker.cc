@@ -8,15 +8,9 @@
 //
 
 #include "evaluationworker.h"
-#include "../evaluate/preset.h"
+#include "../globalconfig.h"
 #include "../globalconfig.h"
 #include "../math/math.h"
-
-#ifdef CUDA_ENABLED
-
-#include <cuda_runtime.h>
-
-#endif
 
 #ifdef EXECUTOR_ZERO
 
@@ -59,17 +53,11 @@ EvaluationWorker::EvaluationWorker(std::size_t ThreadId,
     , SInfo(SI) {
 
     prepareInfer(ThreadId, GPUId, WeightPath);
-    allocate();
 
     spawnThread();
 }
 
 EvaluationWorker::~EvaluationWorker() {
-#ifdef CUDA_ENABLED
-    cudaFree(FeatureBitboards);
-#else
-    delete[] FeatureBitboards;
-#endif
 }
 
 void EvaluationWorker::initializationTask() {
@@ -98,8 +86,8 @@ bool EvaluationWorker::doTask() {
     }
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
-        evaluate::preset::CustomFeaturesV1::constructAt(
-            FeatureBitboards + I * evaluate::preset::CustomFeaturesV1::size(),
+        global_config::FeatureType::constructAt(
+            Evaluator->getFeatureBitboards() + I * global_config::FeatureType::size(),
             *Tasks.at(I)->getState(), *Tasks.at(I)->getStateConfig());
     }
 
@@ -139,17 +127,6 @@ void EvaluationWorker::prepareInfer(std::size_t ThreadId,
 #endif
     Evaluator = std::make_unique<evaluate::Evaluator>(
         ThreadId, global_config::FeatureType::size(), BatchSize, Infer.get());
-}
-
-void EvaluationWorker::allocate() {
-#ifdef CUDA_ENABLED
-    cudaMallocHost(&FeatureBitboards, BatchSize *
-                                          global_config::FeatureType::size() *
-                                          sizeof(ml::FeatureBitboard));
-#else
-    FeatureBitboards =
-        new ml::FeatureBitboard[BatchSize * global_config::FeatureType::size()];
-#endif
 }
 
 } // namespace selfplay
