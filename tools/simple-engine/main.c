@@ -15,8 +15,21 @@
 #include <string.h>
 #include <stdlib.h>
 
+typedef struct usi_option {
+    const char* Key;
+    int value;
+    int value_min;
+    int value_max;
+} usi_option_t;
+
 int main(int argc, char* argv[]) {
     initializeNShogi();
+
+    usi_option_t usi_options[] = {
+        { "simulation", 200, 1, 9999999},
+    };
+
+    int num_options = sizeof(usi_options) / sizeof(usi_options[0]);
 
     onnxruntime_t* onnx_runtime = NULL;
 
@@ -42,11 +55,39 @@ int main(int argc, char* argv[]) {
         if (strncmp(line, "usi", 3) == 0) {
             printf("id name simple-engine\n");
             printf("id author nyashiki\n");
+            for (int i = 0; i < num_options; ++i) {
+                printf("option name %s type spin default %d min %d max %d\n",
+                        usi_options[i].Key,
+                        usi_options[i].value,
+                        usi_options[i].value_min,
+                        usi_options[i].value_max);
+            }
             printf("usiok\n");
             fflush(stdout);
-        } else if(strncmp(line, "isready", 7) == 0) {
-            // Initialize onnxruntime.
-            onnx_runtime = createOnnxRuntimeInstance("model.onnx");
+        } else if (strncmp(line, "setoption", 9) == 0) {
+            char key[256];
+            char value[256];
+            sscanf(line, "setoption name %255s value %255s", key, value);
+            int found = 0;
+            for (int i = 0; i < num_options; ++i) {
+                if (strcmp(usi_options[i].Key, key) == 0) {
+                    usi_options[i].value = atoi(value);
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                printf("ERROR: unknown option %s\n", key);
+            }
+        } else if (strncmp(line, "isready", 7) == 0) {
+            static int isready_called = 0;
+            if (isready_called) {
+                printf("Warning: isready is already called.\n");
+            } else {
+                // Initialize onnxruntime.
+                onnx_runtime = createOnnxRuntimeInstance("latest.onnx");
+                isready_called = 1;
+            }
             printf("readyok\n");
             fflush(stdout);
         } else if (strncmp(line, "usinewgame", 10) == 0) {
@@ -64,10 +105,18 @@ int main(int argc, char* argv[]) {
         } else if (strncmp(line, "go", 2) == 0) {
             // If the number of plies of the state is less than 30,
             // set the temperature to 10.0. Otherwise, set it to 0.0 (greedy).
-            float temperature = state_api->getPly(state) < 30 ? 10.0 : 0.0;
+            // float temperature = state_api->getPly(state) < 30 ? 10.0 : 0.0;
+            float temperature = 0.0f;
+
+            int num_simulations = 200;
+            for (int i = 0; i < num_options; ++i) {
+                if (strcmp(usi_options[i].Key, "simulation") == 0) {
+                    num_simulations = usi_options[i].value;
+                }
+            }
 
             // Start thinking.
-            nshogi_move_t best_move = startSearch(state, state_config, 800, onnx_runtime, temperature);
+            nshogi_move_t best_move = startSearch(state, state_config, num_simulations, onnx_runtime, temperature);
 
             // Print the best move.
             char* sfen = io_api->moveToSfen(best_move);
