@@ -21,7 +21,7 @@
 /// @return A random number in [0, 1).
 ///
 static double getRandom() {
-    return rand() / ((double) RAND_MAX);
+    return rand() / ((double)RAND_MAX);
 }
 
 ///
@@ -53,6 +53,28 @@ static void softmax(float* x, int num, float temperature) {
     }
 
     // Normalization: dividing by the sum of e^{x_i - M}.
+    for (int i = 0; i < num; ++i) {
+        x[i] /= sum;
+    }
+}
+
+///
+/// @fn mcts_policy_with_temperature
+/// @brief Do inplace normalization computation.
+/// @param x Input.
+/// @param num The number of elements `x` has.
+/// @param temperature temperature.
+///
+static void mcts_policy_with_temperature(float* x, int num, float temperature) {
+    float sum = 0.0f;
+
+    // Compute x_i^{1/temperature}.
+    for (int i = 0; i < num; ++i) {
+        x[i] = powf(x[i], 1.0f / temperature);
+        sum += x[i];
+    }
+
+    // Normalization: dividing by the sum of x_i^{1/temperature}.
     for (int i = 0; i < num; ++i) {
         x[i] /= sum;
     }
@@ -325,7 +347,7 @@ static void evaluateNode(nshogi_state_t* state, nshogi_state_config_t* state_con
     float legal_policy[600];
     for (int i = 0; i < node->num_children; ++i) {
         node_t* child = node->children[i];
-        int move_index = nshogi_api->moveToIndex(state, child->move);
+        int move_index = ml_api->moveToIndex(state, child->move);
         legal_policy[i] = onnx_runtime->policy[move_index];
     }
     softmax(legal_policy, node->num_children, 1.0f);
@@ -428,8 +450,7 @@ static node_t* decideBestChild(node_t* node, nshogi_state_t* state, nshogi_state
     // (win_rate_best - away) is promising.
     int num_candidates = 0;
     node_t* candidate_children[600];
-    float visit_proportional[600];
-    uint64_t visit_sum = 0;
+    float visits[600];
     for (int i = 0; i < node->num_children; ++i) {
         node_t* child = node->children[i];
         if (child->visit_count == 0) {
@@ -438,23 +459,18 @@ static node_t* decideBestChild(node_t* node, nshogi_state_t* state, nshogi_state
 
         if (win_rates[i] >= best_win_rate - away) {
             candidate_children[num_candidates] = child;
-            visit_proportional[num_candidates] = child->visit_count;
-            visit_sum += child->visit_count;
+            visits[num_candidates] = child->visit_count;
             ++num_candidates;
         }
     }
 
-    // Normalize visit counts over the promising children.
-    for (int i = 0; i < num_candidates; ++i) {
-        visit_proportional[i] /= visit_sum;
-    }
-    softmax(visit_proportional, num_candidates, temperature);
+    mcts_policy_with_temperature(visits, num_candidates, temperature);
 
     // Sample a promising child.
     float r = getRandom();
     float s = 0;
     for (int i = 0; i < num_candidates; ++i) {
-        s += visit_proportional[i];
+        s += visits[i];
         if (s >= r) {
             return candidate_children[i];
         }
@@ -466,9 +482,10 @@ static node_t* decideBestChild(node_t* node, nshogi_state_t* state, nshogi_state
 /// @fv printThinkLog
 /// @brief print thinking log.
 ///
-static void printThinkingLog(tree_t* tree, nshogi_state_t* state, nshogi_state_config_t* state_config) {
+static void printThinkingLog(double elapsed, tree_t* tree, nshogi_state_t* state, nshogi_state_config_t* state_config) {
     // Output score.
-    printf("info score cp %d pv",
+    printf("info time %d score cp %d pv",
+            (int)(elapsed * 1000),
             winRateToScore(tree->root->accumulated_win_rate / tree->root->visit_count));
 
     node_t* node = tree->root;
@@ -521,8 +538,10 @@ static void destroyTree(tree_t* tree) {
 }
 
 nshogi_move_t startSearch(nshogi_state_t* state, nshogi_state_config_t* state_config, int num_simulation, onnxruntime_t* onnx_runtime, float temperature) {
+    time_t start_time = time(NULL);
+
     // Set a new random seed.
-    srand(time(NULL));
+    srand(start_time);
 
     // If one can win by the declaration rule,
     // immedeately returns the declaration move.
@@ -568,7 +587,9 @@ nshogi_move_t startSearch(nshogi_state_t* state, nshogi_state_config_t* state_co
     }
 
     // Print thinking log.
-    printThinkingLog(tree, state, state_config);
+    time_t end_time = time(NULL);
+    double elapsed = difftime(end_time, start_time);
+    printThinkingLog(elapsed, tree, state, state_config);
 
     // Fetch the best move.
     nshogi_move_t best_move = 0;
