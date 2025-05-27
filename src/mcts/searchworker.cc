@@ -85,28 +85,19 @@ Node* SearchWorker<Features>::collectOneLeaf() {
                 VisitsAndVirtualLoss >> Node::VirtualLossShift;
 
             if (VirtualLoss == 0) {
-                lock::SpinLock* Mutex = nullptr;
+                std::unique_lock<lock::SpinLock> Lock;
                 if (MtxPool != nullptr) {
-                    Mutex = MtxPool->get(CurrentNode);
-                    Mutex->lock();
+                    Lock = std::unique_lock<lock::SpinLock>(*MtxPool->get(CurrentNode));
                 }
 
                 // Re-check the number of visit and virtual loss after getting a
                 // lock. It is no longer zero if another thread has expanded
                 // this leaf.
                 if (CurrentNode->getVisitsAndVirtualLoss() != 0ULL) {
-                    if (Mutex != nullptr) {
-                        Mutex->unlock();
-                    }
                     return nullptr;
                 }
 
                 incrementVirtualLosses(CurrentNode);
-
-                if (Mutex != nullptr) {
-                    Mutex->unlock();
-                }
-
                 return CurrentNode;
             }
 
@@ -158,17 +149,15 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             // If `Target` is nullptr, we have not extracted the child of this
             // node.
 
-            lock::SpinLock* EdgeMtx = nullptr;
+            std::unique_lock<lock::SpinLock> Lock;
             if (MtxPool != nullptr) {
-                EdgeMtx = MtxPool->get(reinterpret_cast<void*>(E));
-                EdgeMtx->lock();
+                Lock = std::unique_lock<lock::SpinLock>(*MtxPool->get(E));
 
                 if (E->getTarget() != nullptr) {
                     // This thread has reached a leaf node but another thread
                     // also had reached this leaf node and has evaluated this
                     // leaf node. Therefore E->getTarget() is no longer nullptr
                     // and nothing to do is left.
-                    EdgeMtx->unlock();
                     return nullptr;
                 }
             }
@@ -179,21 +168,12 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             if (NewNode == nullptr) {
                 // If there is no available memory, it has failed to allocate a
                 // new node.
-                if (EdgeMtx != nullptr) {
-                    EdgeMtx->unlock();
-                }
-
                 return nullptr;
             }
 
             auto* NewNodePtr = NewNode.get();
             incrementVirtualLosses(NewNodePtr);
             E->setTarget(std::move(NewNode));
-
-            if (EdgeMtx != nullptr) {
-                EdgeMtx->unlock();
-            }
-
             return NewNodePtr;
         }
 
