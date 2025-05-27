@@ -252,13 +252,11 @@ Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         // is not expanded yet. Recall the UCB fomular, the most promising edge
         // is the edge with the highest prior. Since we have sorted the children
         // along their prior, we can simply select 0-th edge if the virtual loss
-        // is zero. If the virtual loss is not zero, we simply choose
-        // `virtual-loss`-th element.
-        if (CurrentVirtualLoss < NumChildren) {
-            return &N->getEdge()[CurrentVirtualLoss];
+        // is zero.
+        if (CurrentVirtualLoss == 0) {
+            return &N->getEdge()[0];
         } else {
-            // When the virtual loss is larger than or equal to the number of
-            // children, all children will be extracted so nothing to do here.
+            // Otherwise, skip going deeper at this node.
             return nullptr;
         }
     }
