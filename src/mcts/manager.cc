@@ -113,11 +113,11 @@ void Manager::interrupt() {
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
     }
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->await();
-    }
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->await();
+    }
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
+        EvaluationWorker->await();
     }
     WatchdogWorker->await();
 }
@@ -268,15 +268,15 @@ void Manager::doSupervisorWork(bool CallCallback) {
         if (CQueue != nullptr) {
             CQueue->open();
         }
-        for (const auto& SearchWorker : SearchWorkers) {
-            SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
-            SearchWorker->start();
-        }
         for (const auto& EvaluationWorker : EvaluationWorkers) {
             EvaluationWorker->start();
         }
         for (const auto& CheckmateWorker : CheckmateWorkers) {
             CheckmateWorker->start();
+        }
+        for (const auto& SearchWorker : SearchWorkers) {
+            SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
+            SearchWorker->start();
         }
 
         WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(),
@@ -288,11 +288,11 @@ void Manager::doSupervisorWork(bool CallCallback) {
         for (const auto& SearchWorker : SearchWorkers) {
             SearchWorker->await();
         }
-        for (const auto& EvaluationWorker : EvaluationWorkers) {
-            EvaluationWorker->await();
-        }
         for (const auto& CheckmateWorker : CheckmateWorkers) {
             CheckmateWorker->await();
+        }
+        for (const auto& EvaluationWorker : EvaluationWorkers) {
+            EvaluationWorker->await();
         }
         WatchdogWorker->await();
 
@@ -356,16 +356,16 @@ void Manager::doSupervisorWork(bool CallCallback) {
                 if (CQueue != nullptr) {
                     CQueue->open();
                 }
-                for (const auto& SearchWorker : SearchWorkers) {
-                    SearchWorker->updateRoot(*CurrentState, *StateConfig,
-                                             RootNodePondering);
-                    SearchWorker->start();
-                }
                 for (const auto& EvaluationWorker : EvaluationWorkers) {
                     EvaluationWorker->start();
                 }
                 for (const auto& CheckmateWorker : CheckmateWorkers) {
                     CheckmateWorker->start();
+                }
+                for (const auto& SearchWorker : SearchWorkers) {
+                    SearchWorker->updateRoot(*CurrentState, *StateConfig,
+                                             RootNodePondering);
+                    SearchWorker->start();
                 }
 
                 WatchdogWorker->updateRoot(
@@ -385,17 +385,15 @@ void Manager::stopWorkers() {
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->stop();
     }
-
-    EQueue->close();
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->stop();
-    }
-
     if (CQueue != nullptr) {
         CQueue->close();
     }
     for (const auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker->stop();
+    }
+    EQueue->close();
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
+        EvaluationWorker->stop();
     }
 }
 
