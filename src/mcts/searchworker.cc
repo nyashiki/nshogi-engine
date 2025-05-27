@@ -537,7 +537,10 @@ bool SearchWorker<Features>::doTask() {
 
     // Evaluate the leaf node.
     if (!CacheFound) {
-        EQueue->add(*State, Config, LeafNode);
+        const bool Succeeded = EQueue->add(*State, Config, LeafNode);
+        if (!Succeeded) {
+            cancelVirtualLoss(LeafNode);
+        }
     }
 
     return false;

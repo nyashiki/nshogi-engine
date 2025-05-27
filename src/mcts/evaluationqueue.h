@@ -27,7 +27,7 @@ class EvaluationQueue {
 
     void open();
     void close();
-    void add(const core::State&, const core::StateConfig&, Node*);
+    bool add(const core::State&, const core::StateConfig&, Node*);
     auto get(std::size_t NumElements)
         -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
                       std::vector<Features>, std::vector<uint64_t>>;

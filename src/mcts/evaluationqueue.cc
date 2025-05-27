@@ -42,7 +42,7 @@ std::size_t EvaluationQueue<Features>::count() {
 }
 
 template <typename Features>
-void EvaluationQueue<Features>::add(const core::State& State,
+bool EvaluationQueue<Features>::add(const core::State& State,
                                     const core::StateConfig& Config, Node* N) {
     Features FSC(State, Config);
 
@@ -53,7 +53,10 @@ void EvaluationQueue<Features>::add(const core::State& State,
     if (IsOpen) {
         Queue.emplace(State.getSideToMove(), N, std::move(FSC),
                       State.getHash());
+        return true;
     }
+
+    return false;
 }
 
 template <typename Features>
