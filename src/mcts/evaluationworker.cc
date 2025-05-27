@@ -110,7 +110,7 @@ bool EvaluationWorker<Features>::doTask() {
         std::this_thread::yield();
         // As the batch size is zero, there is no tasks to do, so
         // return false to notify this thread can be stopped.
-        return false;
+        return isRunning();
     }
 
     doInference();
