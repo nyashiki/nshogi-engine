@@ -18,9 +18,9 @@ namespace engine {
 namespace mcts {
 
 template <typename LockType>
-MutexPool<LockType>::MutexPool(std::size_t PoolSize)
-    : Size(PoolSize) {
-    Pool = std::make_unique<LockType[]>(PoolSize);
+MutexPool<LockType>::MutexPool(std::size_t PoolMemorySize)
+    : Size(PoolMemorySize / sizeof(LockType)) {
+    Pool = std::make_unique<LockType[]>(Size);
 }
 
 template <typename LockType>

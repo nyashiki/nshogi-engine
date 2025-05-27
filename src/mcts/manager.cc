@@ -136,7 +136,7 @@ void Manager::setupGarbageCollector() {
 }
 
 void Manager::setupMutexPool() {
-    MtxPool = std::make_unique<MutexPool<lock::SpinLock>>(1000000);
+    MtxPool = std::make_unique<MutexPool<lock::SpinLock>>(1ULL * 1024ULL * 1024ULL * 1024ULL);
 }
 
 void Manager::setupSearchTree() {

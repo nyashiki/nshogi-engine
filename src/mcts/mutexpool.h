@@ -21,7 +21,7 @@ namespace mcts {
 template <typename LockType = std::mutex>
 class MutexPool {
  public:
-    MutexPool(std::size_t PoolSize);
+    MutexPool(std::size_t PoolMemorySize);
 
     LockType* get(void* Ptr);
     LockType* getRootMtx();
