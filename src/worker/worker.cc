@@ -9,27 +9,22 @@
 
 #include "worker.h"
 
-#include <iostream>
-
 namespace nshogi {
 namespace engine {
 namespace worker {
 
 Worker::Worker(bool LoopTask)
-    : IsRunning(false)
-    , IsWaiting(false)
-    , IsExiting(false)
-    , IsStartNotified(false)
-    , IsInitializationDone(false)
-    , LoopTaskFlag(LoopTask) {
+    : IsStartNotified(false)
+    , LoopTaskFlag(LoopTask)
+    , WState(WorkerState::Uninitialized) {
 }
 
 Worker::~Worker() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
-        IsExiting = true;
+        WState = WorkerState::Exiting;
     }
-    CV.notify_one();
+    TaskCV.notify_one();
 
     await();
     Thread.join();
@@ -38,25 +33,30 @@ Worker::~Worker() {
 void Worker::start() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
-        IsRunning = true;
+        WState = WorkerState::Running;
         IsStartNotified = false;
     }
-    CV.notify_one();
+    TaskCV.notify_one();
 
     // Ensure the thread has started.
     std::unique_lock<std::mutex> Lock(Mutex);
-    WaitingCV.wait(Lock, [this]() { return IsStartNotified; });
+    StartCV.wait(Lock, [this]() { return IsStartNotified; });
 }
 
 void Worker::stop() {
     std::lock_guard<std::mutex> Lock(Mutex);
-    IsRunning = false;
+    if (WState == WorkerState::Running) {
+        WState = WorkerState::Stopping;
+    }
 }
 
 void Worker::await() {
     // Wait until the thread has stopped.
     std::unique_lock<std::mutex> Lock(Mutex);
-    WaitingCV.wait(Lock, [this] { return !IsRunning && IsWaiting; });
+    AwaitCV.wait(Lock, [this] {
+            return WState == WorkerState::Idle ||
+            WState == WorkerState::Exit;
+            });
 }
 
 void Worker::spawnThread() {
@@ -67,51 +67,46 @@ void Worker::spawnThread() {
 
     {
         std::unique_lock<std::mutex> Lock(MutexInitialization);
-        CVInitialization.wait(Lock, [this]() { return IsInitializationDone; });
+        InitializationCV.wait(Lock, [this]() { return WState != WorkerState::Uninitialized; });
     }
 }
 
 void Worker::initializationTask() {
 }
 
-bool Worker::getIsRunning() {
+bool Worker::isRunning() {
     std::lock_guard<std::mutex> Lock(Mutex);
-    return IsRunning;
+    return WState == WorkerState::Running;
 }
 
 void Worker::mainLoop() {
-    initializationTask();
-
     {
         std::lock_guard<std::mutex> Lock(MutexInitialization);
-        IsInitializationDone = true;
+        initializationTask();
+        WState = WorkerState::Idle;
     }
-    CVInitialization.notify_one();
+    InitializationCV.notify_one();
 
     while (true) {
         {
-            std::lock_guard<std::mutex> Lock(Mutex);
-            IsRunning = false;
-            IsWaiting = true;
-        }
-        WaitingCV.notify_all();
-
-        bool IsToExit = false;
-        {
             std::unique_lock<std::mutex> Lock(Mutex);
+            WState = WorkerState::Idle;
+            AwaitCV.notify_all();
 
-            CV.wait(Lock, [this] { return IsRunning || IsExiting; });
+            TaskCV.wait(Lock, [this] {
+                    return WState == WorkerState::Running ||
+                    WState == WorkerState::Exiting;
+                    });
 
             // Notify a waiting thread which is in start().
-            IsWaiting = false;
-            IsToExit = IsExiting;
             IsStartNotified = true;
-        }
 
-        WaitingCV.notify_all();
-
-        if (IsToExit) {
-            break;
+            if (WState == WorkerState::Running) {
+                StartCV.notify_all();
+            } else if (WState == WorkerState::Exiting) {
+                AwaitCV.notify_all();
+                break;
+            }
         }
 
         while (true) {
@@ -126,18 +121,15 @@ void Worker::mainLoop() {
             }
 
             std::lock_guard<std::mutex> Lock(Mutex);
-            if (!IsRunning || IsExiting) {
+            if (WState == WorkerState::Stopping) {
                 break;
             }
         }
     }
 
-    {
-        std::lock_guard<std::mutex> Lock(Mutex);
-        IsRunning = false;
-        IsWaiting = true;
-    }
-    WaitingCV.notify_all();
+    std::lock_guard<std::mutex> Lock(Mutex);
+    WState = WorkerState::Exit;
+    AwaitCV.notify_all();
 }
 
 } // namespace worker

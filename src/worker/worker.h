@@ -18,6 +18,15 @@ namespace nshogi {
 namespace engine {
 namespace worker {
 
+enum class WorkerState {
+    Uninitialized,
+    Idle,
+    Running,
+    Stopping,
+    Exiting,
+    Exit,
+};
+
 class Worker {
  public:
     Worker(bool LoopTask);
@@ -34,25 +43,23 @@ class Worker {
 
     virtual void initializationTask();
     virtual bool doTask() = 0;
-    bool getIsRunning();
+    bool isRunning();
 
-    bool IsRunning;
-    bool IsWaiting;
-    bool IsExiting;
     bool IsStartNotified;
-    bool IsInitializationDone;
 
  private:
     void mainLoop();
 
     const bool LoopTaskFlag;
+    WorkerState WState;
 
     std::thread Thread;
     std::mutex Mutex;
     std::mutex MutexInitialization;
-    std::condition_variable CV;
-    std::condition_variable CVInitialization;
-    std::condition_variable WaitingCV;
+    std::condition_variable TaskCV;
+    std::condition_variable InitializationCV;
+    std::condition_variable StartCV;
+    std::condition_variable AwaitCV;
 };
 
 } // namespace worker
