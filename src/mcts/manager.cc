@@ -296,6 +296,18 @@ void Manager::doSupervisorWork(bool CallCallback) {
         }
         WatchdogWorker->await();
 
+#ifndef NDEBUG
+        // Check the virtual loss of the root node is 0.
+        if (SearchTree->getRoot() != nullptr) {
+            const uint64_t RootVirtualLoss = SearchTree->getRoot()->getVisitsAndVirtualLoss() >> Node::VirtualLossShift;
+            if (RootVirtualLoss != 0) {
+                std::cerr << "[ERROR] Root's virtual loss after searching check failed. Virtual loss: " << RootVirtualLoss << std::endl;
+            }
+            assert(EQueue->count() == 0);
+            assert(RootVirtualLoss == 0);
+        }
+#endif
+
         // Prepare ThoughtLog if IsThoughtLogEnabled is true.
         if (PContext->isThoughtLogEnabled()) {
             TL = std::make_unique<ThoughtLog>();
