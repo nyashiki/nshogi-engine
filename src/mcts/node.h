@@ -56,7 +56,7 @@ struct Node {
         , Repetition(core::RepetitionStatus::NoRepetition) {
     }
 
-    static constexpr int VirtualLossShift = 48;
+    static constexpr int VirtualLossShift = 40;
     static constexpr uint64_t VisitMask = (1ULL << VirtualLossShift) - 1;
 
     inline void resetParent(Node* P = nullptr) {
