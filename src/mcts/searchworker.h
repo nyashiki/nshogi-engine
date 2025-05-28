@@ -36,6 +36,13 @@ class SearchWorker : public worker::Worker {
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
+
+ private:
+    static constexpr int32_t CBase = 19652;
+    static constexpr double CInit = 1.25;
+
+    bool doTask() override;
+
     Node* collectOneLeaf();
     int16_t expandLeaf(Node*);
 
@@ -45,12 +52,6 @@ class SearchWorker : public worker::Worker {
     void immediateUpdateByLoss(Node*);
     void immediateUpdateByDraw(Node*, float DrawValue);
     void immediateUpdate(Node*);
-
- private:
-    static constexpr int32_t CBase = 19652;
-    static constexpr double CInit = 1.25;
-
-    bool doTask() override;
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
                             bool regardNotVisitedWin);
