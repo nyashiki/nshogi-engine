@@ -537,7 +537,11 @@ bool SearchWorker<Features>::doTask() {
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
         if (!Succeeded) {
+            // Since virtual loss was added from the root node through the leaf node
+            // and the leaf node was expanded, they must be canceled.
             cancelVirtualLoss(LeafNode);
+            // revertLeafExpansion(LeafNode, NA, EA);
+            LeafNode->releaseEdges(EA);
         }
     }
 

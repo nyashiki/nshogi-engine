@@ -300,6 +300,11 @@ struct Node {
             SolverMove.load(std::memory_order_acquire));
     }
 
+    void releaseEdges(allocator::Allocator* Allocator) {
+        Edges.destroy(Allocator, NumChildren);
+        NumChildren = 0;
+    }
+
  private:
     Node* Parent;
     uint16_t NumChildren;
