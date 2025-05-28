@@ -89,11 +89,10 @@ void Manager::thinkNextMove(
     }
     WatchdogWorker->await();
 
-    HasInterruptReceived.store(false);
-
     // Update the current state.
     {
         std::lock_guard<std::mutex> Lock(MutexSupervisor);
+        HasInterruptReceived.store(false);
         CurrentState = std::make_unique<core::State>(State.clone());
         StateConfig = std::make_unique<core::StateConfig>(Config);
         Limit = std::make_unique<engine::Limit>(Lim);
@@ -263,7 +262,12 @@ void Manager::doSupervisorWork(bool CallCallback) {
         PLogger->printPVLog(Log);
     } else {
         // Start thinking.
+#ifndef NDEBUG
+        if (EQueue->count() != 0) {
+            std::cerr << "[ERROR] EQueue->count() != 0 before search starts (" << EQueue->count() << ")." << std::endl;
+        }
         assert(EQueue->count() == 0);
+#endif
         EQueue->open();
         if (CQueue != nullptr) {
             CQueue->open();
