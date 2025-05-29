@@ -49,6 +49,7 @@ class CheckmateQueue {
     void open();
     void close();
     void add(Node*, const core::Position&);
+    bool tryAdd(Node*, const core::Position&);
     auto getAll() -> std::queue<std::unique_ptr<CheckmateTask>>;
 
  private:
