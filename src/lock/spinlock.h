@@ -30,17 +30,14 @@ class SpinLock {
     }
 
     void lock() {
-        uint_fast8_t StreakFail = 0;
         while (Flag.test_and_set(std::memory_order_acquire)) {
-            if (StreakFail < 4) {
-                ++StreakFail;
-            } else {
+            do {
 #ifdef USE_SSE2
                 _mm_pause();
 #else
                 std::this_thread::yield();
 #endif
-            }
+            } while (Flag.test(std::memory_order_relaxed));
         }
     }
 
