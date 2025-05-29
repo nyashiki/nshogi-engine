@@ -32,7 +32,7 @@ class SearchWorker : public worker::Worker {
     SearchWorker(allocator::Allocator* NodeAllocator,
                  allocator::Allocator* EdgeAllocator,
                  EvaluationQueue<Features>*, CheckmateQueue*,
-                 MutexPool<lock::SpinLock>*, EvalCache*);
+                 MutexPool<>*, EvalCache*);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -68,7 +68,7 @@ class SearchWorker : public worker::Worker {
     allocator::Allocator* EA;
     EvaluationQueue<Features>* EQueue;
     CheckmateQueue* CQueue;
-    MutexPool<lock::SpinLock>* MtxPool;
+    MutexPool<>* MtxPool;
     EvalCache* ECache;
 
     EvalCache::EvalInfo CacheEvalInfo;

@@ -35,7 +35,7 @@ SearchWorker<Features>::SearchWorker(allocator::Allocator* NodeAllocator,
                                      allocator::Allocator* EdgeAllocator,
                                      EvaluationQueue<Features>* EQ,
                                      CheckmateQueue* CQ,
-                                     MutexPool<lock::SpinLock>* MP,
+                                     MutexPool<>* MP,
                                      EvalCache* EC)
     : worker::Worker(true)
     , NA(NodeAllocator)
@@ -65,6 +65,8 @@ void SearchWorker<Features>::updateRoot(const core::State& S,
 
 template <typename Features>
 Node* SearchWorker<Features>::collectOneLeaf() {
+    using MtxLockType = typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
+
     Node* CurrentNode = RootNode;
 
     while (true) {
@@ -85,9 +87,11 @@ Node* SearchWorker<Features>::collectOneLeaf() {
                 VisitsAndVirtualLoss >> Node::VirtualLossShift;
 
             if (VirtualLoss == 0) {
-                std::unique_lock<lock::SpinLock> Lock;
+                std::unique_lock<MtxLockType> Lock;
                 if (MtxPool != nullptr) {
-                    Lock = std::unique_lock<lock::SpinLock>(*MtxPool->get(CurrentNode));
+                    const uint64_t NodeMtxHash =
+                        reinterpret_cast<uint64_t>(CurrentNode) << 1;
+                    Lock = std::unique_lock<MtxLockType>(*MtxPool->get(NodeMtxHash));
                 }
 
                 // Re-check the number of visit and virtual loss after getting a
@@ -149,9 +153,11 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             // If `Target` is nullptr, we have not extracted the child of this
             // node.
 
-            std::unique_lock<lock::SpinLock> Lock;
+            std::unique_lock<MtxLockType> Lock;
             if (MtxPool != nullptr) {
-                Lock = std::unique_lock<lock::SpinLock>(*MtxPool->get(E));
+                const uint64_t EdgeMtxHash =
+                    (reinterpret_cast<uint64_t>(E) << 1) + 1;
+                Lock = std::unique_lock<MtxLockType>(*MtxPool->get(EdgeMtxHash));
 
                 if (E->getTarget() != nullptr) {
                     // This thread has reached a leaf node but another thread

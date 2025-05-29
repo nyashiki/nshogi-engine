@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 #define NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 
-#include "../lock/spinlock.h"
 #include "allocator.h"
+#include "../lock/locktype.h"
 
 #include <algorithm>
 #include <atomic>
@@ -31,7 +31,7 @@ namespace nshogi {
 namespace engine {
 namespace allocator {
 
-template <std::size_t FixedSize>
+template <std::size_t FixedSize, lock::LockType LockT = std::mutex>
 class FixedAllocator : public Allocator {
  public:
     FixedAllocator()
@@ -103,7 +103,7 @@ class FixedAllocator : public Allocator {
     }
 
     void* malloc(std::size_t) override {
-        std::lock_guard<lock::SpinLock> Lk(SpinLock);
+        std::lock_guard<LockT> Lk(Lock);
 
         if (FreeList == nullptr) {
             return nullptr;
@@ -126,7 +126,7 @@ class FixedAllocator : public Allocator {
         Header* Block = static_cast<Header*>(Mem);
 
         {
-            std::lock_guard<lock::SpinLock> Lk(SpinLock);
+            std::lock_guard<LockT> Lk(Lock);
             Block->Next = FreeList;
             FreeList = Block;
         }
@@ -162,7 +162,7 @@ class FixedAllocator : public Allocator {
     void* AlignedMemory;
 
     Header* FreeList;
-    lock::SpinLock SpinLock;
+    LockT Lock;
 };
 
 } // namespace allocator

@@ -10,6 +10,9 @@
 #ifndef NSHOGI_ENGINE_MCTS_MUTEXPOOL_H
 #define NSHOGI_ENGINE_MCTS_MUTEXPOOL_H
 
+#include "../lock/locktype.h"
+#include "../lock/spinlock.h"
+
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -18,18 +21,20 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename LockType = std::mutex>
+template <lock::LockType LockT = lock::SpinLock>
 class MutexPool {
  public:
     MutexPool(std::size_t PoolMemorySize);
 
-    LockType* get(void* Ptr);
-    LockType* getRootMtx();
+    LockT* get(uint64_t Hash);
+    LockT* getRootMtx();
+
+    using LockType = LockT;
 
  private:
     const std::size_t Size;
-    std::unique_ptr<LockType[]> Pool;
-    LockType RootMtx;
+    std::unique_ptr<LockT[]> Pool;
+    LockT RootMtx;
 };
 
 } // namespace mcts

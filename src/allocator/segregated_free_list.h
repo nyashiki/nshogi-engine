@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 #define NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 
-#include "../lock/spinlock.h"
 #include "allocator.h"
+#include "../lock/locktype.h"
 
 #include <atomic>
 #include <mutex>
@@ -30,6 +30,7 @@ namespace nshogi {
 namespace engine {
 namespace allocator {
 
+template <lock::LockType LockT = std::mutex>
 class SegregatedFreeListAllocator : public Allocator {
  public:
     SegregatedFreeListAllocator()
@@ -97,7 +98,7 @@ class SegregatedFreeListAllocator : public Allocator {
         const std::size_t MinimumIndex =
             (std::size_t)(64 - __builtin_clzll(AlignedSize - 1));
 
-        std::lock_guard<lock::SpinLock> Lk(SpinLock);
+        std::lock_guard<LockT> Lk(Lock);
 
         const std::size_t TargetBits =
             AvailableListBits & (0xffffffffffffffffULL << MinimumIndex);
@@ -164,7 +165,7 @@ class SegregatedFreeListAllocator : public Allocator {
             reinterpret_cast<char*>(Header) - sizeof(Header1));
         Used.fetch_sub(H1->getSize(), std::memory_order_relaxed);
 
-        std::lock_guard<lock::SpinLock> Lk(SpinLock);
+        std::lock_guard<LockT> Lk(Lock);
 
         H1->toggleUsed();
         assert(!H1->getIsUsed());
@@ -366,7 +367,7 @@ class SegregatedFreeListAllocator : public Allocator {
     Header2* FreeLists[64];
     uint64_t AvailableListBits;
 
-    lock::SpinLock SpinLock;
+    LockT Lock;
 };
 
 } // namespace allocator

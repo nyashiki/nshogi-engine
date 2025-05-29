@@ -80,14 +80,14 @@ class Manager {
 
     const Context* PContext;
     allocator::FixedAllocator<sizeof(Node)> NodeAllocator;
-    allocator::SegregatedFreeListAllocator EdgeAllocator;
+    allocator::SegregatedFreeListAllocator<> EdgeAllocator;
 
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
     std::unique_ptr<EvaluationQueue<global_config::FeatureType>> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
-    std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
+    std::unique_ptr<MutexPool<>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>>
         SearchWorkers;
     std::vector<std::unique_ptr<EvaluationWorker<global_config::FeatureType>>>
