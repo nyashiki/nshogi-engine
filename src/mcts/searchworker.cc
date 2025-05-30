@@ -451,13 +451,7 @@ bool SearchWorker<Features>::doTask() {
         return false;
     }
 
-    // Although the leaf node is not evaluated yet,
-    // other threads has reached the leaf node already and
-    // the leaf node will be evaluated so there is nothing to do.
-    if (VirtualLoss != 1) {
-        std::this_thread::yield();
-        return false;
-    }
+    assert(VirtualLoss == 1);
 
     // Check repetition.
     if (LeafNode != RootNode) {
