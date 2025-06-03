@@ -66,7 +66,7 @@ void Worker::spawnThread() {
     }
 
     {
-        std::unique_lock<std::mutex> Lock(MutexInitialization);
+        std::unique_lock<std::mutex> Lock(Mutex);
         InitializationCV.wait(Lock, [this]() { return WState != WorkerState::Uninitialized; });
     }
 }
@@ -81,7 +81,7 @@ bool Worker::isRunning() {
 
 void Worker::mainLoop() {
     {
-        std::lock_guard<std::mutex> Lock(MutexInitialization);
+        std::lock_guard<std::mutex> Lock(Mutex);
         initializationTask();
         WState = WorkerState::Idle;
     }

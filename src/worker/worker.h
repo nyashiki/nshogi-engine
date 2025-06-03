@@ -55,7 +55,6 @@ class Worker {
 
     std::thread Thread;
     std::mutex Mutex;
-    std::mutex MutexInitialization;
     std::condition_variable TaskCV;
     std::condition_variable InitializationCV;
     std::condition_variable StartCV;
