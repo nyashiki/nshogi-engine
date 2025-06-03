@@ -219,8 +219,6 @@ void position(std::istringstream& Stream) {
 
     Executor->pushCommand(
         std::make_shared<command::commands::SetPosition>(Sfen.c_str()));
-    // State =
-    // std::make_unique<nshogi::core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
 }
 
 void bestMoveCallBackFunction(nshogi::core::Move32 Move,
