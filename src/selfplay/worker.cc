@@ -440,19 +440,6 @@ SelfplayPhase Worker::transition(Frame* F) const {
     double ScoreMax = std::numeric_limits<double>::lowest();
     mcts::Edge* ScoreMaxEdge = nullptr;
 
-    uint64_t MaxN = 1;
-    for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-        if (!F->getIsTarget().at(I)) {
-            continue;
-        }
-        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
-        mcts::Node* Child = Edge->getTarget();
-        assert(Child != nullptr);
-        if (Child != nullptr) {
-            MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
-        }
-    }
-
     assert(F->getIsTarget().size() > 0);
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         if (!F->getIsTarget().at(I)) {
@@ -462,14 +449,14 @@ SelfplayPhase Worker::transition(Frame* F) const {
         mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
         assert(Child != nullptr);
-        // All children must be visited equally.
-        assert(Child->getVisitsAndVirtualLoss() == MaxN);
 
         const double Score =
             F->getGumbelNoise().at(I) + Edge->getProbability() +
             transformQ(
                 computeWinRateOfChild(F, F->getState()->getSideToMove(), Child),
-                MaxN);
+                Child->getVisitsAndVirtualLoss());
+        // Note: (any) Child->Visits == \max_{Child} Child->Visits
+        // holds becasue the children of the root node are visited equally.
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -498,26 +485,8 @@ double Worker::transformQ(double Q, uint64_t MaxN) const {
 }
 
 template <>
-mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color SideToMove,
-                                              mcts::Node* N) const {
-    mcts::Edge* EdgeToExplore = nullptr;
-    double ScoreMax = std::numeric_limits<double>::lowest();
-
+mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color, mcts::Node* N) const {
     const uint16_t NumChildren = N->getNumChildren();
-
-    uint64_t MaxN = 0;
-    for (std::size_t I = 0; I < NumChildren; ++I) {
-        if (!F->getIsTarget().at(I)) {
-            continue;
-        }
-
-        mcts::Edge* Edge = &N->getEdge()[I];
-        mcts::Node* Child = Edge->getTarget();
-        if (Child != nullptr) {
-            MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
-        }
-    }
-
     for (std::size_t I = 0; I < NumChildren; ++I) {
         if (!F->getIsTarget().at(I)) {
             // This edge is disabled (i.e., this node was not
@@ -528,22 +497,14 @@ mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color SideToMove,
         mcts::Edge* Edge = &N->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
-        const double Score =
-            (Child == nullptr || (Child->getVisitsAndVirtualLoss() <
-                                  F->getSequentialHalvingPlayouts()))
-                ? std::numeric_limits<double>::max()
-                : (F->getGumbelNoise().at(I) + Edge->getProbability() +
-                   transformQ(computeWinRateOfChild(F, SideToMove, Child),
-                              MaxN));
-
-        if (Score > ScoreMax) {
-            ScoreMax = Score;
-            EdgeToExplore = Edge;
+        if (Child == nullptr || (Child->getVisitsAndVirtualLoss() <
+                                  F->getSequentialHalvingPlayouts())) {
+            return Edge;
         }
     }
 
-    assert(EdgeToExplore != nullptr);
-    return EdgeToExplore;
+    assert(true);
+    return nullptr;
 }
 
 template <>
@@ -728,21 +689,10 @@ void Worker::sampleTopMMoves(Frame* F) const {
 }
 
 uint16_t Worker::executeSequentialHalving(Frame* F) const {
-    uint64_t MaxN = 0;
-    for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
-        if (!F->getIsTarget().at(I)) {
-            continue;
-        }
-
-        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
-        mcts::Node* Child = Edge->getTarget();
-
-        assert(Child != nullptr);
-        MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
-    }
-
     assert(F->getSearchTree()->getRoot()->getNumChildren() ==
            F->getIsTarget().size());
+    assert(F->getState()->getPly() >= F->getRootPly());
+
     std::pair<double, std::size_t> ScoreWithIndex[600];
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         if (!F->getIsTarget().at(I)) {
