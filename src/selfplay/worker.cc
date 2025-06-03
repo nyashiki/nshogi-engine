@@ -26,6 +26,7 @@ namespace selfplay {
 Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
                allocator::Allocator* NodeAllocator,
                allocator::Allocator* EdgeAllocator, mcts::EvalCache* EC,
+               uint64_t NumPlayouts, uint16_t NumSamplingMoves,
                std::vector<core::Position>* InitialPositionsToPlay,
                bool UseShogi816k, SelfplayInfo* SI)
     : worker::Worker(true)
@@ -35,6 +36,8 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EvalCache(EC)
+    , MyNumPlayouts(NumPlayouts)
+    , MyNumSamplingMoves(NumSamplingMoves)
     , InitialPositions(InitialPositionsToPlay)
     , USE_SHOGI816K(UseShogi816k)
     , SInfo(SI) {
@@ -139,8 +142,8 @@ SelfplayPhase Worker::initialize(Frame* F) {
     F->setConfig(std::move(Config));
 
     // Other settings.
-    F->setNumPlayouts(32);
-    F->setNumSamplingMove(32);
+    F->setNumPlayouts(MyNumPlayouts);
+    F->setNumSamplingMoves(MyNumSamplingMoves);
 
     return SelfplayPhase::RootPreparation;
 }

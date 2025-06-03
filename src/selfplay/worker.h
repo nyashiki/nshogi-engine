@@ -31,6 +31,7 @@ class Worker : public worker::Worker {
     Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation,
            FrameQueue* QueueForSave, allocator::Allocator* NodeAllocator,
            allocator::Allocator* EdgeAllocator, mcts::EvalCache*,
+           uint64_t NumPlayouts, uint16_t NumSamplingMoves,
            std::vector<core::Position>* InitialPositionsToPlay,
            bool UseShogi816k, SelfplayInfo*);
 
@@ -72,6 +73,9 @@ class Worker : public worker::Worker {
     mcts::EvalCache* EvalCache;
 
     mutable std::mt19937_64 MT;
+
+    const uint64_t MyNumPlayouts;
+    const uint16_t MyNumSamplingMoves;
 
     std::vector<core::Position>* InitialPositions;
 
