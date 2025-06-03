@@ -21,6 +21,12 @@ EvaluationQueue<Features>::EvaluationQueue(std::size_t MaxSize)
 }
 
 template <typename Features>
+bool EvaluationQueue<Features>::isOpen() const {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    return IsOpen;
+}
+
+template <typename Features>
 void EvaluationQueue<Features>::open() {
     std::lock_guard<std::mutex> Lock(Mutex);
     IsOpen = true;

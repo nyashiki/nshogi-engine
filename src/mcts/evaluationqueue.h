@@ -25,6 +25,7 @@ class EvaluationQueue {
  public:
     EvaluationQueue(std::size_t MaxSize);
 
+    bool isOpen() const;
     void open();
     void close();
     bool add(const core::State&, const core::StateConfig&, Node*);
@@ -36,7 +37,7 @@ class EvaluationQueue {
  private:
     const std::size_t MaxQueueSize;
     bool IsOpen;
-    std::mutex Mutex;
+    mutable std::mutex Mutex;
     std::condition_variable CV;
     // Tuple of (side to move, node address, feature vector, hash of the state).
     std::queue<std::tuple<core::Color, Node*, Features, uint64_t>> Queue;
