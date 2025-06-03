@@ -263,6 +263,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
     } else {
         // Start thinking.
 #ifndef NDEBUG
+        assert(!EQueue->isOpen());
         if (EQueue->count() != 0) {
             std::cerr << "[ERROR] EQueue->count() != 0 before search starts (" << EQueue->count() << ")." << std::endl;
         }
@@ -368,6 +369,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
                 PLogger->setIsInverse(true);
 
+                assert(!EQueue->isOpen());
+                assert(EQueue->count() == 0);
                 EQueue->open();
                 if (CQueue != nullptr) {
                     CQueue->open();
