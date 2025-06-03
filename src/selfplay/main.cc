@@ -40,6 +40,8 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("num-selfplay-games", "500000",
                      "The number of selfplay games.");
     Parser.addOption('o', "out", "out.bin", "The output teacher file.");
+    Parser.addOption("num-playouts", "200", "The number of playouts. The parameter of n in the paper.");
+    Parser.addOption("num-sampling-moves", "16", "The number of sampling moves. The parameter of m in the paper.");
     Parser.addOption("initial-positions", "",
                      "Sfen file that contains sfen positions.");
     Parser.addOption("use-shogi816k", "Use shogi816k positions.");
@@ -131,11 +133,16 @@ int main(int Argc, char* Argv[]) {
     // Prepare workers.
     const std::size_t NUM_SEARCH_WORKERS =
         (std::size_t)std::stoull(Parser.getOption("num-search-workers"));
+    const uint64_t NumPlayouts =
+        (uint64_t)std::stoull(Parser.getOption("num-playouts"));
+    const uint64_t NumSamplingMoves =
+        (uint16_t)std::stoul(Parser.getOption("num-sampling-moves"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(std::make_unique<Worker>(
             SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(),
             NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(),
+            NumPlayouts, NumSamplingMoves,
             InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
     }
 
