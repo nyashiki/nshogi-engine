@@ -74,6 +74,10 @@ void GarbageCollector::mainLoop() {
 
             Cv.wait(Lock, [&] { return !Garbages.empty() || ToExit; });
 
+            if (Garbages.empty() && ToExit) {
+                break;
+            }
+
             Garbages.swap(NodesToProcess);
         }
 
@@ -94,10 +98,6 @@ void GarbageCollector::mainLoop() {
 
             NodeToProcess->getEdge().destroy(EA, NumChildren);
             NodeToProcess.destroy(NA, 1);
-        }
-
-        if (ToExit) {
-            break;
         }
     }
 }
