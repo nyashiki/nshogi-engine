@@ -38,7 +38,7 @@ class Executor {
     Executor(std::shared_ptr<logger::Logger> Logger);
     ~Executor();
 
-    void pushCommand(std::shared_ptr<ICommand> Command, bool blocking = false);
+    void pushCommand(std::shared_ptr<ICommand> Command, bool Blocking = false);
 
     const Context* getContext() const;
 
