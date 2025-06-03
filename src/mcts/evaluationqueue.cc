@@ -42,7 +42,7 @@ void EvaluationQueue<Features>::close() {
 }
 
 template <typename Features>
-std::size_t EvaluationQueue<Features>::count() {
+std::size_t EvaluationQueue<Features>::count() const {
     std::lock_guard<std::mutex> Lock(Mutex);
     return Queue.size();
 }

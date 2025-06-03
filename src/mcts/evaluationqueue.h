@@ -32,7 +32,7 @@ class EvaluationQueue {
     auto get(std::size_t NumElements)
         -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
                       std::vector<Features>, std::vector<uint64_t>>;
-    std::size_t count();
+    std::size_t count() const;
 
  private:
     const std::size_t MaxQueueSize;
