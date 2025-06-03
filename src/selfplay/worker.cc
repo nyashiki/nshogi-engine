@@ -123,7 +123,7 @@ SelfplayPhase Worker::initialize(Frame* F) {
     // Setup a config.
     auto Config = std::make_unique<core::StateConfig>();
 
-    static std::uniform_int_distribution<> MaxPlyDistribution(160, 1024);
+    static std::uniform_int_distribution<> MaxPlyDistribution(160 + 64, 512 + 128);
     static std::uniform_real_distribution<float> DrawRateDistribution(0.0f,
                                                                       1.0f);
 
