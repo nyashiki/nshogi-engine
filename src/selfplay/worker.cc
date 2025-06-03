@@ -157,9 +157,17 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
         F->getGumbelNoise().at(I) = sampleGumbelNoise();
     }
 
+    // if (F->getState()->getPly() < 30) {
+    //     F->setNumPlayouts(16);
+    //     F->setNumSamplingMove(16);
+    // } else {
+    //     F->setNumPlayouts(32);
+    //     F->setNumSamplingMove(32);
+    // }
+
     const uint64_t InitialSequentialHalvingPlayouts = (uint64_t)(std::floor(
         (double)F->getNumPlayouts() /
-        (std::log2(F->getNumSamplingMove()) * F->getNumSamplingMove())));
+        (std::log2(F->getNumSamplingMoves()) * F->getNumSamplingMoves())));
 
     F->setSequentialHalvingPlayouts(
         std::max((uint64_t)1, InitialSequentialHalvingPlayouts));
@@ -687,7 +695,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
     // If the number of sampling moves is larger than or equal to
     // the number of the legal moves at the root node, we don't
     // need to sample the moves.
-    if (F->getNumSamplingMove() >= F->getIsTarget().size()) {
+    if (F->getNumSamplingMoves() >= F->getIsTarget().size()) {
         std::fill(F->getIsTarget().begin(), F->getIsTarget().end(), true);
         return;
     }
@@ -702,7 +710,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
     }
 
     // Set top m moves to explore by gumbel noise and policy.
-    std::size_t NumSort = (std::size_t)F->getNumSamplingMove();
+    const std::size_t NumSort = (std::size_t)F->getNumSamplingMoves();
 
     std::partial_sort(ScoreWithIndex, ScoreWithIndex + (long)NumSort,
                       ScoreWithIndex + (long)F->getIsTarget().size(),
@@ -754,7 +762,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     }
 
     std::size_t NumSort =
-        std::min((std::size_t)F->getNumSamplingMove(), F->getIsTarget().size());
+        std::min((std::size_t)F->getNumSamplingMoves(), F->getIsTarget().size());
     assert(NumSort > 1);
     assert(F->getSequentialHalvingCount() > 0);
     NumSort =
@@ -778,9 +786,9 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
 void Worker::updateSequentialHalvingSchedule(Frame* F,
                                              uint16_t NumValidChilds) const {
     const uint16_t MD =
-        std::max((uint16_t)1, (uint16_t)(F->getNumSamplingMove() >>
+        std::max((uint16_t)1, (uint16_t)(F->getNumSamplingMoves() >>
                                          F->getSequentialHalvingCount()));
-    const double D = std::log2((double)F->getNumSamplingMove()) * (double)MD;
+    const double D = std::log2((double)F->getNumSamplingMoves()) * (double)MD;
     const uint64_t ExtraVisits =
         (uint64_t)(std::floor((double)F->getNumPlayouts() / D));
 

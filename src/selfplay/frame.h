@@ -51,13 +51,13 @@ struct Frame {
     uint64_t getNumPlayouts() const;
     uint64_t getSequentialHalvingPlayouts() const;
     uint8_t getSequentialHalvingCount() const;
-    uint16_t getNumSamplingMove() const;
+    uint16_t getNumSamplingMoves() const;
     std::vector<double>& getGumbelNoise();
     std::vector<bool>& getIsTarget();
     void setNumPlayouts(uint64_t);
     void setSequentialHalvingPlayouts(uint64_t);
     void setSequentialHalvingCount(uint8_t);
-    void setNumSamplingMove(uint16_t);
+    void setNumSamplingMoves(uint16_t);
 
  private:
     void setSearchTree(std::unique_ptr<mcts::Tree>&&);
@@ -83,7 +83,7 @@ struct Frame {
     uint64_t NumPlayouts; // n in the paper.
     uint64_t SequentialHalvingPlayouts;
     uint8_t SequentialHalvingCount;
-    uint16_t NumSamplingMove; // m in the paper.
+    uint16_t NumSamplingMoves; // m in the paper.
     std::vector<double> GumbelNoise;
     std::vector<bool> IsTarget;
 };
