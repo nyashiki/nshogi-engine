@@ -129,9 +129,11 @@ struct Node {
 
     inline int16_t expand(const nshogi::core::MoveList& MoveList,
                           allocator::Allocator* Allocator) {
-        assert(Edges == nullptr);
-        assert(MoveList.size() > 0);
         assert((VisitsAndVirtualLoss & VisitMask) == 0);
+        assert((VisitsAndVirtualLoss >> VirtualLossShift) == 1);
+        assert(MoveList.size() > 0);
+        assert(NumChildren == 0);
+        assert(Edges == nullptr);
 
         Edges.mallocArray(Allocator, MoveList.size());
         if (Edges == nullptr) {
