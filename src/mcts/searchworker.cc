@@ -537,11 +537,18 @@ bool SearchWorker<Features>::doTask() {
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
         if (!Succeeded) {
-            // Since virtual loss was added from the root node through the leaf node
-            // and the leaf node was expanded, they must be canceled.
-            cancelVirtualLoss(LeafNode);
-            // revertLeafExpansion(LeafNode, NA, EA);
+            // Our MCTS implementation marks a node as “in expansion” for speed:
+            //     (visit_count == 0 && virtual_loss == 1)
+            // Because the leaf was already expanded and a virtual loss was
+            // propagated from the root to here, we have to roll both back.
+            //
+            // IMPORTANT: release the edges *before* cancelling the virtual loss.
+            // If we cancelled the virtual loss first, the node would momentarily have
+            //     visit_count == 0 && virtual_loss == 0
+            // while its edges were still present. Another thread could then reach
+            // this leaf node and re-expand it, causing a data race.
             LeafNode->releaseEdges(EA);
+            cancelVirtualLoss(LeafNode);
         }
     }
 
