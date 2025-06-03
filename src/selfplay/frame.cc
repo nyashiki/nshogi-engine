@@ -123,8 +123,8 @@ uint8_t Frame::getSequentialHalvingCount() const {
     return SequentialHalvingCount;
 }
 
-uint16_t Frame::getNumSamplingMove() const {
-    return NumSamplingMove;
+uint16_t Frame::getNumSamplingMoves() const {
+    return NumSamplingMoves;
 }
 
 std::vector<double>& Frame::getGumbelNoise() {
@@ -147,8 +147,8 @@ void Frame::setSequentialHalvingCount(uint8_t C) {
     SequentialHalvingCount = C;
 }
 
-void Frame::setNumSamplingMove(uint16_t M) {
-    NumSamplingMove = M;
+void Frame::setNumSamplingMoves(uint16_t M) {
+    NumSamplingMoves = M;
 }
 
 template void Frame::setEvaluation<false>(const float* Policy, float WinRate,
