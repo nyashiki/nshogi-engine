@@ -89,8 +89,7 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             if (VirtualLoss == 0) {
                 std::unique_lock<MtxLockType> Lock;
                 if (MtxPool != nullptr) {
-                    const uint64_t NodeMtxHash =
-                        reinterpret_cast<uint64_t>(CurrentNode) << 1;
+                    const uint64_t NodeMtxHash = reinterpret_cast<uint64_t>(CurrentNode);
                     Lock = std::unique_lock<MtxLockType>(*MtxPool->get(NodeMtxHash));
                 }
 
@@ -153,10 +152,20 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             // If `Target` is nullptr, we have not extracted the child of this
             // node.
 
+            // Malloc a new node first before getting the lock for speed.
+            Pointer<Node> NewNode;
+            NewNode.malloc(NA, CurrentNode);
+
+            if (NewNode == nullptr) {
+                assert(false);
+                // If there is no available memory, it has failed to allocate a
+                // new node.
+                return nullptr;
+            }
+
             std::unique_lock<MtxLockType> Lock;
             if (MtxPool != nullptr) {
-                const uint64_t EdgeMtxHash =
-                    (reinterpret_cast<uint64_t>(E) << 1) + 1;
+                const uint64_t EdgeMtxHash = reinterpret_cast<uint64_t>(E);
                 Lock = std::unique_lock<MtxLockType>(*MtxPool->get(EdgeMtxHash));
 
                 if (E->getTarget() != nullptr) {
@@ -164,17 +173,9 @@ Node* SearchWorker<Features>::collectOneLeaf() {
                     // also had reached this leaf node and has evaluated this
                     // leaf node. Therefore E->getTarget() is no longer nullptr
                     // and nothing to do is left.
+                    NewNode.destroy(NA, 1);
                     return nullptr;
                 }
-            }
-
-            Pointer<Node> NewNode;
-            NewNode.malloc(NA, CurrentNode);
-
-            if (NewNode == nullptr) {
-                // If there is no available memory, it has failed to allocate a
-                // new node.
-                return nullptr;
             }
 
             auto* NewNodePtr = NewNode.get();
