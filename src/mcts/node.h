@@ -153,6 +153,7 @@ struct Node {
                               float DrawRate) {
         if (Policy != nullptr) {
             for (std::size_t I = 0; I < getNumChildren(); ++I) {
+                assert(Policy[I] >= 0.0f && Policy[I] <= 1.0f);
                 Edges[I].setProbability(Policy[I]);
             }
         }
