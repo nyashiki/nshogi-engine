@@ -207,7 +207,7 @@ void EvaluationWorker::feedResult(core::Color SideToMove, Node* N,
 
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
-        constexpr float P[] = {1.0};
+        static constexpr float P[] = {1.0};
         N->setEvaluation(P, WinRate, DrawRate);
     } else {
         if (PContext->isNaNFallbackEnabled()) {
