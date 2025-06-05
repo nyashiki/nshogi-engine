@@ -30,10 +30,9 @@ void cancelVirtualLoss(Node* N) {
 
 } // namespace
 
-template <typename Features>
-SearchWorker<Features>::SearchWorker(allocator::Allocator* NodeAllocator,
+SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
                                      allocator::Allocator* EdgeAllocator,
-                                     EvaluationQueue<Features>* EQ,
+                                     EvaluationQueue* EQ,
                                      CheckmateQueue* CQ,
                                      MutexPool<>* MP,
                                      EvalCache* EC,
@@ -50,12 +49,10 @@ SearchWorker<Features>::SearchWorker(allocator::Allocator* NodeAllocator,
     spawnThread();
 }
 
-template <typename Features>
-SearchWorker<Features>::~SearchWorker() {
+SearchWorker::~SearchWorker() {
 }
 
-template <typename Features>
-void SearchWorker<Features>::updateRoot(const core::State& S,
+void SearchWorker::updateRoot(const core::State& S,
                                         const core::StateConfig& StateConfig,
                                         Node* Root) {
     State = std::make_unique<core::State>(S.clone());
@@ -65,8 +62,7 @@ void SearchWorker<Features>::updateRoot(const core::State& S,
     RootPly = State->getPly();
 }
 
-template <typename Features>
-Node* SearchWorker<Features>::collectOneLeaf() {
+Node* SearchWorker::collectOneLeaf() {
     using MtxLockType = typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
 
     Node* CurrentNode = RootNode;
@@ -195,8 +191,7 @@ Node* SearchWorker<Features>::collectOneLeaf() {
     return CurrentNode;
 }
 
-template <typename Feature>
-int16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
+int16_t SearchWorker::expandLeaf(Node* LeafNode) {
     const auto Moves = core::MoveGenerator::generateLegalMoves(*State);
     const uint16_t NumMoves = (uint16_t)Moves.size();
 
@@ -207,29 +202,25 @@ int16_t SearchWorker<Feature>::expandLeaf(Node* LeafNode) {
     return LeafNode->expand(Moves, EA);
 }
 
-template <typename Feature>
-void SearchWorker<Feature>::immediateUpdateByWin(Node* LeafNode) {
+void SearchWorker::immediateUpdateByWin(Node* LeafNode) {
     LeafNode->setEvaluation(nullptr, 1.0f, 0.0f);
     LeafNode->setPlyToTerminalSolved(1);
     LeafNode->updateAncestors(1.0f, 0.0f);
 }
 
-template <typename Feature>
-void SearchWorker<Feature>::immediateUpdateByLoss(Node* LeafNode) {
+void SearchWorker::immediateUpdateByLoss(Node* LeafNode) {
     LeafNode->setEvaluation(nullptr, 0.0f, 0.0f);
     LeafNode->setPlyToTerminalSolved(-1);
     LeafNode->updateAncestors(0.0f, 0.0f);
 }
 
-template <typename Feature>
-void SearchWorker<Feature>::immediateUpdateByDraw(Node* LeafNode,
+void SearchWorker::immediateUpdateByDraw(Node* LeafNode,
                                                   float DrawValue) {
     LeafNode->setEvaluation(nullptr, DrawValue, 1.0f);
     LeafNode->updateAncestors(DrawValue, 1.0f);
 }
 
-template <typename Feature>
-void SearchWorker<Feature>::immediateUpdate(Node* LeafNode) {
+void SearchWorker::immediateUpdate(Node* LeafNode) {
     float WinRate = LeafNode->getWinRatePredicted();
     float DrawRate = LeafNode->getDrawRatePredicted();
 
@@ -248,8 +239,7 @@ void SearchWorker<Feature>::immediateUpdate(Node* LeafNode) {
     LeafNode->updateAncestors(WinRate, DrawRate);
 }
 
-template <typename Features>
-Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
+Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                                                 bool regardNotVisitedWin) {
     assert(NumChildren > 0);
     const uint64_t CurrentVisitsAndVirtualLoss = N->getVisitsAndVirtualLoss();
@@ -367,7 +357,7 @@ Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             continue;
         }
 
-        // Since we have already at least one winning edge,
+        // Since we already have at least one winning edge,
         // if the current searching edge is not a winning edge, we don't have to
         // search it so `continue` here.
         if (ShortestWinEdge != nullptr) {
@@ -399,9 +389,7 @@ Edge* SearchWorker<Features>::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     return UCBMaxEdge;
 }
 
-template <typename Features>
-double
-SearchWorker<Features>::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
+double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
                                               uint64_t ChildVirtualVisits) {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
@@ -418,16 +406,14 @@ SearchWorker<Features>::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
 }
 
-template <typename Features>
-void SearchWorker<Features>::incrementVirtualLosses(Node* N) {
+void SearchWorker::incrementVirtualLosses(Node* N) {
     do {
         N->incrementVirtualLoss();
         N = N->getParent();
     } while (N != nullptr);
 }
 
-template <typename Features>
-bool SearchWorker<Features>::doTask() {
+bool SearchWorker::doTask() {
     // Go back to the root state.
     while (State->getPly() != RootPly) {
         State->undoMove();

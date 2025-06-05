@@ -93,14 +93,12 @@ class Manager {
 
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
-    std::unique_ptr<EvaluationQueue<global_config::FeatureType>> EQueue;
+    std::unique_ptr<EvaluationQueue> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
     std::unique_ptr<MutexPool<>> MtxPool;
-    std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>>
-        SearchWorkers;
-    std::vector<std::unique_ptr<EvaluationWorker<global_config::FeatureType>>>
-        EvaluationWorkers;
+    std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
+    std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::map<core::HuffmanCode, book::BookEntry> Book;

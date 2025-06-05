@@ -164,7 +164,7 @@ void Manager::setupSearchTree() {
 
 void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
                                    std::size_t NumEvaluationWorkersPerGPU) {
-    EQueue = std::make_unique<EvaluationQueue<global_config::FeatureType>>(
+    EQueue = std::make_unique<EvaluationQueue>(
         BatchSize * NumGPUs * NumEvaluationWorkersPerGPU * 64);
 }
 
@@ -174,7 +174,7 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
             EvaluationWorkers.emplace_back(
-                std::make_unique<EvaluationWorker<global_config::FeatureType>>(
+                std::make_unique<EvaluationWorker>(
                     PContext, ThreadId, I, BatchSize, EQueue.get(),
                     ECache.get(), &Stat));
             ++ThreadId;
@@ -185,7 +185,7 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(
-            std::make_unique<SearchWorker<global_config::FeatureType>>(
+            std::make_unique<SearchWorker>(
                 &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
                 MtxPool.get(), ECache.get(), &Stat));
     }

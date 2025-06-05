@@ -11,6 +11,7 @@
 #define NSHOGI_ENGINE_MCTS_EVALUATIONQUEUE_H
 
 #include "node.h"
+#include "../globalconfig.h"
 
 #include <condition_variable>
 #include <mutex>
@@ -20,7 +21,6 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename Features>
 class EvaluationQueue {
  public:
     EvaluationQueue(std::size_t MaxSize);
@@ -31,7 +31,7 @@ class EvaluationQueue {
     bool add(const core::State&, const core::StateConfig&, Node*);
     auto get(std::size_t NumElements)
         -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
-                      std::vector<Features>, std::vector<uint64_t>>;
+                      std::vector<global_config::FeatureType>, std::vector<uint64_t>>;
     std::size_t count() const;
 
  private:
@@ -40,7 +40,7 @@ class EvaluationQueue {
     mutable std::mutex Mutex;
     std::condition_variable CV;
     // Tuple of (side to move, node address, feature vector, hash of the state).
-    std::queue<std::tuple<core::Color, Node*, Features, uint64_t>> Queue;
+    std::queue<std::tuple<core::Color, Node*, global_config::FeatureType, uint64_t>> Queue;
 };
 
 } // namespace mcts

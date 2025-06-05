@@ -14,26 +14,22 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename Features>
-EvaluationQueue<Features>::EvaluationQueue(std::size_t MaxSize)
+EvaluationQueue::EvaluationQueue(std::size_t MaxSize)
     : MaxQueueSize(MaxSize)
     , IsOpen(false) {
 }
 
-template <typename Features>
-bool EvaluationQueue<Features>::isOpen() const {
+bool EvaluationQueue::isOpen() const {
     std::lock_guard<std::mutex> Lock(Mutex);
     return IsOpen;
 }
 
-template <typename Features>
-void EvaluationQueue<Features>::open() {
+void EvaluationQueue::open() {
     std::lock_guard<std::mutex> Lock(Mutex);
     IsOpen = true;
 }
 
-template <typename Features>
-void EvaluationQueue<Features>::close() {
+void EvaluationQueue::close() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
         IsOpen = false;
@@ -41,16 +37,14 @@ void EvaluationQueue<Features>::close() {
     CV.notify_all();
 }
 
-template <typename Features>
-std::size_t EvaluationQueue<Features>::count() const {
+std::size_t EvaluationQueue::count() const {
     std::lock_guard<std::mutex> Lock(Mutex);
     return Queue.size();
 }
 
-template <typename Features>
-bool EvaluationQueue<Features>::add(const core::State& State,
+bool EvaluationQueue::add(const core::State& State,
                                     const core::StateConfig& Config, Node* N) {
-    Features FSC(State, Config);
+    global_config::FeatureType FSC(State, Config);
 
     std::unique_lock<std::mutex> Lock(Mutex);
 
@@ -65,12 +59,11 @@ bool EvaluationQueue<Features>::add(const core::State& State,
     return false;
 }
 
-template <typename Features>
-auto EvaluationQueue<Features>::get(std::size_t NumElements)
+auto EvaluationQueue::get(std::size_t NumElements)
     -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
-                  std::vector<Features>, std::vector<uint64_t>> {
+                  std::vector<global_config::FeatureType>, std::vector<uint64_t>> {
     std::tuple<std::vector<core::Color>, std::vector<Node*>,
-               std::vector<Features>, std::vector<uint64_t>>
+               std::vector<global_config::FeatureType>, std::vector<uint64_t>>
         T;
 
     std::get<0>(T).reserve(NumElements);
@@ -94,8 +87,6 @@ auto EvaluationQueue<Features>::get(std::size_t NumElements)
     CV.notify_all();
     return T;
 }
-
-template class EvaluationQueue<global_config::FeatureType>;
 
 } // namespace mcts
 } // namespace engine

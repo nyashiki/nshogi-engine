@@ -18,6 +18,7 @@
 #include "evaluationqueue.h"
 #include "mutexpool.h"
 #include "node.h"
+#include "statistics.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -26,13 +27,12 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename Features>
 class SearchWorker : public worker::Worker {
  public:
     SearchWorker(allocator::Allocator* NodeAllocator,
                  allocator::Allocator* EdgeAllocator,
-                 EvaluationQueue<Features>*, CheckmateQueue*,
-                 MutexPool<>*, EvalCache*);
+                 EvaluationQueue*, CheckmateQueue*,
+                 MutexPool<>*, EvalCache*, Statistics* Stat);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -66,10 +66,11 @@ class SearchWorker : public worker::Worker {
 
     allocator::Allocator* NA;
     allocator::Allocator* EA;
-    EvaluationQueue<Features>* EQueue;
+    EvaluationQueue* EQueue;
     CheckmateQueue* CQueue;
     MutexPool<>* MtxPool;
     EvalCache* ECache;
+    Statistics* PStat;
 
     EvalCache::EvalInfo CacheEvalInfo;
 };
