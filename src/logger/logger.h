@@ -14,6 +14,8 @@
 #include <nshogi/core/types.h>
 #include <vector>
 
+#include "../mcts/statistics.h"
+
 namespace nshogi {
 namespace engine {
 namespace logger {
@@ -38,6 +40,7 @@ class Logger {
     virtual void printPVLog(const PVLog& Log) const = 0;
     virtual void printBestMove(core::Move32 Move) const = 0;
     virtual void printLog(const char* Message) const = 0;
+    virtual void printStatistics(const mcts::Statistics& Statistics) const = 0;
 
     virtual void setIsInverse(bool Value) = 0;
     void setIsNShogiExtensionLogEnabled(bool Value);
