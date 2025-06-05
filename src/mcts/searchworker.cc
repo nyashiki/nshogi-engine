@@ -254,8 +254,29 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         // is the edge with the highest prior. Since we have sorted the children
         // along their prior, we can simply select 0-th edge if the virtual loss
         // is zero.
-        if (CurrentVirtualLoss == 0) {
-            return &N->getEdge()[0];
+        if (CurrentVirtualLoss < NumChildren) {
+            if (CurrentVirtualLoss == 0) {
+                return &N->getEdge()[0];
+            } else {
+                bool Acceptable = true;
+
+                const double ThisPolicy = (double)N->getEdge()[CurrentVirtualLoss].getProbability();
+                const double Const = 1.0 / (CInit * std::sqrt((double)CurrentVirtualLoss + 1.0));
+                for (uint16_t I = 0; I < CurrentVirtualLoss - 1; ++I) {
+                    const double Policy = (double)N->getEdge()[I].getProbability();
+
+                    if (Const + Policy / (double)CurrentVirtualLoss >= ThisPolicy) {
+                        Acceptable = false;
+                        break;
+                    }
+                }
+
+                if (Acceptable) {
+                    return &N->getEdge()[CurrentVirtualLoss];
+                } else {
+                    return nullptr;
+                }
+            }
         } else {
             // Otherwise, skip going deeper at this node.
             return nullptr;
