@@ -36,6 +36,14 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
+enum class ManagerStatus {
+    Idle,
+    Thinking,
+    Pondering,
+    Stopping,
+    Busy,
+};
+
 struct ThoughtLog {
     std::vector<std::pair<core::Move16, uint64_t>> VisitCounts;
     double WinRate;
@@ -104,7 +112,10 @@ class Manager {
     std::mutex MutexSupervisor;
     std::condition_variable CVSupervisor;
     std::unique_ptr<Watchdog> WatchdogWorker;
-    std::atomic<bool> HasInterruptReceived;
+
+    std::mutex MutexStatus;
+    std::condition_variable CVStatus;
+    ManagerStatus Status;
 
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;

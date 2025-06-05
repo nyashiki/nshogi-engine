@@ -21,7 +21,7 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     : PContext(C)
     , PLogger(std::move(Logger))
     , WakeUpSupervisor(false)
-    , HasInterruptReceived(false)
+    , Status(ManagerStatus::Idle)
     , IsExiting(false) {
     setupAllocator();
     setupGarbageCollector();
@@ -75,7 +75,18 @@ void Manager::thinkNextMove(
     const core::State& State, const core::StateConfig& Config,
     engine::Limit Lim,
     std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
-    WatchdogWorker->stop();
+    {
+        std::unique_lock<std::mutex> Lock(MutexStatus);
+
+        if (Status != ManagerStatus::Idle) {
+            Status = ManagerStatus::Stopping;
+        }
+        WatchdogWorker->stop();
+
+        CVStatus.wait(Lock, [&] { return Status == ManagerStatus::Idle; });
+
+        Status = ManagerStatus::Thinking;
+    }
 
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
@@ -92,11 +103,11 @@ void Manager::thinkNextMove(
     // Update the current state.
     {
         std::lock_guard<std::mutex> Lock(MutexSupervisor);
-        HasInterruptReceived.store(false);
         CurrentState = std::make_unique<core::State>(State.clone());
         StateConfig = std::make_unique<core::StateConfig>(Config);
         Limit = std::make_unique<engine::Limit>(Lim);
         BestMoveCallback = Callback;
+        assert(!WakeUpSupervisor);
         WakeUpSupervisor = true;
         PLogger->setIsInverse(false);
     }
@@ -106,9 +117,17 @@ void Manager::thinkNextMove(
 }
 
 void Manager::interrupt() {
-    HasInterruptReceived.store(true);
+    {
+        std::unique_lock<std::mutex> Lock(MutexStatus);
 
-    WatchdogWorker->stop();
+        if (Status != ManagerStatus::Idle) {
+            Status = ManagerStatus::Stopping;
+        }
+        WatchdogWorker->stop();
+
+        CVStatus.wait(Lock, [&] { return Status == ManagerStatus::Idle; });
+    }
+
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->await();
     }
@@ -362,14 +381,17 @@ void Manager::doSupervisorWork(bool CallCallback) {
     SearchTree->updateRoot(*CurrentState);
 
     if (CallCallback) {
+        std::lock_guard<std::mutex> Lock(MutexStatus);
+
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (PContext->isPonderingEnabled() && !BestMove.isNone() &&
-            !BestMove.isWin() && !HasInterruptReceived.load() &&
-            !checkMemoryBudgetForPondering()) {
+        if (Status == ManagerStatus::Busy && PContext->isPonderingEnabled() && !BestMove.isNone() &&
+            !BestMove.isWin() && !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {
+                Status = ManagerStatus::Pondering;
+
                 Limit = std::make_unique<engine::Limit>(NoLimit);
 
                 PLogger->setIsInverse(true);
@@ -399,13 +421,20 @@ void Manager::doSupervisorWork(bool CallCallback) {
             }
         }
 
+        if (Status != ManagerStatus::Pondering) {
+            Status = ManagerStatus::Idle;
+        }
+
         if (BestMoveCallback != nullptr) {
             BestMoveCallback(BestMove, std::move(TL));
         }
     }
+    CVStatus.notify_one();
 }
 
 void Manager::stopWorkers() {
+    std::lock_guard<std::mutex> Lock(MutexStatus);
+
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->stop();
     }
@@ -418,6 +447,13 @@ void Manager::stopWorkers() {
     EQueue->close();
     for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->stop();
+    }
+
+    if (Status == ManagerStatus::Thinking) {
+        Status = ManagerStatus::Busy;
+    } else if (Status == ManagerStatus::Pondering || Status == ManagerStatus::Stopping) {
+        Status = ManagerStatus::Idle;
+        CVStatus.notify_all();
     }
 }
 
