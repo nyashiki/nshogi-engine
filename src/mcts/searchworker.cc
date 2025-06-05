@@ -36,14 +36,16 @@ SearchWorker<Features>::SearchWorker(allocator::Allocator* NodeAllocator,
                                      EvaluationQueue<Features>* EQ,
                                      CheckmateQueue* CQ,
                                      MutexPool<>* MP,
-                                     EvalCache* EC)
+                                     EvalCache* EC,
+                                     Statistics* Stat)
     : worker::Worker(true)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EQueue(EQ)
     , CQueue(CQ)
     , MtxPool(MP)
-    , ECache(EC) {
+    , ECache(EC)
+    , PStat(Stat) {
 
     spawnThread();
 }
@@ -142,6 +144,7 @@ Node* SearchWorker<Features>::collectOneLeaf() {
         // computeUCBMaxEdge() can return nullptr if many threads reaches on the
         // same leaf node.
         if (E == nullptr) {
+            PStat->incrementNumNullUCBMaxEdge();
             return nullptr;
         }
 
@@ -157,9 +160,9 @@ Node* SearchWorker<Features>::collectOneLeaf() {
             NewNode.malloc(NA, CurrentNode);
 
             if (NewNode == nullptr) {
-                assert(false);
                 // If there is no available memory, it has failed to allocate a
                 // new node.
+                PStat->incrementNumFailedToAllocateNode();
                 return nullptr;
             }
 
@@ -174,6 +177,7 @@ Node* SearchWorker<Features>::collectOneLeaf() {
                     // leaf node. Therefore E->getTarget() is no longer nullptr
                     // and nothing to do is left.
                     NewNode.destroy(NA, 1);
+                    PStat->incrementNumConflictNodeAllocation();
                     return nullptr;
                 }
             }
@@ -432,8 +436,9 @@ bool SearchWorker<Features>::doTask() {
     Node* LeafNode = collectOneLeaf();
 
     if (LeafNode == nullptr) {
-        std::this_thread::yield();
-        return false;
+        // std::this_thread::yield();
+        PStat->incrementNumNullLeaf();
+        return isRunning();
     }
 
     const uint64_t NumVisitsAndVirtualLoss =
@@ -447,9 +452,10 @@ bool SearchWorker<Features>::doTask() {
     // the solver has solved the leaf node, or the leaf node is
     // game's terminal node e.g., repetition.
     if (NumVisits > 0) {
+        // std::this_thread::yield();
         immediateUpdate(LeafNode);
-        std::this_thread::yield();
-        return false;
+        PStat->incrementNumNonLeaf();
+        return isRunning();
     }
 
     assert(VirtualLoss == 1);
@@ -461,50 +467,58 @@ bool SearchWorker<Features>::doTask() {
         if (RS == core::RepetitionStatus::WinRepetition ||
             RS == core::RepetitionStatus::SuperiorRepetition) {
             immediateUpdateByWin(LeafNode);
-            std::this_thread::yield();
-            return false;
+            PStat->incrementNumRepetition();
+            // std::this_thread::yield();
+            return isRunning();
         } else if (RS == core::RepetitionStatus::LossRepetition ||
                    RS == core::RepetitionStatus::InferiorRepetition) {
             immediateUpdateByLoss(LeafNode);
-            std::this_thread::yield();
-            return false;
+            PStat->incrementNumRepetition();
+            // std::this_thread::yield();
+            return isRunning();
         } else if (RS == core::RepetitionStatus::Repetition) {
             immediateUpdateByDraw(LeafNode,
                                   State->getSideToMove() == core::Black
                                       ? Config.BlackDrawValue
                                       : Config.WhiteDrawValue);
-            std::this_thread::yield();
-            return false;
+            PStat->incrementNumRepetition();
+            // std::this_thread::yield();
+            return isRunning();
         }
     }
 
     const int16_t NumMoves = expandLeaf(LeafNode);
     // Check checkmate.
     if (NumMoves == 0) {
+        PStat->incrementNumCheckmate();
+
         if (State->getPly(false) > 0) {
             const auto LastMove = State->getLastMove();
             if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
                 immediateUpdateByWin(LeafNode);
-                return false;
+                return isRunning();
             }
         }
 
         immediateUpdateByLoss(LeafNode);
-        std::this_thread::yield();
-        return false;
+        // std::this_thread::yield();
+        return isRunning();
     }
 
     // This occurs when there is no available memory for edges.
     if (NumMoves == -1) {
+        assert(LeafNode->getEdge() == nullptr);
         cancelVirtualLoss(LeafNode);
-        std::this_thread::yield();
-        return false;
+        PStat->incrementNumFailedToAllocateEdge();
+        // std::this_thread::yield();
+        return isRunning();
     }
 
     // Check delaration.
     if (State->canDeclare()) {
         immediateUpdateByWin(LeafNode);
-        return false;
+        PStat->incrementNumCanDeclare();
+        return isRunning();
     }
 
     // Check the number of plies.
@@ -512,7 +526,8 @@ bool SearchWorker<Features>::doTask() {
         immediateUpdateByDraw(LeafNode, State->getSideToMove() == core::Black
                                             ? Config.BlackDrawValue
                                             : Config.WhiteDrawValue);
-        return false;
+        PStat->incrementNumOverMaxPly();
+        return isRunning();
     }
 
     // Check cache.
@@ -528,6 +543,7 @@ bool SearchWorker<Features>::doTask() {
                 LeafNode->sort();
                 LeafNode->updateAncestors(CacheEvalInfo.WinRate,
                                           CacheEvalInfo.DrawRate);
+                PStat->incrementNumCacheHit();
             } else {
                 CacheFound = false;
             }
@@ -537,7 +553,9 @@ bool SearchWorker<Features>::doTask() {
     // Evaluate the leaf node.
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
-        if (!Succeeded) {
+        if (Succeeded) {
+            PStat->incrementNumSucceededToAddEvaluationQueue();
+        } else {
             // Our MCTS implementation marks a node as “in expansion” for speed:
             //     (visit_count == 0 && virtual_loss == 1)
             // Because the leaf was already expanded and a virtual loss was
@@ -550,13 +568,12 @@ bool SearchWorker<Features>::doTask() {
             // this leaf node and re-expand it, causing a data race.
             LeafNode->releaseEdges(EA);
             cancelVirtualLoss(LeafNode);
+            PStat->incrementNumFailedToAddEvaluationQueue();
         }
     }
 
-    return false;
+    return isRunning();
 }
-
-template class SearchWorker<global_config::FeatureType>;
 
 } // namespace mcts
 } // namespace engine

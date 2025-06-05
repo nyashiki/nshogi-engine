@@ -74,6 +74,36 @@ void USILogger::printLog(const char* Message) const {
     std::cout << "info string " << Message << std::endl;
 }
 
+void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
+    const double BatchSizeAveraged = (Statistics.evaluationCount() == 0)
+        ? 0.0
+        : ((double)Statistics.batchSizeAccumulated() / (double)Statistics.evaluationCount());
+
+    std::lock_guard<std::mutex> Lock(Mtx);
+    std::cout << "========== STATISTICS ==========" << std::endl;
+
+    std::cout << "[SearchWorker]" << std::endl;
+    std::cout << "numNullLeaf(): " << Statistics.numNullLeaf() << std::endl;
+    std::cout << "numNonLeaf(): " << Statistics.numNonLeaf() << std::endl;
+    std::cout << "numRepetition(): " << Statistics.numRepetition() << std::endl;
+    std::cout << "numCheckmate(): " << Statistics.numCheckmate() << std::endl;
+    std::cout << "numFailedToAllocateNode(): " << Statistics.numFailedToAllocateNode() << std::endl;
+    std::cout << "numFailedToAllocateEdge(): " << Statistics.numFailedToAllocateEdge() << std::endl;
+    std::cout << "numConflictNodeAllocation(): " << Statistics.numConflictNodeAllocation() << std::endl;
+    std::cout << "numNullUCBMaxEdge(): " << Statistics.numNullUCBMaxEdge() << std::endl;
+    std::cout << "numCanDeclare(): " << Statistics.numCanDeclare() << std::endl;
+    std::cout << "numOverMaxPly(): " << Statistics.numOverMaxPly() << std::endl;
+    std::cout << "numSucceededToAddEvaluationQueue(): " << Statistics.numSucceededToAddEvaluationQueue() << std::endl;
+    std::cout << "numFailedToAddEvaluationQueue(): " << Statistics.numFailedToAddEvaluationQueue() << std::endl;
+    std::cout << "numCacheHit(): " << Statistics.numCacheHit() << std::endl;
+    std::cout << "[EvaluationWorker]" << std::endl;
+    std::cout << "evaluationCount(): " << Statistics.evaluationCount() << std::endl;
+    std::cout << "batchSizeAccumulated(): " << Statistics.batchSizeAccumulated() << std::endl;
+    std::cout << "batchSizeAveraged: " << BatchSizeAveraged << std::endl;
+
+    std::cout << "================================" << std::endl;
+}
+
 void USILogger::setIsInverse(bool Value) {
     IsInverse = Value;
 }

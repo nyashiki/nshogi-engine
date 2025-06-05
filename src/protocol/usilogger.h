@@ -27,8 +27,8 @@ class USILogger : public logger::Logger {
 
     void printPVLog(const logger::PVLog& Log) const override;
     void printBestMove(core::Move32 Move) const override;
-
     void printLog(const char* Message) const override;
+    void printStatistics(const mcts::Statistics& Statistics) const override;
 
     template <typename... Ts>
     void printLog(Ts... Args) const {

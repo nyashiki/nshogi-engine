@@ -23,6 +23,7 @@
 #include "evaluationworker.h"
 #include "garbagecollector.h"
 #include "searchworker.h"
+#include "statistics.h"
 #include "tree.h"
 #include "watchdog.h"
 
@@ -110,6 +111,8 @@ class Manager {
     std::unique_ptr<engine::Limit> Limit;
     std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
         BestMoveCallback;
+
+    Statistics Stat;
 
     bool IsExiting;
 };

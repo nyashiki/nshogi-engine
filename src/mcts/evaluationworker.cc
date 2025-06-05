@@ -44,7 +44,7 @@ namespace mcts {
 template <typename Features>
 EvaluationWorker<Features>::EvaluationWorker(
     const Context* C, std::size_t ThreadId, std::size_t GPUId,
-    std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
+    std::size_t BatchSize, EvaluationQueue* EQ, EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , PContext(C)
     , MyThreadId(ThreadId)
@@ -158,6 +158,8 @@ void EvaluationWorker<Features>::getBatch() {
 template <typename Features>
 void EvaluationWorker<Features>::doInference() {
     Evaluator->computeBlocking(BatchCount);
+    PStat->incrementEvaluationCount();
+    PStat->addBatchSizeAccumulated(BatchCount);
 }
 
 template <typename Features>

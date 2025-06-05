@@ -157,7 +157,7 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
             EvaluationWorkers.emplace_back(
                 std::make_unique<EvaluationWorker<global_config::FeatureType>>(
                     PContext, ThreadId, I, BatchSize, EQueue.get(),
-                    ECache.get()));
+                    ECache.get(), &Stat));
             ++ThreadId;
         }
     }
@@ -168,7 +168,7 @@ void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
         SearchWorkers.emplace_back(
             std::make_unique<SearchWorker<global_config::FeatureType>>(
                 &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
-                MtxPool.get(), ECache.get()));
+                MtxPool.get(), ECache.get(), &Stat));
     }
 }
 
@@ -241,6 +241,9 @@ void Manager::setupWatchDog() {
 }
 
 void Manager::doSupervisorWork(bool CallCallback) {
+    // Reset statistics.
+    Stat.reset();
+
     // Setup the state to think.
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 
@@ -312,6 +315,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
             assert(RootVirtualLoss == 0);
         }
 #endif
+        // Show statistics.
+        PLogger->printStatistics(Stat);
 
         // Prepare ThoughtLog if IsThoughtLogEnabled is true.
         if (PContext->isThoughtLogEnabled()) {
