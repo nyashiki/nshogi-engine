@@ -47,6 +47,7 @@ SOURCES :=                              \
 	src/mcts/evaluationqueue.cc         \
 	src/mcts/evaluationworker.cc        \
 	src/mcts/searchworker.cc            \
+    src/mcts/statistics.cc              \
 	src/mcts/tree.cc                    \
 	src/mcts/mutexpool.cc               \
 	src/mcts/evalcache.cc               \
