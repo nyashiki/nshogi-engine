@@ -256,6 +256,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         // is zero.
         if (CurrentVirtualLoss < NumChildren) {
             if (CurrentVirtualLoss == 0) {
+                PStat->incrementNumPolicyGreedyEdge();
                 return &N->getEdge()[0];
             } else {
                 bool Acceptable = true;
@@ -272,13 +273,16 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 }
 
                 if (Acceptable) {
+                    PStat->incrementNumSpeculativeEdge();
                     return &N->getEdge()[CurrentVirtualLoss];
                 } else {
+                    PStat->incrementNumSpeculativeFailedEdge();
                     return nullptr;
                 }
             }
         } else {
             // Otherwise, skip going deeper at this node.
+            PStat->incrementNumTooManyVirtualLossEdge();
             return nullptr;
         }
     }
@@ -325,6 +329,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             // The relationship can be broken if the visit count is not zero,
             // but in that case, there is no unvisited child previously in this
             // loop.
+            PStat->incrementNumFirstUnvisitedChildEdge();
             break;
         }
 
@@ -340,6 +345,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             // virtual loss is larger than zero of a node,
             // it means the node is being extracted.
             IsAllTargetLoss = false;
+            PStat->incrementNumBeingExtractedChildren();
             continue;
         }
 
@@ -407,6 +413,9 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         return LongestLossEdge;
     }
 
+    if (UCBMaxEdge == nullptr) {
+        PStat->incrementNumUCBSelectionFailedEdge();
+    }
     return UCBMaxEdge;
 }
 
