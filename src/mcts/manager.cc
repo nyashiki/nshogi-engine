@@ -100,6 +100,8 @@ void Manager::thinkNextMove(
     }
     WatchdogWorker->await();
 
+    assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
+
     // Update the current state.
     {
         std::lock_guard<std::mutex> Lock(MutexSupervisor);
@@ -138,6 +140,8 @@ void Manager::interrupt() {
         EvaluationWorker->await();
     }
     WatchdogWorker->await();
+
+    assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
 }
 
 void Manager::setupAllocator() {
@@ -323,6 +327,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
         }
         WatchdogWorker->await();
 
+        assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
+
 #ifndef NDEBUG
         // Check the virtual loss of the root node is 0.
         if (SearchTree->getRoot() != nullptr) {
@@ -495,6 +501,39 @@ bool Manager::checkMemoryBudgetForPondering() {
 
 void Manager::watchdogStopCallback() {
     stopWorkers();
+}
+
+bool Manager::checkAllVirtualLossIsZero(Node* Root) const {
+    std::queue<Node*> Queue;
+    Queue.push(Root);
+
+    while (!Queue.empty()) {
+        Node* N = Queue.front();
+        Queue.pop();
+
+        if (N == nullptr) {
+            continue;
+        }
+
+        const uint64_t VirtualLoss = N->getVisitsAndVirtualLoss() >> Node::VirtualLossShift;
+
+        if (VirtualLoss != 0) {
+            return false;
+        }
+
+        const uint16_t NumChildren = N->getNumChildren();
+
+        for (uint16_t I = 0; I < NumChildren; ++I) {
+            Edge* E = &N->getEdge()[I];
+            Node* Child = E->getTarget();
+
+            if (Child != nullptr) {
+                Queue.push(Child);
+            }
+        }
+    }
+
+    return true;
 }
 
 } // namespace mcts

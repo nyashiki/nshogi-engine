@@ -87,6 +87,8 @@ class Manager {
 
     void watchdogStopCallback();
 
+    bool checkAllVirtualLossIsZero(Node* Root) const;
+
     const Context* PContext;
     allocator::FixedAllocator<sizeof(Node)> NodeAllocator;
     allocator::SegregatedFreeListAllocator<> EdgeAllocator;
