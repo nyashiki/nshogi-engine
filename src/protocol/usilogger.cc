@@ -10,6 +10,7 @@
 #include "usilogger.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <iostream>
 #include <mutex>
@@ -83,23 +84,31 @@ void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
     std::cout << "========== STATISTICS ==========" << std::endl;
 
     std::cout << "[SearchWorker]" << std::endl;
-    std::cout << "numNullLeaf(): " << Statistics.numNullLeaf() << std::endl;
-    std::cout << "numNonLeaf(): " << Statistics.numNonLeaf() << std::endl;
-    std::cout << "numRepetition(): " << Statistics.numRepetition() << std::endl;
-    std::cout << "numCheckmate(): " << Statistics.numCheckmate() << std::endl;
-    std::cout << "numFailedToAllocateNode(): " << Statistics.numFailedToAllocateNode() << std::endl;
-    std::cout << "numFailedToAllocateEdge(): " << Statistics.numFailedToAllocateEdge() << std::endl;
-    std::cout << "numConflictNodeAllocation(): " << Statistics.numConflictNodeAllocation() << std::endl;
-    std::cout << "numNullUCBMaxEdge(): " << Statistics.numNullUCBMaxEdge() << std::endl;
-    std::cout << "numCanDeclare(): " << Statistics.numCanDeclare() << std::endl;
-    std::cout << "numOverMaxPly(): " << Statistics.numOverMaxPly() << std::endl;
-    std::cout << "numSucceededToAddEvaluationQueue(): " << Statistics.numSucceededToAddEvaluationQueue() << std::endl;
-    std::cout << "numFailedToAddEvaluationQueue(): " << Statistics.numFailedToAddEvaluationQueue() << std::endl;
-    std::cout << "numCacheHit(): " << Statistics.numCacheHit() << std::endl;
+    std::printf("%-36s %" PRIu64 "\n", "numNullLeaf():",  Statistics.numNullLeaf());
+    std::printf("%-36s %" PRIu64 "\n", "numNonLeaf():", Statistics.numNonLeaf());
+    std::printf("%-36s %" PRIu64 "\n", "numRepetition():", Statistics.numRepetition());
+    std::printf("%-36s %" PRIu64 "\n", "numCheckmate():", Statistics.numCheckmate());
+    std::printf("%-36s %" PRIu64 "\n", "numFailedToAllocateNode():", Statistics.numFailedToAllocateNode());
+    std::printf("%-36s %" PRIu64 "\n", "numFailedToAllocateEdge():", Statistics.numFailedToAllocateEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numConflictNodeAllocation():", Statistics.numConflictNodeAllocation());
+    std::printf("%-36s %" PRIu64 "\n", "numPolicyGreedyEdge():", Statistics.numPolicyGreedyEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numSpeculativeEdge():", Statistics.numSpeculativeEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numSpeculativeFailedEdge():", Statistics.numSpeculativeFailedEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numTooManyVirtualLossEdge():", Statistics.numTooManyVirtualLossEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numFirstUnvisitedChildEdge():", Statistics.numFirstUnvisitedChildEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numBeingExtractedChildren():", Statistics.numBeingExtractedChildren());
+    std::printf("%-36s %" PRIu64 "\n", "numUCBSelectionFailedEdge():", Statistics.numUCBSelectionFailedEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numNullUCBMaxEdge():", Statistics.numNullUCBMaxEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numCanDeclare():", Statistics.numCanDeclare());
+    std::printf("%-36s %" PRIu64 "\n", "numOverMaxPly():", Statistics.numOverMaxPly());
+    std::printf("%-36s %" PRIu64 "\n", "numSucceededToAddEvaluationQueue():", Statistics.numSucceededToAddEvaluationQueue());
+    std::printf("%-36s %" PRIu64 "\n", "numFailedToAddEvaluationQueue():", Statistics.numFailedToAddEvaluationQueue());
+    std::printf("%-36s %" PRIu64 "\n", "numCacheHit():", Statistics.numCacheHit());
+
     std::cout << "[EvaluationWorker]" << std::endl;
-    std::cout << "evaluationCount(): " << Statistics.evaluationCount() << std::endl;
-    std::cout << "batchSizeAccumulated(): " << Statistics.batchSizeAccumulated() << std::endl;
-    std::cout << "batchSizeAveraged: " << BatchSizeAveraged << std::endl;
+    std::printf("%-36s %" PRIu64 "\n", "evaluationCount():", Statistics.evaluationCount());
+    std::printf("%-36s %" PRIu64 "\n", "batchSizeAccumulated():", Statistics.batchSizeAccumulated());
+    std::printf("%-36s %f\n", "batchSizeAveraged:", BatchSizeAveraged);
 
     std::cout << "================================" << std::endl;
 }
