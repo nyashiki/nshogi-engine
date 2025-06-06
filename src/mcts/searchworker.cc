@@ -303,12 +303,17 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     Edge* ShortestWinEdge = nullptr;
     Edge* LongestLossEdge = nullptr;
 
+    assert(NumChildren > 0);
     for (uint16_t I = 0; I < NumChildren; ++I) {
         auto* const Edge = &N->getEdge()[I];
         auto* const Child = Edge->getTarget();
 
+        const uint64_t ChildVisitsAndVirtualLoss = (Child != nullptr)
+            ? Child->getVisitsAndVirtualLoss()
+            : 0;
+
         // The child is not visited yet.
-        if (Child == nullptr) {
+        if (Child == nullptr || ChildVisitsAndVirtualLoss == 0) {
             const double UCBValue = regardNotVisitedWin
                                         ? (1.0 + Const * Edge->getProbability())
                                         : (Const * Edge->getProbability());
@@ -333,8 +338,6 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             break;
         }
 
-        const uint64_t ChildVisitsAndVirtualLoss =
-            Child->getVisitsAndVirtualLoss();
         const uint64_t ChildVisits =
             ChildVisitsAndVirtualLoss & Node::VisitMask;
         const uint64_t ChildVirtualLoss =
