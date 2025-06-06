@@ -394,6 +394,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             continue;
         }
 
+        assert(Child != nullptr);
+        assert(ChildVirtualVisits > 0);
         const double ChildWinRate =
             computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
         const double UCBValue =
@@ -463,8 +465,6 @@ bool SearchWorker::doTask() {
     const uint64_t NumVisitsAndVirtualLoss =
         LeafNode->getVisitsAndVirtualLoss();
     const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
-    const uint64_t VirtualLoss =
-        NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
     // Collected leafnode has already evaluated.
     // This occurs when another thread has evaluated the leaf node,
@@ -477,7 +477,11 @@ bool SearchWorker::doTask() {
         return isRunning();
     }
 
+#ifndef NDEBUG
+    const uint64_t VirtualLoss =
+        NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
     assert(VirtualLoss == 1);
+#endif
 
     // Check repetition.
     if (LeafNode != RootNode) {
@@ -575,14 +579,14 @@ bool SearchWorker::doTask() {
         if (Succeeded) {
             PStat->incrementNumSucceededToAddEvaluationQueue();
         } else {
-            // Our MCTS implementation marks a node as “in expansion” for speed:
-            //     (visit_count == 0 && virtual_loss == 1)
+            // Our MCTS implementation marks a node as "in expansion" for speed:
+            //     (VisitCount == 0 && VirtualLoss == 1)
             // Because the leaf was already expanded and a virtual loss was
             // propagated from the root to here, we have to roll both back.
             //
             // IMPORTANT: release the edges *before* cancelling the virtual loss.
             // If we cancelled the virtual loss first, the node would momentarily have
-            //     visit_count == 0 && virtual_loss == 0
+            //     VisitCount == 0 && VirtualLoss == 0
             // while its edges were still present. Another thread could then reach
             // this leaf node and re-expand it, causing a data race.
             LeafNode->releaseEdges(EA);
