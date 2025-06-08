@@ -23,9 +23,19 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     , WakeUpSupervisor(false)
     , Status(ManagerStatus::Idle)
     , IsExiting(false) {
-    setupAllocator();
-    setupGarbageCollector();
-    setupMutexPool();
+    std::thread AllocatorPrepareThread([&]() {
+        setupAllocator();
+        });
+    std::thread GarbageCollectorPrepareThread([&]() {
+            setupGarbageCollector();
+            });
+    std::thread MutexPoolPrepareThread([&]() {
+            setupMutexPool();
+            });
+    AllocatorPrepareThread.join();
+    GarbageCollectorPrepareThread.join();
+    MutexPoolPrepareThread.join();
+
     setupSearchTree();
     setupCheckmateQueue(PContext->getNumCheckmateSearchThreads());
     setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
@@ -145,10 +155,18 @@ void Manager::interrupt() {
 }
 
 void Manager::setupAllocator() {
-    NodeAllocator.resize((std::size_t)(
-        0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
-    EdgeAllocator.resize((std::size_t)(
-        0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+    std::thread NodeAllocatorPrepareThread([&]() {
+        NodeAllocator.resize((std::size_t)(
+            0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+        });
+
+    std::thread EdgeAllocatorPrepareThread([&]() {
+        EdgeAllocator.resize((std::size_t)(
+            0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
+        });
+
+    NodeAllocatorPrepareThread.join();
+    EdgeAllocatorPrepareThread.join();
 }
 
 void Manager::setupGarbageCollector() {
