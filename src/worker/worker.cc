@@ -14,8 +14,7 @@ namespace engine {
 namespace worker {
 
 Worker::Worker(bool LoopTask)
-    : IsStartNotified(false)
-    , LoopTaskFlag(LoopTask)
+    : LoopTaskFlag(LoopTask)
     , WState(WorkerState::Uninitialized) {
 }
 
@@ -33,14 +32,13 @@ Worker::~Worker() {
 void Worker::start() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
-        WState = WorkerState::Running;
-        IsStartNotified = false;
+        WState = WorkerState::Starting;
     }
     TaskCV.notify_one();
 
     // Ensure the thread has started.
     std::unique_lock<std::mutex> Lock(Mutex);
-    StartCV.wait(Lock, [this]() { return IsStartNotified; });
+    StartCV.wait(Lock, [this]() { return WState == WorkerState::Running; });
 }
 
 void Worker::stop() {
@@ -94,14 +92,12 @@ void Worker::mainLoop() {
             AwaitCV.notify_all();
 
             TaskCV.wait(Lock, [this] {
-                    return WState == WorkerState::Running ||
+                    return WState == WorkerState::Starting ||
                     WState == WorkerState::Exiting;
                     });
 
-            // Notify a waiting thread which is in start().
-            IsStartNotified = true;
-
-            if (WState == WorkerState::Running) {
+            if (WState == WorkerState::Starting) {
+                WState = WorkerState::Running;
                 StartCV.notify_all();
             } else if (WState == WorkerState::Exiting) {
                 AwaitCV.notify_all();

@@ -21,6 +21,7 @@ namespace worker {
 enum class WorkerState {
     Uninitialized,
     Idle,
+    Starting,
     Running,
     Stopping,
     Exiting,
@@ -44,8 +45,6 @@ class Worker {
     virtual void initializationTask();
     virtual bool doTask() = 0;
     bool isRunning();
-
-    bool IsStartNotified;
 
  private:
     void mainLoop();
