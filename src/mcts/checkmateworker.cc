@@ -32,7 +32,6 @@ bool CheckmateWorker::doTask() {
         PCheckmateQueue->getAll();
 
     if (Tasks.empty()) {
-        std::this_thread::yield();
         return false;
     }
 

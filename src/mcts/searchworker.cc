@@ -457,9 +457,8 @@ bool SearchWorker::doTask() {
     Node* LeafNode = collectOneLeaf();
 
     if (LeafNode == nullptr) {
-        // std::this_thread::yield();
         PStat->incrementNumNullLeaf();
-        return isRunning();
+        return false;
     }
 
     const uint64_t NumVisitsAndVirtualLoss =
@@ -471,10 +470,9 @@ bool SearchWorker::doTask() {
     // the solver has solved the leaf node, or the leaf node is
     // game's terminal node e.g., repetition.
     if (NumVisits > 0) {
-        // std::this_thread::yield();
         immediateUpdate(LeafNode);
         PStat->incrementNumNonLeaf();
-        return isRunning();
+        return false;
     }
 
 #ifndef NDEBUG
@@ -491,22 +489,19 @@ bool SearchWorker::doTask() {
             RS == core::RepetitionStatus::SuperiorRepetition) {
             immediateUpdateByWin(LeafNode);
             PStat->incrementNumRepetition();
-            // std::this_thread::yield();
-            return isRunning();
+            return false;
         } else if (RS == core::RepetitionStatus::LossRepetition ||
                    RS == core::RepetitionStatus::InferiorRepetition) {
             immediateUpdateByLoss(LeafNode);
             PStat->incrementNumRepetition();
-            // std::this_thread::yield();
-            return isRunning();
+            return false;
         } else if (RS == core::RepetitionStatus::Repetition) {
             immediateUpdateByDraw(LeafNode,
                                   State->getSideToMove() == core::Black
                                       ? Config.BlackDrawValue
                                       : Config.WhiteDrawValue);
             PStat->incrementNumRepetition();
-            // std::this_thread::yield();
-            return isRunning();
+            return false;
         }
     }
 
@@ -519,13 +514,12 @@ bool SearchWorker::doTask() {
             const auto LastMove = State->getLastMove();
             if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
                 immediateUpdateByWin(LeafNode);
-                return isRunning();
+                return false;
             }
         }
 
         immediateUpdateByLoss(LeafNode);
-        // std::this_thread::yield();
-        return isRunning();
+        return false;
     }
 
     // This occurs when there is no available memory for edges.
@@ -533,15 +527,14 @@ bool SearchWorker::doTask() {
         assert(LeafNode->getEdge() == nullptr);
         cancelVirtualLoss(LeafNode);
         PStat->incrementNumFailedToAllocateEdge();
-        // std::this_thread::yield();
-        return isRunning();
+        return false;
     }
 
     // Check delaration.
     if (State->canDeclare()) {
         immediateUpdateByWin(LeafNode);
         PStat->incrementNumCanDeclare();
-        return isRunning();
+        return false;
     }
 
     // Check the number of plies.
@@ -550,7 +543,7 @@ bool SearchWorker::doTask() {
                                             ? Config.BlackDrawValue
                                             : Config.WhiteDrawValue);
         PStat->incrementNumOverMaxPly();
-        return isRunning();
+        return false;
     }
 
     // Check cache.
@@ -595,7 +588,7 @@ bool SearchWorker::doTask() {
         }
     }
 
-    return isRunning();
+    return false;
 }
 
 } // namespace mcts
