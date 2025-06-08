@@ -12,9 +12,9 @@
 
 #include "../context.h"
 #include "../evaluate/evaluator.h"
+#include "../globalconfig.h"
 #include "../infer/infer.h"
 #include "../worker/worker.h"
-#include "../globalconfig.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
 #include "node.h"
@@ -34,8 +34,8 @@ namespace mcts {
 class EvaluationWorker : public worker::Worker {
  public:
     EvaluationWorker(const Context*, std::size_t ThreadId, std::size_t GPUId,
-                     std::size_t BatchSize, EvaluationQueue*,
-                     EvalCache*, Statistics* Stat);
+                     std::size_t BatchSize, EvaluationQueue*, EvalCache*,
+                     Statistics* Stat);
     ~EvaluationWorker();
 
  private:

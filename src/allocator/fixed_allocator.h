@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 #define NSHOGI_ENGINE_ALLOCATOR_FIXED_ALLOCATOR_H
 
-#include "allocator.h"
 #include "../lock/locktype.h"
+#include "allocator.h"
 
 #include <algorithm>
 #include <atomic>

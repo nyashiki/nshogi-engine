@@ -10,8 +10,8 @@
 #include "usilogger.h"
 
 #include <cmath>
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #include <iostream>
 #include <mutex>
 
@@ -76,50 +76,80 @@ void USILogger::printLog(const char* Message) const {
 }
 
 void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
-    const double BatchSizeAveraged = (Statistics.evaluationCount() == 0)
-        ? 0.0
-        : ((double)Statistics.batchSizeAccumulated() / (double)Statistics.evaluationCount());
+    const double BatchSizeAveraged =
+        (Statistics.evaluationCount() == 0)
+            ? 0.0
+            : ((double)Statistics.batchSizeAccumulated() /
+               (double)Statistics.evaluationCount());
 
-    const double SolverElapsedAveraged = (Statistics.numSolverWorked() == 0)
-        ? 0.0
-        : ((double)Statistics.solverElapsedAccumulated() / (double)Statistics.numSolverWorked());
+    const double SolverElapsedAveraged =
+        (Statistics.numSolverWorked() == 0)
+            ? 0.0
+            : ((double)Statistics.solverElapsedAccumulated() /
+               (double)Statistics.numSolverWorked());
 
     std::lock_guard<std::mutex> Lock(Mtx);
-    std::cout << "==================== STATISTICS ====================" << std::endl;
+    std::cout << "==================== STATISTICS ===================="
+              << std::endl;
 
     std::cout << "[SearchWorker]" << std::endl;
-    std::printf("%-36s %" PRIu64 "\n", "numNullLeaf():",  Statistics.numNullLeaf());
-    std::printf("%-36s %" PRIu64 "\n", "numNonLeaf():", Statistics.numNonLeaf());
-    std::printf("%-36s %" PRIu64 "\n", "numRepetition():", Statistics.numRepetition());
-    std::printf("%-36s %" PRIu64 "\n", "numCheckmate():", Statistics.numCheckmate());
-    std::printf("%-36s %" PRIu64 "\n", "numFailedToAllocateNode():", Statistics.numFailedToAllocateNode());
-    std::printf("%-36s %" PRIu64 "\n", "numFailedToAllocateEdge():", Statistics.numFailedToAllocateEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numConflictNodeAllocation():", Statistics.numConflictNodeAllocation());
-    std::printf("%-36s %" PRIu64 "\n", "numPolicyGreedyEdge():", Statistics.numPolicyGreedyEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numSpeculativeEdge():", Statistics.numSpeculativeEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numSpeculativeFailedEdge():", Statistics.numSpeculativeFailedEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numTooManyVirtualLossEdge():", Statistics.numTooManyVirtualLossEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numFirstUnvisitedChildEdge():", Statistics.numFirstUnvisitedChildEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numBeingExtractedChildren():", Statistics.numBeingExtractedChildren());
-    std::printf("%-36s %" PRIu64 "\n", "numUCBSelectionFailedEdge():", Statistics.numUCBSelectionFailedEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numNullUCBMaxEdge():", Statistics.numNullUCBMaxEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numCanDeclare():", Statistics.numCanDeclare());
-    std::printf("%-36s %" PRIu64 "\n", "numOverMaxPly():", Statistics.numOverMaxPly());
-    std::printf("%-36s %" PRIu64 "\n", "numSucceededToAddEvaluationQueue():", Statistics.numSucceededToAddEvaluationQueue());
-    std::printf("%-36s %" PRIu64 "\n", "numFailedToAddEvaluationQueue():", Statistics.numFailedToAddEvaluationQueue());
-    std::printf("%-36s %" PRIu64 "\n", "numCacheHit():", Statistics.numCacheHit());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numNullLeaf():", Statistics.numNullLeaf());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numNonLeaf():", Statistics.numNonLeaf());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numRepetition():", Statistics.numRepetition());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numCheckmate():", Statistics.numCheckmate());
+    std::printf("%-36s %" PRIu64 "\n", "numFailedToAllocateNode():",
+                Statistics.numFailedToAllocateNode());
+    std::printf("%-36s %" PRIu64 "\n", "numFailedToAllocateEdge():",
+                Statistics.numFailedToAllocateEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numConflictNodeAllocation():",
+                Statistics.numConflictNodeAllocation());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numPolicyGreedyEdge():", Statistics.numPolicyGreedyEdge());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numSpeculativeEdge():", Statistics.numSpeculativeEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numSpeculativeFailedEdge():",
+                Statistics.numSpeculativeFailedEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numTooManyVirtualLossEdge():",
+                Statistics.numTooManyVirtualLossEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numFirstUnvisitedChildEdge():",
+                Statistics.numFirstUnvisitedChildEdge());
+    std::printf("%-36s %" PRIu64 "\n", "numBeingExtractedChildren():",
+                Statistics.numBeingExtractedChildren());
+    std::printf("%-36s %" PRIu64 "\n", "numUCBSelectionFailedEdge():",
+                Statistics.numUCBSelectionFailedEdge());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numNullUCBMaxEdge():", Statistics.numNullUCBMaxEdge());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numCanDeclare():", Statistics.numCanDeclare());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numOverMaxPly():", Statistics.numOverMaxPly());
+    std::printf("%-36s %" PRIu64 "\n", "numSucceededToAddEvaluationQueue():",
+                Statistics.numSucceededToAddEvaluationQueue());
+    std::printf("%-36s %" PRIu64 "\n", "numFailedToAddEvaluationQueue():",
+                Statistics.numFailedToAddEvaluationQueue());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numCacheHit():", Statistics.numCacheHit());
 
     std::cout << "[EvaluationWorker]" << std::endl;
-    std::printf("%-36s %" PRIu64 "\n", "evaluationCount():", Statistics.evaluationCount());
-    std::printf("%-36s %" PRIu64 "\n", "batchSizeAccumulated():", Statistics.batchSizeAccumulated());
+    std::printf("%-36s %" PRIu64 "\n",
+                "evaluationCount():", Statistics.evaluationCount());
+    std::printf("%-36s %" PRIu64 "\n",
+                "batchSizeAccumulated():", Statistics.batchSizeAccumulated());
     std::printf("%-36s %f\n", "batchSizeAveraged:", BatchSizeAveraged);
 
     std::cout << "[CheckmateWorker]" << std::endl;
-    std::printf("%-36s %" PRIu64 "\n", "numSolverWorked():", Statistics.numSolverWorked());
-    std::printf("%-36s %" PRIu64 "\n", "solverElapsedMax():", Statistics.solverElapsedMax());
+    std::printf("%-36s %" PRIu64 "\n",
+                "numSolverWorked():", Statistics.numSolverWorked());
+    std::printf("%-36s %" PRIu64 "\n",
+                "solverElapsedMax():", Statistics.solverElapsedMax());
     std::printf("%-36s %f\n", "SolverElapsedAveraged:", SolverElapsedAveraged);
 
-    std::cout << "====================================================" << std::endl;
+    std::cout << "===================================================="
+              << std::endl;
 }
 
 void USILogger::setIsInverse(bool Value) {

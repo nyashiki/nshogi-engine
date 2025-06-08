@@ -30,9 +30,8 @@ namespace mcts {
 class SearchWorker : public worker::Worker {
  public:
     SearchWorker(allocator::Allocator* NodeAllocator,
-                 allocator::Allocator* EdgeAllocator,
-                 EvaluationQueue*, CheckmateQueue*,
-                 MutexPool<>*, EvalCache*, Statistics* Stat);
+                 allocator::Allocator* EdgeAllocator, EvaluationQueue*,
+                 CheckmateQueue*, MutexPool<>*, EvalCache*, Statistics* Stat);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);

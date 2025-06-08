@@ -108,7 +108,6 @@ class Statistics {
     std::atomic<uint64_t> NumSolverWorked;
     std::atomic<uint64_t> SolverElapsedMax;
     std::atomic<uint64_t> SolverElapsedAccumulated;
-
 };
 
 } // namespace mcts

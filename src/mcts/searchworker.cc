@@ -31,12 +31,9 @@ void cancelVirtualLoss(Node* N) {
 } // namespace
 
 SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
-                                     allocator::Allocator* EdgeAllocator,
-                                     EvaluationQueue* EQ,
-                                     CheckmateQueue* CQ,
-                                     MutexPool<>* MP,
-                                     EvalCache* EC,
-                                     Statistics* Stat)
+                           allocator::Allocator* EdgeAllocator,
+                           EvaluationQueue* EQ, CheckmateQueue* CQ,
+                           MutexPool<>* MP, EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
@@ -53,8 +50,8 @@ SearchWorker::~SearchWorker() {
 }
 
 void SearchWorker::updateRoot(const core::State& S,
-                                        const core::StateConfig& StateConfig,
-                                        Node* Root) {
+                              const core::StateConfig& StateConfig,
+                              Node* Root) {
     State = std::make_unique<core::State>(S.clone());
     Config = StateConfig;
     RootNode = Root;
@@ -63,7 +60,8 @@ void SearchWorker::updateRoot(const core::State& S,
 }
 
 Node* SearchWorker::collectOneLeaf() {
-    using MtxLockType = typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
+    using MtxLockType =
+        typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
 
     Node* CurrentNode = RootNode;
 
@@ -87,8 +85,10 @@ Node* SearchWorker::collectOneLeaf() {
             if (VirtualLoss == 0) {
                 std::unique_lock<MtxLockType> Lock;
                 if (MtxPool != nullptr) {
-                    const uint64_t NodeMtxHash = reinterpret_cast<uint64_t>(CurrentNode);
-                    Lock = std::unique_lock<MtxLockType>(*MtxPool->get(NodeMtxHash));
+                    const uint64_t NodeMtxHash =
+                        reinterpret_cast<uint64_t>(CurrentNode);
+                    Lock = std::unique_lock<MtxLockType>(
+                        *MtxPool->get(NodeMtxHash));
                 }
 
                 // Re-check the number of visit and virtual loss after getting a
@@ -165,7 +165,8 @@ Node* SearchWorker::collectOneLeaf() {
             std::unique_lock<MtxLockType> Lock;
             if (MtxPool != nullptr) {
                 const uint64_t EdgeMtxHash = reinterpret_cast<uint64_t>(E);
-                Lock = std::unique_lock<MtxLockType>(*MtxPool->get(EdgeMtxHash));
+                Lock =
+                    std::unique_lock<MtxLockType>(*MtxPool->get(EdgeMtxHash));
 
                 if (E->getTarget() != nullptr) {
                     // This thread has reached a leaf node but another thread
@@ -214,8 +215,7 @@ void SearchWorker::immediateUpdateByLoss(Node* LeafNode) {
     LeafNode->updateAncestors(0.0f, 0.0f);
 }
 
-void SearchWorker::immediateUpdateByDraw(Node* LeafNode,
-                                                  float DrawValue) {
+void SearchWorker::immediateUpdateByDraw(Node* LeafNode, float DrawValue) {
     LeafNode->setEvaluation(nullptr, DrawValue, 1.0f);
     LeafNode->updateAncestors(DrawValue, 1.0f);
 }
@@ -240,7 +240,7 @@ void SearchWorker::immediateUpdate(Node* LeafNode) {
 }
 
 Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
-                                                bool regardNotVisitedWin) {
+                                      bool regardNotVisitedWin) {
     assert(NumChildren > 0);
     const uint64_t CurrentVisitsAndVirtualLoss = N->getVisitsAndVirtualLoss();
     const uint64_t CurrentVisits =
@@ -261,12 +261,16 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             } else {
                 bool Acceptable = true;
 
-                const double ThisPolicy = (double)N->getEdge()[CurrentVirtualLoss].getProbability();
-                const double Const = 1.0 / (CInit * std::sqrt((double)CurrentVirtualLoss + 1.0));
+                const double ThisPolicy =
+                    (double)N->getEdge()[CurrentVirtualLoss].getProbability();
+                const double Const =
+                    1.0 / (CInit * std::sqrt((double)CurrentVirtualLoss + 1.0));
                 for (uint16_t I = 0; I < CurrentVirtualLoss - 1; ++I) {
-                    const double Policy = (double)N->getEdge()[I].getProbability();
+                    const double Policy =
+                        (double)N->getEdge()[I].getProbability();
 
-                    if (Const + Policy / (double)CurrentVirtualLoss >= ThisPolicy) {
+                    if (Const + Policy / (double)CurrentVirtualLoss >=
+                        ThisPolicy) {
                         Acceptable = false;
                         break;
                     }
@@ -308,9 +312,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         auto* const Edge = &N->getEdge()[I];
         auto* const Child = Edge->getTarget();
 
-        const uint64_t ChildVisitsAndVirtualLoss = (Child != nullptr)
-            ? Child->getVisitsAndVirtualLoss()
-            : 0;
+        const uint64_t ChildVisitsAndVirtualLoss =
+            (Child != nullptr) ? Child->getVisitsAndVirtualLoss() : 0;
 
         // The child is not visited yet.
         if (Child == nullptr || ChildVisitsAndVirtualLoss == 0) {
@@ -425,7 +428,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 }
 
 double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
-                                              uint64_t ChildVirtualVisits) {
+                                           uint64_t ChildVirtualVisits) {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
@@ -577,11 +580,12 @@ bool SearchWorker::doTask() {
             // Because the leaf was already expanded and a virtual loss was
             // propagated from the root to here, we have to roll both back.
             //
-            // IMPORTANT: release the edges *before* cancelling the virtual loss.
-            // If we cancelled the virtual loss first, the node would momentarily have
+            // IMPORTANT: release the edges *before* cancelling the virtual
+            // loss. If we cancelled the virtual loss first, the node would
+            // momentarily have
             //     VisitCount == 0 && VirtualLoss == 0
-            // while its edges were still present. Another thread could then reach
-            // this leaf node and re-expand it, causing a data race.
+            // while its edges were still present. Another thread could then
+            // reach this leaf node and re-expand it, causing a data race.
             LeafNode->releaseEdges(EA);
             cancelVirtualLoss(LeafNode);
             PStat->incrementNumFailedToAddEvaluationQueue();

@@ -10,8 +10,8 @@
 #ifndef NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 #define NSHOGI_ENGINE_ALLOCATOR_SEGREGATED_FREE_LIST_H
 
-#include "allocator.h"
 #include "../lock/locktype.h"
+#include "allocator.h"
 
 #include <atomic>
 #include <mutex>

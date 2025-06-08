@@ -23,15 +23,10 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     , WakeUpSupervisor(false)
     , Status(ManagerStatus::Idle)
     , IsExiting(false) {
-    std::thread AllocatorPrepareThread([&]() {
-        setupAllocator();
-        });
-    std::thread GarbageCollectorPrepareThread([&]() {
-            setupGarbageCollector();
-            });
-    std::thread MutexPoolPrepareThread([&]() {
-            setupMutexPool();
-            });
+    std::thread AllocatorPrepareThread([&]() { setupAllocator(); });
+    std::thread GarbageCollectorPrepareThread(
+        [&]() { setupGarbageCollector(); });
+    std::thread MutexPoolPrepareThread([&]() { setupMutexPool(); });
     AllocatorPrepareThread.join();
     GarbageCollectorPrepareThread.join();
     MutexPoolPrepareThread.join();
@@ -156,14 +151,16 @@ void Manager::interrupt() {
 
 void Manager::setupAllocator() {
     std::thread NodeAllocatorPrepareThread([&]() {
-        NodeAllocator.resize((std::size_t)(
-            0.1 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
-        });
+        NodeAllocator.resize(
+            (std::size_t)(0.1 * (double)(PContext->getAvailableMemoryMB() *
+                                         1024UL * 1024UL)));
+    });
 
     std::thread EdgeAllocatorPrepareThread([&]() {
-        EdgeAllocator.resize((std::size_t)(
-            0.9 * (double)(PContext->getAvailableMemoryMB() * 1024UL * 1024UL)));
-        });
+        EdgeAllocator.resize(
+            (std::size_t)(0.9 * (double)(PContext->getAvailableMemoryMB() *
+                                         1024UL * 1024UL)));
+    });
 
     NodeAllocatorPrepareThread.join();
     EdgeAllocatorPrepareThread.join();
@@ -186,8 +183,8 @@ void Manager::setupSearchTree() {
 
 void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
                                    std::size_t NumEvaluationWorkersPerGPU) {
-    EQueue = std::make_unique<EvaluationQueue>(
-        BatchSize * NumGPUs * NumEvaluationWorkersPerGPU * 64);
+    EQueue = std::make_unique<EvaluationQueue>(BatchSize * NumGPUs *
+                                               NumEvaluationWorkersPerGPU * 64);
 }
 
 void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
@@ -195,10 +192,9 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
     std::size_t ThreadId = 0;
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
-            EvaluationWorkers.emplace_back(
-                std::make_unique<EvaluationWorker>(
-                    PContext, ThreadId, I, BatchSize, EQueue.get(),
-                    ECache.get(), &Stat));
+            EvaluationWorkers.emplace_back(std::make_unique<EvaluationWorker>(
+                PContext, ThreadId, I, BatchSize, EQueue.get(), ECache.get(),
+                &Stat));
             ++ThreadId;
         }
     }
@@ -206,10 +202,9 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
-        SearchWorkers.emplace_back(
-            std::make_unique<SearchWorker>(
-                &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
-                MtxPool.get(), ECache.get(), &Stat));
+        SearchWorkers.emplace_back(std::make_unique<SearchWorker>(
+            &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
+            MtxPool.get(), ECache.get(), &Stat));
     }
 }
 
@@ -309,7 +304,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
 #ifndef NDEBUG
         assert(!EQueue->isOpen());
         if (EQueue->count() != 0) {
-            std::cerr << "[ERROR] EQueue->count() != 0 before search starts (" << EQueue->count() << ")." << std::endl;
+            std::cerr << "[ERROR] EQueue->count() != 0 before search starts ("
+                      << EQueue->count() << ")." << std::endl;
         }
         assert(EQueue->count() == 0);
 #endif
@@ -350,9 +346,13 @@ void Manager::doSupervisorWork(bool CallCallback) {
 #ifndef NDEBUG
         // Check the virtual loss of the root node is 0.
         if (SearchTree->getRoot() != nullptr) {
-            const uint64_t RootVirtualLoss = SearchTree->getRoot()->getVisitsAndVirtualLoss() >> Node::VirtualLossShift;
+            const uint64_t RootVirtualLoss =
+                SearchTree->getRoot()->getVisitsAndVirtualLoss() >>
+                Node::VirtualLossShift;
             if (RootVirtualLoss != 0) {
-                std::cerr << "[ERROR] Root's virtual loss after searching check failed. Virtual loss: " << RootVirtualLoss << std::endl;
+                std::cerr << "[ERROR] Root's virtual loss after searching "
+                             "check failed. Virtual loss: "
+                          << RootVirtualLoss << std::endl;
             }
             assert(EQueue->count() == 0);
             assert(RootVirtualLoss == 0);
@@ -410,8 +410,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (Status == ManagerStatus::Busy && PContext->isPonderingEnabled() && !BestMove.isNone() &&
-            !BestMove.isWin() && !checkMemoryBudgetForPondering()) {
+        if (Status == ManagerStatus::Busy && PContext->isPonderingEnabled() &&
+            !BestMove.isNone() && !BestMove.isWin() &&
+            !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {
                 Status = ManagerStatus::Pondering;
@@ -475,7 +476,8 @@ void Manager::stopWorkers() {
 
     if (Status == ManagerStatus::Thinking) {
         Status = ManagerStatus::Busy;
-    } else if (Status == ManagerStatus::Pondering || Status == ManagerStatus::Stopping) {
+    } else if (Status == ManagerStatus::Pondering ||
+               Status == ManagerStatus::Stopping) {
         Status = ManagerStatus::Idle;
         CVStatus.notify_all();
     }
@@ -533,7 +535,8 @@ bool Manager::checkAllVirtualLossIsZero(Node* Root) const {
             continue;
         }
 
-        const uint64_t VirtualLoss = N->getVisitsAndVirtualLoss() >> Node::VirtualLossShift;
+        const uint64_t VirtualLoss =
+            N->getVisitsAndVirtualLoss() >> Node::VirtualLossShift;
 
         if (VirtualLoss != 0) {
             return false;

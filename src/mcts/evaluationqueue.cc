@@ -43,7 +43,7 @@ std::size_t EvaluationQueue::count() const {
 }
 
 bool EvaluationQueue::add(const core::State& State,
-                                    const core::StateConfig& Config, Node* N) {
+                          const core::StateConfig& Config, Node* N) {
     global_config::FeatureType FSC(State, Config);
 
     std::unique_lock<std::mutex> Lock(Mutex);
@@ -61,7 +61,8 @@ bool EvaluationQueue::add(const core::State& State,
 
 auto EvaluationQueue::get(std::size_t NumElements)
     -> std::tuple<std::vector<core::Color>, std::vector<Node*>,
-                  std::vector<global_config::FeatureType>, std::vector<uint64_t>> {
+                  std::vector<global_config::FeatureType>,
+                  std::vector<uint64_t>> {
     std::tuple<std::vector<core::Color>, std::vector<Node*>,
                std::vector<global_config::FeatureType>, std::vector<uint64_t>>
         T;

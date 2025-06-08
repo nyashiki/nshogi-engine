@@ -253,7 +253,8 @@ void Statistics::updateSolverElapsed(uint64_t Elapsed) {
     //      SolverElapsedMax.fetch_max(Elapsed, std::memory_order_relaxed);
     //    to make the update fully atomic.
     // TODO: switch to fetch_max (C++26).
-    SolverElapsedMax = std::max(SolverElapsedMax.load(std::memory_order_relaxed), Elapsed);
+    SolverElapsedMax =
+        std::max(SolverElapsedMax.load(std::memory_order_relaxed), Elapsed);
 
     SolverElapsedAccumulated.fetch_add(Elapsed, std::memory_order_relaxed);
 }

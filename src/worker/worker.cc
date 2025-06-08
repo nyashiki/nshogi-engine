@@ -52,9 +52,8 @@ void Worker::await() {
     // Wait until the thread has stopped.
     std::unique_lock<std::mutex> Lock(Mutex);
     AwaitCV.wait(Lock, [this] {
-            return WState == WorkerState::Idle ||
-            WState == WorkerState::Exit;
-            });
+        return WState == WorkerState::Idle || WState == WorkerState::Exit;
+    });
 }
 
 void Worker::spawnThread() {
@@ -65,7 +64,8 @@ void Worker::spawnThread() {
 
     {
         std::unique_lock<std::mutex> Lock(Mutex);
-        InitializationCV.wait(Lock, [this]() { return WState != WorkerState::Uninitialized; });
+        InitializationCV.wait(
+            Lock, [this]() { return WState != WorkerState::Uninitialized; });
     }
 }
 
@@ -92,9 +92,9 @@ void Worker::mainLoop() {
             AwaitCV.notify_all();
 
             TaskCV.wait(Lock, [this] {
-                    return WState == WorkerState::Starting ||
-                    WState == WorkerState::Exiting;
-                    });
+                return WState == WorkerState::Starting ||
+                       WState == WorkerState::Exiting;
+            });
 
             if (WState == WorkerState::Starting) {
                 WState = WorkerState::Running;

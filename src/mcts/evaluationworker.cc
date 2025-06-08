@@ -41,9 +41,10 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-EvaluationWorker::EvaluationWorker(
-    const Context* C, std::size_t ThreadId, std::size_t GPUId,
-    std::size_t BatchSize, EvaluationQueue* EQ, EvalCache* EC, Statistics* Stat)
+EvaluationWorker::EvaluationWorker(const Context* C, std::size_t ThreadId,
+                                   std::size_t GPUId, std::size_t BatchSize,
+                                   EvaluationQueue* EQ, EvalCache* EC,
+                                   Statistics* Stat)
     : worker::Worker(true)
     , PContext(C)
     , MyThreadId(ThreadId)
@@ -87,7 +88,8 @@ void EvaluationWorker::initializationTask() {
 #endif
 
     Evaluator = std::make_unique<evaluate::Evaluator>(
-        MyThreadId, global_config::FeatureType::size(), BatchSizeMax, Infer.get());
+        MyThreadId, global_config::FeatureType::size(), BatchSizeMax,
+        Infer.get());
 
     PendingSideToMoves =
         static_cast<core::Color*>(Evaluator->allocateMemoryByNumaIfAvailable(
@@ -141,10 +143,11 @@ void EvaluationWorker::getBatch() {
         PendingNodes[BatchCount] = Nodes[I];
         PendingHashes[BatchCount] = Hashes[I];
 
-        std::memcpy(static_cast<void*>(Evaluator->getFeatureBitboards() +
-                                       BatchCount * global_config::FeatureType::size()),
-                    FeatureStacks[I].data(),
-                    global_config::FeatureType::size() * sizeof(ml::FeatureBitboard));
+        std::memcpy(
+            static_cast<void*>(Evaluator->getFeatureBitboards() +
+                               BatchCount * global_config::FeatureType::size()),
+            FeatureStacks[I].data(),
+            global_config::FeatureType::size() * sizeof(ml::FeatureBitboard));
 
         ++BatchCount;
     }
@@ -169,8 +172,8 @@ void EvaluationWorker::feedResults() {
 }
 
 void EvaluationWorker::feedResult(core::Color SideToMove, Node* N,
-                                            const float* Policy, float WinRate,
-                                            float DrawRate, uint64_t Hash) {
+                                  const float* Policy, float WinRate,
+                                  float DrawRate, uint64_t Hash) {
     bool NaNFound = false;
     if (PContext->isNaNFallbackEnabled()) {
         if (math::isnan_(WinRate)) {
