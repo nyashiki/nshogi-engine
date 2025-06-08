@@ -9,6 +9,8 @@
 
 #include "statistics.h"
 
+#include <algorithm>
+
 namespace nshogi {
 namespace engine {
 namespace mcts {
@@ -43,6 +45,11 @@ void Statistics::reset() {
     // Evaluation worker.
     EvaluationCount.store(0, std::memory_order_relaxed);
     BatchSizeAccumulated.store(0, std::memory_order_relaxed);
+
+    // Checkmate worker.
+    NumSolverWorked.store(0, std::memory_order_relaxed);
+    SolverElapsedMax.store(0, std::memory_order_relaxed);
+    SolverElapsedAccumulated.store(0, std::memory_order_relaxed);
 }
 
 uint64_t Statistics::numNullLeaf() const {
@@ -133,6 +140,18 @@ uint64_t Statistics::batchSizeAccumulated() const {
     return BatchSizeAccumulated.load(std::memory_order_relaxed);
 }
 
+uint64_t Statistics::numSolverWorked() const {
+    return NumSolverWorked.load(std::memory_order_relaxed);
+}
+
+uint64_t Statistics::solverElapsedMax() const {
+    return SolverElapsedMax.load(std::memory_order_relaxed);
+}
+
+uint64_t Statistics::solverElapsedAccumulated() const {
+    return SolverElapsedAccumulated.load(std::memory_order_relaxed);
+}
+
 void Statistics::incrementNumNullLeaf() {
     NumNullLeaf.fetch_add(1, std::memory_order_relaxed);
 }
@@ -219,6 +238,24 @@ void Statistics::incrementEvaluationCount() {
 
 void Statistics::addBatchSizeAccumulated(uint64_t BatchSize) {
     BatchSizeAccumulated.fetch_add(BatchSize, std::memory_order_relaxed);
+}
+
+void Statistics::incrementNumSolverWorked() {
+    NumSolverWorked.fetch_add(1, std::memory_order_relaxed);
+}
+
+void Statistics::updateSolverElapsed(uint64_t Elapsed) {
+    //  - We intentionally accept some loss of `Elapsed` samples due to
+    //    possible timing issues. For this statistics-only path, approximate
+    //    values are good enough and relaxed ordering keeps the hot code fast.
+    //  - For now we compute the maximum with `std::max` on the loaded value.
+    //    Once C++26 (P0493R3) is widely available, replace this with
+    //      SolverElapsedMax.fetch_max(Elapsed, std::memory_order_relaxed);
+    //    to make the update fully atomic.
+    // TODO: switch to fetch_max (C++26).
+    SolverElapsedMax = std::max(SolverElapsedMax.load(std::memory_order_relaxed), Elapsed);
+
+    SolverElapsedAccumulated.fetch_add(Elapsed, std::memory_order_relaxed);
 }
 
 } // namespace mcts

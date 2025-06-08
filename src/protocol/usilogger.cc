@@ -80,8 +80,12 @@ void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
         ? 0.0
         : ((double)Statistics.batchSizeAccumulated() / (double)Statistics.evaluationCount());
 
+    const double SolverElapsedAveraged = (Statistics.numSolverWorked() == 0)
+        ? 0.0
+        : ((double)Statistics.solverElapsedAccumulated() / (double)Statistics.numSolverWorked());
+
     std::lock_guard<std::mutex> Lock(Mtx);
-    std::cout << "========== STATISTICS ==========" << std::endl;
+    std::cout << "==================== STATISTICS ====================" << std::endl;
 
     std::cout << "[SearchWorker]" << std::endl;
     std::printf("%-36s %" PRIu64 "\n", "numNullLeaf():",  Statistics.numNullLeaf());
@@ -110,7 +114,12 @@ void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
     std::printf("%-36s %" PRIu64 "\n", "batchSizeAccumulated():", Statistics.batchSizeAccumulated());
     std::printf("%-36s %f\n", "batchSizeAveraged:", BatchSizeAveraged);
 
-    std::cout << "================================" << std::endl;
+    std::cout << "[CheckmateWorker]" << std::endl;
+    std::printf("%-36s %" PRIu64 "\n", "numSolverWorked():", Statistics.numSolverWorked());
+    std::printf("%-36s %" PRIu64 "\n", "solverElapsedMax():", Statistics.solverElapsedMax());
+    std::printf("%-36s %f\n", "SolverElapsedAveraged:", SolverElapsedAveraged);
+
+    std::cout << "====================================================" << std::endl;
 }
 
 void USILogger::setIsInverse(bool Value) {

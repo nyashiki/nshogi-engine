@@ -46,6 +46,10 @@ class Statistics {
     uint64_t evaluationCount() const;
     uint64_t batchSizeAccumulated() const;
 
+    uint64_t numSolverWorked() const;
+    uint64_t solverElapsedMax() const;
+    uint64_t solverElapsedAccumulated() const;
+
     void incrementNumNullLeaf();
     void incrementNumNonLeaf();
     void incrementNumRepetition();
@@ -69,6 +73,9 @@ class Statistics {
 
     void incrementEvaluationCount();
     void addBatchSizeAccumulated(uint64_t BatchSize);
+
+    void incrementNumSolverWorked();
+    void updateSolverElapsed(uint64_t Elapsed);
 
  private:
     // Search worker.
@@ -96,6 +103,12 @@ class Statistics {
     // Evaluation worker.
     std::atomic<uint64_t> EvaluationCount;
     std::atomic<uint64_t> BatchSizeAccumulated;
+
+    // Checkmate worker.
+    std::atomic<uint64_t> NumSolverWorked;
+    std::atomic<uint64_t> SolverElapsedMax;
+    std::atomic<uint64_t> SolverElapsedAccumulated;
+
 };
 
 } // namespace mcts
