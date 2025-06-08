@@ -105,6 +105,8 @@ void Worker::mainLoop() {
             }
         }
 
+        uint64_t StreakRun = 0;
+
         while (true) {
             bool ToContinue = doTask();
 
@@ -116,9 +118,13 @@ void Worker::mainLoop() {
                 continue;
             }
 
-            std::lock_guard<std::mutex> Lock(Mutex);
-            if (WState == WorkerState::Stopping) {
-                break;
+            ++StreakRun;
+            if (StreakRun == STREAK_RUN_PERIOD) {
+                std::lock_guard<std::mutex> Lock(Mutex);
+                if (WState == WorkerState::Stopping) {
+                    break;
+                }
+                StreakRun = 0;
             }
         }
     }

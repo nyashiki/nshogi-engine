@@ -47,6 +47,8 @@ class Worker {
     bool isRunning();
 
  private:
+    static constexpr uint64_t STREAK_RUN_PERIOD = 4;
+
     void mainLoop();
 
     const bool LoopTaskFlag;
