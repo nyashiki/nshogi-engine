@@ -56,7 +56,7 @@ struct Node {
         , Repetition(core::RepetitionStatus::NoRepetition) {
     }
 
-    static constexpr int VirtualLossShift = 48;
+    static constexpr int VirtualLossShift = 40;
     static constexpr uint64_t VisitMask = (1ULL << VirtualLossShift) - 1;
 
     inline void resetParent(Node* P = nullptr) {
@@ -129,9 +129,11 @@ struct Node {
 
     inline int16_t expand(const nshogi::core::MoveList& MoveList,
                           allocator::Allocator* Allocator) {
-        assert(Edges == nullptr);
-        assert(MoveList.size() > 0);
         assert((VisitsAndVirtualLoss & VisitMask) == 0);
+        assert((VisitsAndVirtualLoss >> VirtualLossShift) == 1);
+        assert(MoveList.size() > 0);
+        assert(NumChildren == 0);
+        assert(Edges == nullptr);
 
         Edges.mallocArray(Allocator, MoveList.size());
         if (Edges == nullptr) {
@@ -151,6 +153,7 @@ struct Node {
                               float DrawRate) {
         if (Policy != nullptr) {
             for (std::size_t I = 0; I < getNumChildren(); ++I) {
+                assert(Policy[I] >= 0.0f && Policy[I] <= 1.0f);
                 Edges[I].setProbability(Policy[I]);
             }
         }
@@ -298,6 +301,11 @@ struct Node {
     core::Move16 getSolverResult() const {
         return core::Move16::fromValue(
             SolverMove.load(std::memory_order_acquire));
+    }
+
+    void releaseEdges(allocator::Allocator* Allocator) {
+        Edges.destroy(Allocator, NumChildren);
+        NumChildren = 0;
     }
 
  private:

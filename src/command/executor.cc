@@ -17,12 +17,13 @@ namespace engine {
 namespace command {
 
 Executor::Executor(std::shared_ptr<logger::Logger> Logger)
-    : Worker(&Executor::mainLoop, this)
-    , IsExiting(false)
+    : IsExiting(false)
     , PLogger(std::move(Logger)) {
 
     StateConfig = std::make_unique<core::StateConfig>();
     StateConfig->Rule = core::ER_Declare27;
+
+    Worker = std::thread(&Executor::mainLoop, this);
 }
 
 Executor::~Executor() {
@@ -35,9 +36,9 @@ Executor::~Executor() {
     Worker.join();
 }
 
-void Executor::pushCommand(std::shared_ptr<ICommand> Command, bool blocking) {
+void Executor::pushCommand(std::shared_ptr<ICommand> Command, bool Blocking) {
     {
-        if (blocking) {
+        if (Blocking) {
             Command->blockingMode();
         }
         std::lock_guard<std::mutex> Lock(Mtx);
@@ -45,7 +46,7 @@ void Executor::pushCommand(std::shared_ptr<ICommand> Command, bool blocking) {
     }
 
     CV.notify_one();
-    if (blocking) {
+    if (Blocking) {
         Command->wait();
     }
 }

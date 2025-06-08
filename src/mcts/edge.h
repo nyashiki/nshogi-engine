@@ -75,6 +75,7 @@ struct Edge {
     }
 
     Pointer<Node>&& getTargetWithOwner() {
+        Ready.store(false, std::memory_order_release);
         return std::move(Target);
     }
 

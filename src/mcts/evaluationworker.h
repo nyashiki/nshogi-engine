@@ -12,11 +12,13 @@
 
 #include "../context.h"
 #include "../evaluate/evaluator.h"
+#include "../globalconfig.h"
 #include "../infer/infer.h"
 #include "../worker/worker.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
 #include "node.h"
+#include "statistics.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -29,12 +31,11 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename Features>
 class EvaluationWorker : public worker::Worker {
  public:
     EvaluationWorker(const Context*, std::size_t ThreadId, std::size_t GPUId,
-                     std::size_t BatchSize, EvaluationQueue<Features>*,
-                     EvalCache*);
+                     std::size_t BatchSize, EvaluationQueue*, EvalCache*,
+                     Statistics* Stat);
     ~EvaluationWorker();
 
  private:
@@ -53,7 +54,7 @@ class EvaluationWorker : public worker::Worker {
     const std::size_t MyThreadId;
 
     const std::size_t BatchSizeMax;
-    EvaluationQueue<Features>* const EQueue;
+    EvaluationQueue* const EQueue;
     EvalCache* const ECache;
 
     std::unique_ptr<infer::Infer> Infer;
@@ -66,6 +67,8 @@ class EvaluationWorker : public worker::Worker {
     core::Color* PendingSideToMoves;
     Node** PendingNodes;
     uint64_t* PendingHashes;
+
+    Statistics* PStat;
 };
 
 } // namespace mcts

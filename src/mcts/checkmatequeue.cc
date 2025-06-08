@@ -34,6 +34,21 @@ void CheckmateQueue::add(Node* N, const core::Position& Position) {
     }
 }
 
+bool CheckmateQueue::tryAdd(Node* N, const core::Position& Position) {
+    bool Succeeded = Mutex.try_lock();
+
+    if (!Succeeded) {
+        return false;
+    }
+
+    if (IsOpen) {
+        Queue.emplace(std::make_unique<CheckmateTask>(N, Position));
+    }
+
+    Mutex.unlock();
+    return true;
+}
+
 auto CheckmateQueue::getAll() -> std::queue<std::unique_ptr<CheckmateTask>> {
     std::queue<std::unique_ptr<CheckmateTask>> Q;
 

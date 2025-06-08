@@ -23,6 +23,7 @@
 #include "evaluationworker.h"
 #include "garbagecollector.h"
 #include "searchworker.h"
+#include "statistics.h"
 #include "tree.h"
 #include "watchdog.h"
 
@@ -34,6 +35,14 @@
 namespace nshogi {
 namespace engine {
 namespace mcts {
+
+enum class ManagerStatus {
+    Idle,
+    Thinking,
+    Pondering,
+    Stopping,
+    Busy,
+};
 
 struct ThoughtLog {
     std::vector<std::pair<core::Move16, uint64_t>> VisitCounts;
@@ -78,20 +87,20 @@ class Manager {
 
     void watchdogStopCallback();
 
+    bool checkAllVirtualLossIsZero(Node* Root) const;
+
     const Context* PContext;
     allocator::FixedAllocator<sizeof(Node)> NodeAllocator;
-    allocator::SegregatedFreeListAllocator EdgeAllocator;
+    allocator::SegregatedFreeListAllocator<> EdgeAllocator;
 
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
-    std::unique_ptr<EvaluationQueue<global_config::FeatureType>> EQueue;
+    std::unique_ptr<EvaluationQueue> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
-    std::unique_ptr<MutexPool<lock::SpinLock>> MtxPool;
-    std::vector<std::unique_ptr<SearchWorker<global_config::FeatureType>>>
-        SearchWorkers;
-    std::vector<std::unique_ptr<EvaluationWorker<global_config::FeatureType>>>
-        EvaluationWorkers;
+    std::unique_ptr<MutexPool<>> MtxPool;
+    std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
+    std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::map<core::HuffmanCode, book::BookEntry> Book;
@@ -103,13 +112,18 @@ class Manager {
     std::mutex MutexSupervisor;
     std::condition_variable CVSupervisor;
     std::unique_ptr<Watchdog> WatchdogWorker;
-    std::atomic<bool> HasInterruptReceived;
+
+    std::mutex MutexStatus;
+    std::condition_variable CVStatus;
+    ManagerStatus Status;
 
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
     std::unique_ptr<engine::Limit> Limit;
     std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
         BestMoveCallback;
+
+    Statistics Stat;
 
     bool IsExiting;
 };

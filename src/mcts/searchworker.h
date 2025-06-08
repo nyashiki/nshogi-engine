@@ -18,6 +18,7 @@
 #include "evaluationqueue.h"
 #include "mutexpool.h"
 #include "node.h"
+#include "statistics.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -26,16 +27,21 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename Features>
 class SearchWorker : public worker::Worker {
  public:
     SearchWorker(allocator::Allocator* NodeAllocator,
-                 allocator::Allocator* EdgeAllocator,
-                 EvaluationQueue<Features>*, CheckmateQueue*,
-                 MutexPool<lock::SpinLock>*, EvalCache*);
+                 allocator::Allocator* EdgeAllocator, EvaluationQueue*,
+                 CheckmateQueue*, MutexPool<>*, EvalCache*, Statistics* Stat);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
+
+ private:
+    static constexpr int32_t CBase = 19652;
+    static constexpr double CInit = 1.25;
+
+    bool doTask() override;
+
     Node* collectOneLeaf();
     int16_t expandLeaf(Node*);
 
@@ -45,12 +51,6 @@ class SearchWorker : public worker::Worker {
     void immediateUpdateByLoss(Node*);
     void immediateUpdateByDraw(Node*, float DrawValue);
     void immediateUpdate(Node*);
-
- private:
-    static constexpr int32_t CBase = 19652;
-    static constexpr double CInit = 1.25;
-
-    bool doTask() override;
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
                             bool regardNotVisitedWin);
@@ -65,10 +65,11 @@ class SearchWorker : public worker::Worker {
 
     allocator::Allocator* NA;
     allocator::Allocator* EA;
-    EvaluationQueue<Features>* EQueue;
+    EvaluationQueue* EQueue;
     CheckmateQueue* CQueue;
-    MutexPool<lock::SpinLock>* MtxPool;
+    MutexPool<>* MtxPool;
     EvalCache* ECache;
+    Statistics* PStat;
 
     EvalCache::EvalInfo CacheEvalInfo;
 };

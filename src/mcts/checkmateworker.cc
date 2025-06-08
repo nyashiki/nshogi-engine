@@ -32,7 +32,6 @@ bool CheckmateWorker::doTask() {
         PCheckmateQueue->getAll();
 
     if (Tasks.empty()) {
-        std::this_thread::yield();
         return false;
     }
 
@@ -40,7 +39,7 @@ bool CheckmateWorker::doTask() {
         std::unique_ptr<CheckmateTask> Task = std::move(Tasks.front());
         Tasks.pop();
 
-        if (!getIsRunning()) {
+        if (!isRunning()) {
             // This solver has been told to stop.
             break;
         }

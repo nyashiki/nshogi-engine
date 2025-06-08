@@ -41,10 +41,10 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-template <typename Features>
-EvaluationWorker<Features>::EvaluationWorker(
-    const Context* C, std::size_t ThreadId, std::size_t GPUId,
-    std::size_t BatchSize, EvaluationQueue<Features>* EQ, EvalCache* EC)
+EvaluationWorker::EvaluationWorker(const Context* C, std::size_t ThreadId,
+                                   std::size_t GPUId, std::size_t BatchSize,
+                                   EvaluationQueue* EQ, EvalCache* EC,
+                                   Statistics* Stat)
     : worker::Worker(true)
     , PContext(C)
     , MyThreadId(ThreadId)
@@ -55,13 +55,13 @@ EvaluationWorker<Features>::EvaluationWorker(
     , BatchCount(0)
     , PendingSideToMoves(nullptr)
     , PendingNodes(nullptr)
-    , PendingHashes(nullptr) {
+    , PendingHashes(nullptr)
+    , PStat(Stat) {
 
     spawnThread();
 }
 
-template <typename Features>
-EvaluationWorker<Features>::~EvaluationWorker() {
+EvaluationWorker::~EvaluationWorker() {
     if (Evaluator != nullptr) {
         Evaluator->freeMemory(reinterpret_cast<void**>(&PendingSideToMoves),
                               BatchSizeMax * sizeof(core::Color));
@@ -72,8 +72,7 @@ EvaluationWorker<Features>::~EvaluationWorker() {
     }
 }
 
-template <typename Features>
-void EvaluationWorker<Features>::initializationTask() {
+void EvaluationWorker::initializationTask() {
 #if defined(EXECUTOR_ZERO)
     Infer = std::make_unique<infer::Zero>();
 #elif defined(EXECUTOR_NOTHING)
@@ -89,7 +88,8 @@ void EvaluationWorker<Features>::initializationTask() {
 #endif
 
     Evaluator = std::make_unique<evaluate::Evaluator>(
-        MyThreadId, Features::size(), BatchSizeMax, Infer.get());
+        MyThreadId, global_config::FeatureType::size(), BatchSizeMax,
+        Infer.get());
 
     PendingSideToMoves =
         static_cast<core::Color*>(Evaluator->allocateMemoryByNumaIfAvailable(
@@ -102,15 +102,13 @@ void EvaluationWorker<Features>::initializationTask() {
             BatchSizeMax * sizeof(uint64_t)));
 }
 
-template <typename Features>
-bool EvaluationWorker<Features>::doTask() {
+bool EvaluationWorker::doTask() {
     getBatch();
 
     if (BatchCount == 0) {
-        std::this_thread::yield();
         // As the batch size is zero, there is no tasks to do, so
         // return false to notify this thread can be stopped.
-        return false;
+        return EQueue->count() > 0;
     }
 
     doInference();
@@ -123,8 +121,7 @@ bool EvaluationWorker<Features>::doTask() {
     return true;
 }
 
-template <typename Features>
-void EvaluationWorker<Features>::getBatch() {
+void EvaluationWorker::getBatch() {
     if (BatchCount >= BatchSizeMax) {
         return;
     }
@@ -146,22 +143,23 @@ void EvaluationWorker<Features>::getBatch() {
         PendingNodes[BatchCount] = Nodes[I];
         PendingHashes[BatchCount] = Hashes[I];
 
-        std::memcpy(static_cast<void*>(Evaluator->getFeatureBitboards() +
-                                       BatchCount * Features::size()),
-                    FeatureStacks[I].data(),
-                    Features::size() * sizeof(ml::FeatureBitboard));
+        std::memcpy(
+            static_cast<void*>(Evaluator->getFeatureBitboards() +
+                               BatchCount * global_config::FeatureType::size()),
+            FeatureStacks[I].data(),
+            global_config::FeatureType::size() * sizeof(ml::FeatureBitboard));
 
         ++BatchCount;
     }
 }
 
-template <typename Features>
-void EvaluationWorker<Features>::doInference() {
+void EvaluationWorker::doInference() {
     Evaluator->computeBlocking(BatchCount);
+    PStat->incrementEvaluationCount();
+    PStat->addBatchSizeAccumulated(BatchCount);
 }
 
-template <typename Features>
-void EvaluationWorker<Features>::feedResults() {
+void EvaluationWorker::feedResults() {
     for (std::size_t I = 0; I < BatchCount; ++I) {
         const float* Policy =
             Evaluator->getPolicy() + 27 * core::NumSquares * I;
@@ -173,10 +171,9 @@ void EvaluationWorker<Features>::feedResults() {
     }
 }
 
-template <typename Features>
-void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
-                                            const float* Policy, float WinRate,
-                                            float DrawRate, uint64_t Hash) {
+void EvaluationWorker::feedResult(core::Color SideToMove, Node* N,
+                                  const float* Policy, float WinRate,
+                                  float DrawRate, uint64_t Hash) {
     bool NaNFound = false;
     if (PContext->isNaNFallbackEnabled()) {
         if (math::isnan_(WinRate)) {
@@ -212,7 +209,7 @@ void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
 
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
-        constexpr float P[] = {1.0};
+        static constexpr float P[] = {1.0};
         N->setEvaluation(P, WinRate, DrawRate);
     } else {
         if (PContext->isNaNFallbackEnabled()) {
@@ -246,8 +243,6 @@ void EvaluationWorker<Features>::feedResult(core::Color SideToMove, Node* N,
         ECache->store(Hash, NumChildren, LegalPolicy, WinRate, DrawRate);
     }
 }
-
-template class EvaluationWorker<global_config::FeatureType>;
 
 } // namespace mcts
 } // namespace engine
