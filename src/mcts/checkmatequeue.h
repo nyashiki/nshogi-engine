@@ -24,38 +24,48 @@ namespace mcts {
 
 struct CheckmateTask {
  public:
-    CheckmateTask(Node* N, const core::Position& Pos)
+    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth)
         : TargetNode(N)
-        , Position(Pos) {
+        , Position(Pos)
+        , Depth(MaxDepth) {
     }
 
-    Node* getNode() {
+    Node* node() {
         return TargetNode;
     }
 
-    core::Position& getPosition() {
+    core::Position& position() {
         return Position;
+    }
+
+    uint64_t depth() const {
+        return Depth;
     }
 
  private:
     Node* TargetNode;
     core::Position Position;
+    uint64_t Depth;
 };
 
 class CheckmateQueue {
  public:
-    CheckmateQueue();
+    CheckmateQueue(std::size_t MaxSize, std::size_t NumCheckmateWorkers);
 
     void open();
     void close();
-    void add(Node*, const core::Position&);
-    bool tryAdd(Node*, const core::Position&);
-    auto getAll() -> std::queue<std::unique_ptr<CheckmateTask>>;
+    void add(Node*, const core::Position&, uint64_t Depth) noexcept;
+    bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
+    auto getAll(std::size_t WorkerId) noexcept -> std::queue<std::unique_ptr<CheckmateTask>>;
 
  private:
+    const std::size_t QueueMaxSize;
+    const std::size_t NumWorkers;
+    std::size_t RoundRobin;
     bool IsOpen;
-    std::mutex Mutex;
-    std::queue<std::unique_ptr<CheckmateTask>> Queue;
+    std::mutex GlobalMutex;
+    std::vector<std::mutex> Mutexes;
+    std::vector<std::queue<std::unique_ptr<CheckmateTask>>> Queues;
 };
 
 } // namespace mcts
