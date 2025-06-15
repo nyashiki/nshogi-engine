@@ -74,7 +74,7 @@ Node* SearchWorker::collectOneLeaf() {
             // If checkmate searcher is enabled and the node has not been
             // tried to solve, feed the node into the checkmate searcher.
             if (CurrentNode->getSolverResult().isNone()) {
-                CQueue->tryAdd(CurrentNode, State->getPosition());
+                CQueue->tryAdd(CurrentNode, State->getPosition(), Config.MaxPly - State->getPly());
             }
         }
 
@@ -301,12 +301,13 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     Edge* UCBMaxEdge = nullptr;
     double UCBMaxValue = std::numeric_limits<double>::lowest();
     bool IsAllTargetLoss = true;
-    int16_t WinTargetPlyMin = 1024;
+    int16_t WinTargetPlyMin = 10000;
     int16_t LossTargetPlyMax = 0;
 
     Edge* ShortestWinEdge = nullptr;
     Edge* LongestLossEdge = nullptr;
 
+    assert(CurrentVisits > 1);
     assert(NumChildren > 0);
     for (uint16_t I = 0; I < NumChildren; ++I) {
         auto* const Edge = &N->getEdge()[I];

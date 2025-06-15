@@ -212,7 +212,7 @@ void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
     // CheckmateQueue must be initialized before SearchWorker is.
     assert(SearchWorkers.size() == 0);
     if (NumCheckmateWorkers > 0) {
-        CQueue = std::make_unique<CheckmateQueue>();
+        CQueue = std::make_unique<CheckmateQueue>(100000, NumCheckmateWorkers);
     }
 }
 
@@ -220,7 +220,7 @@ void Manager::setupCheckmateWorkers(std::size_t NumCheckmateWorkers) {
     assert(NumCheckmateWorkers == 0 || CQueue != nullptr);
     for (std::size_t I = 0; I < NumCheckmateWorkers; ++I) {
         CheckmateWorkers.emplace_back(
-            std::make_unique<CheckmateWorker>(CQueue.get()));
+            std::make_unique<CheckmateWorker>(I, CQueue.get(), &Stat));
     }
 }
 

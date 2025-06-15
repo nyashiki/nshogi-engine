@@ -10,16 +10,18 @@
 #include "checkmateworker.h"
 
 #include <nshogi/core/statebuilder.h>
-#include <nshogi/solver/dfs.h>
+#include <chrono>
 
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateWorker::CheckmateWorker(CheckmateQueue* CQueue)
+CheckmateWorker::CheckmateWorker(std::size_t Id, CheckmateQueue* CQueue, Statistics* Stat)
     : worker::Worker(true)
-    , SolverDepth(5)
-    , PCheckmateQueue(CQueue) {
+    , MyId(Id)
+    , DfPnSolver(64)
+    , PCheckmateQueue(CQueue)
+    , PStat(Stat) {
 
     spawnThread();
 }
@@ -29,7 +31,7 @@ CheckmateWorker::~CheckmateWorker() {
 
 bool CheckmateWorker::doTask() {
     std::queue<std::unique_ptr<CheckmateTask>> Tasks =
-        PCheckmateQueue->getAll();
+        PCheckmateQueue->getAll(MyId);
 
     if (Tasks.empty()) {
         return false;
@@ -45,22 +47,29 @@ bool CheckmateWorker::doTask() {
         }
 
         // This node has been tried to be solved by the solvers.
-        if (!Task->getNode()->getSolverResult().isNone()) {
+        if (!Task->node()->getSolverResult().isNone()) {
             continue;
         }
 
         // Now, trying to solve the position.
-        auto State = core::StateBuilder::newState(Task->getPosition());
-        const auto CheckmateMove = solver::dfs::solve(&State, SolverDepth);
+        const auto StartTime = std::chrono::steady_clock::now();
+        auto State = core::StateBuilder::newState(Task->position());
+        const auto CheckmateMove = DfPnSolver.solve(&State, 10000, Task->depth());
+        const auto EndTime = std::chrono::steady_clock::now();
+        const uint64_t Elapsed = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                EndTime - StartTime).count();
+
+        PStat->incrementNumSolverWorked();
+        PStat->updateSolverElapsed(Elapsed);
 
         if (!CheckmateMove.isNone()) {
-            Task->getNode()->setSolverResult(core::Move16(CheckmateMove));
-            Task->getNode()->setPlyToTerminalSolved((int16_t)SolverDepth);
+            Task->node()->setSolverResult(core::Move16(CheckmateMove));
+            Task->node()->setPlyToTerminalSolved((int16_t)2048);
         } else {
             // No solver moves has been found, and mark the node
             // tried-to-solve by MoveInvalid(), which is different
             // from MoveNone().
-            Task->getNode()->setSolverResult(core::Move16::MoveInvalid());
+            Task->node()->setSolverResult(core::Move16::MoveInvalid());
         }
     }
 
