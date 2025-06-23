@@ -32,7 +32,7 @@ class EvalCache {
         float DrawRate;
 
         EvalInfo& operator=(const EvalInfo& EI) {
-            std::memcpy(this, &EI, sizeof(EvalInfo));
+            std::memcpy(static_cast<void*>(this), &EI, sizeof(EvalInfo));
             return *this;
         }
     };
