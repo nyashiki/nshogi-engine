@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <nshogi/core/position.h>
+#include <nshogi/solver/dfpn.h>
 
 namespace nshogi {
 namespace engine {
@@ -81,6 +82,8 @@ class Worker : public worker::Worker {
 
     const bool USE_SHOGI816K;
     PositionBuilderShogi816k PositionBuilder;
+
+    mutable solver::dfpn::Solver Solver;
 
     SelfplayInfo* SInfo;
 };

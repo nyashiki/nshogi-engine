@@ -40,6 +40,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
     , MyNumSamplingMoves(NumSamplingMoves)
     , InitialPositions(InitialPositionsToPlay)
     , USE_SHOGI816K(UseShogi816k)
+    , Solver(64)
     , SInfo(SI) {
 
     std::random_device SeedGen;
@@ -419,6 +420,11 @@ SelfplayPhase Worker::judge(Frame* F) const {
 
     if (F->getState()->getPly() >= F->getStateConfig()->MaxPly) {
         F->setWinner(core::NoColor);
+        return SelfplayPhase::Save;
+    }
+
+    if (!Solver.solve(F->getState(), 10000, 0).isNone()) {
+        F->setWinner(F->getState()->getSideToMove());
         return SelfplayPhase::Save;
     }
 
