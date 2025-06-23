@@ -64,7 +64,7 @@ int main(int Argc, char* Argv[]) {
     auto NodeAllocator =
         std::make_unique<allocator::FixedAllocator<sizeof(mcts::Node)>>();
     auto EdgeAllocator =
-        std::make_unique<allocator::SegregatedFreeListAllocator>();
+        std::make_unique<allocator::SegregatedFreeListAllocator<>>();
 
     const std::size_t AVAILABLE_MEMORY_MB =
         (std::size_t)std::stoull(Parser.getOption("memory-size"));
