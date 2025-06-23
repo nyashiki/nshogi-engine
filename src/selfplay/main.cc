@@ -85,7 +85,7 @@ int main(int Argc, char* Argv[]) {
     // Prepare evaluation cache.
     const std::size_t EVALCACHE_MEMORY_MB = (std::size_t)std::stoull(
         Parser.getOption("evaluation-cache-memory-size"));
-    ;
+
     auto EvalCache = std::make_unique<mcts::EvalCache>(EVALCACHE_MEMORY_MB);
 
     // Prepare empty frames.
