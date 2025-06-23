@@ -20,7 +20,13 @@ SelfplayInfo::SelfplayInfo(std::size_t OnGoingGames)
     , AverageBatchSize(0)
     , InferenceCount(0)
     , NumCacheHit(0)
-    , NumCacheMiss(0) {
+    , NumCacheMiss(0)
+    , NumBlackWin(0)
+    , NumWhiteWin(0)
+    , NumDraw(0)
+    , NumDeclare(0)
+    , AveragePly(0.0)
+    , AveragePlyDraw(0.0) {
 }
 
 void SelfplayInfo::decrementNumOnGoingGames() {
