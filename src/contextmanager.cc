@@ -81,14 +81,6 @@ void ContextManager::setBookEnabled(bool Value) {
     Context_->IsBookEnabled = Value;
 }
 
-void ContextManager::setBlackDrawValue(float DrawValue) {
-    Context_->BlackDrawValue = DrawValue;
-}
-
-void ContextManager::setWhiteDrawValue(float DrawValue) {
-    Context_->WhiteDrawValue = DrawValue;
-}
-
 void ContextManager::setRepetitionBookAllowed(bool Value) {
     Context_->IsRepetitionBookAllowed = Value;
 }

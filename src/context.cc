@@ -84,14 +84,6 @@ std::size_t Context::getNumGarbageCollectorThreads() const {
     return NumGarbageCollectorThreads;
 }
 
-float Context::getBlackDrawValue() const {
-    return BlackDrawValue;
-}
-
-float Context::getWhiteDrawValue() const {
-    return WhiteDrawValue;
-}
-
 bool Context::isRepetitionBookAllowed() const {
     return IsRepetitionBookAllowed;
 }

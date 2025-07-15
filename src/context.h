@@ -54,10 +54,6 @@ class Context {
 
     std::size_t getNumGarbageCollectorThreads() const;
 
-    float getBlackDrawValue() const;
-
-    float getWhiteDrawValue() const;
-
     bool isRepetitionBookAllowed() const;
 
     bool isNShogiExtensionLogEnabled() const;

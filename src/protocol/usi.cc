@@ -92,9 +92,9 @@ void setupOption(const Context* C) {
     Option.addIntOption(USI_OPTION_THINKING_TIME_MARGIN,
                         (int64_t)C->getThinkingTimeMargin(), 0LL, 60 * 1000);
     Option.addIntOption(USI_OPTION_BLACK_DRAW_VALUE,
-                        (int)(C->getBlackDrawValue() * 100.0f), 0, 100);
+                        50, 0, 100);
     Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE,
-                        (int)(C->getWhiteDrawValue() * 100.0f), 0, 100);
+                        50, 0, 100);
     Option.addIntOption(USI_OPTION_MINIMUM_THINKING_TIME,
                         (int)C->getMinimumThinkingTimeMilliseconds(), 0,
                         9999999);
