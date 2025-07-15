@@ -74,7 +74,8 @@ Node* SearchWorker::collectOneLeaf() {
             // If checkmate searcher is enabled and the node has not been
             // tried to solve, feed the node into the checkmate searcher.
             if (CurrentNode->getSolverResult().isNone()) {
-                CQueue->tryAdd(CurrentNode, State->getPosition(), Config.MaxPly - State->getPly());
+                CQueue->tryAdd(CurrentNode, State->getPosition(),
+                               Config.MaxPly - State->getPly());
             }
         }
 

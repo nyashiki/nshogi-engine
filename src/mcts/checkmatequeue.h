@@ -56,7 +56,8 @@ class CheckmateQueue {
     void close();
     void add(Node*, const core::Position&, uint64_t Depth) noexcept;
     bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
-    auto getAll(std::size_t WorkerId) noexcept -> std::queue<std::unique_ptr<CheckmateTask>>;
+    auto getAll(std::size_t WorkerId) noexcept
+        -> std::queue<std::unique_ptr<CheckmateTask>>;
 
  private:
     const std::size_t QueueMaxSize;

@@ -10,9 +10,9 @@
 #ifndef NSHOGI_ENGINE_MCTS_CHECKMATEWORKER_H
 #define NSHOGI_ENGINE_MCTS_CHECKMATEWORKER_H
 
-#include "statistics.h"
-#include "checkmatequeue.h"
 #include "../worker/worker.h"
+#include "checkmatequeue.h"
+#include "statistics.h"
 #include <nshogi/solver/dfpn.h>
 
 namespace nshogi {

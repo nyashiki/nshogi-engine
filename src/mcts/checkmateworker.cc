@@ -9,14 +9,15 @@
 
 #include "checkmateworker.h"
 
-#include <nshogi/core/statebuilder.h>
 #include <chrono>
+#include <nshogi/core/statebuilder.h>
 
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateWorker::CheckmateWorker(std::size_t Id, CheckmateQueue* CQueue, Statistics* Stat)
+CheckmateWorker::CheckmateWorker(std::size_t Id, CheckmateQueue* CQueue,
+                                 Statistics* Stat)
     : worker::Worker(true)
     , MyId(Id)
     , DfPnSolver(64)
@@ -54,10 +55,13 @@ bool CheckmateWorker::doTask() {
         // Now, trying to solve the position.
         const auto StartTime = std::chrono::steady_clock::now();
         auto State = core::StateBuilder::newState(Task->position());
-        const auto CheckmateMove = DfPnSolver.solve(&State, 10000, Task->depth());
+        const auto CheckmateMove =
+            DfPnSolver.solve(&State, 10000, Task->depth());
         const auto EndTime = std::chrono::steady_clock::now();
-        const uint64_t Elapsed = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-                EndTime - StartTime).count();
+        const uint64_t Elapsed =
+            (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                EndTime - StartTime)
+                .count();
 
         PStat->incrementNumSolverWorked();
         PStat->updateSolverElapsed(Elapsed);
