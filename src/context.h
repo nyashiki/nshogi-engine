@@ -88,9 +88,6 @@ class Context {
 
     std::size_t EvalCacheMemoryMB = 8 * 1024;
 
-    float BlackDrawValue = 0.5f;
-    float WhiteDrawValue = 0.5f;
-
     bool IsRepetitionBookAllowed = true;
 
     std::string WeightPath = "./res/model.onnx";

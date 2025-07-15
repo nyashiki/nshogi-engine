@@ -60,6 +60,8 @@ Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
                 Pointer<Node> NextRoot = std::move(E->getTargetWithOwner());
 
                 if (NextRoot == nullptr) {
+                    Garbages.emplace_back(std::move(Root));
+                    GC->addGarbages(std::move(Garbages));
                     return createNewRoot(State);
                 }
 

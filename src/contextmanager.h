@@ -63,6 +63,8 @@ class ContextManager {
 
     void setIsNShogiExtensionLogEnabled(bool Value);
 
+    void setIsThoughtLogEnabled(bool Value);
+
  private:
     const std::unique_ptr<Context> Context_;
 };

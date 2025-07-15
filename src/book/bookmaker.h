@@ -14,6 +14,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <vector>
 
 #include "../context.h"
 #include "../mcts/manager.h"
@@ -25,21 +26,37 @@ namespace nshogi {
 namespace engine {
 namespace book {
 
-class BookMaker {
+struct Evaluation {
  public:
-    BookMaker(const Context* Context, std::shared_ptr<logger::Logger> Logger);
+    Evaluation(double Win, double Draw)
+        : WinRate(Win)
+        , DrawRate(Draw) {
+    }
 
-    void makeBook(uint64_t NumGenerates, const std::string& Path,
-                  const std::string& InitialPositionsPath);
-    void refineBook(const std::string& UnrefinedPath,
-                    const std::string& OutPath);
+    double winRate() const {
+        return WinRate;
+    }
+
+    double drawRate() const {
+        return DrawRate;
+    }
 
  private:
-    bool
-    doMinMaxSearchOnBook(core::State* State,
-                         std::map<core::HuffmanCode, BookEntry>& BookEntries,
-                         double Alpha = 0.90);
+    double WinRate;
+    double DrawRate;
+};
+
+class BookMaker {
+ public:
+    void start(const std::string& Sfen);
+
+ private:
+    void evaluate(core::State* State, const core::StateConfig& Config);
+    void updateNegaMaxValue(core::State* State, const core::StateConfig& Config);
+    void executeOneIteration(core::State* State, const core::StateConfig& Config);
+
     std::unique_ptr<mcts::Manager> Manager;
+    Book MyBook;
 };
 
 } // namespace book

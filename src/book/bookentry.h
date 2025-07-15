@@ -13,28 +13,52 @@
 #include <nshogi/core/huffman.h>
 #include <nshogi/core/types.h>
 
+#include <map>
+#include <string>
+#include <vector>
+
 namespace nshogi {
 namespace engine {
 namespace book {
 
 struct BookEntry {
  public:
-    BookEntry(core::HuffmanCode, core::Move16, double, double);
+    BookEntry()
+        : WinRate(0.0)
+        , DrawRate(0.0) {
+    }
 
-    const core::HuffmanCode& huffmanCode() const;
-    core::Move16 bestMove() const;
-    double winRate() const;
-    double drawRate() const;
-
-    void setBestMove(core::Move16 Move);
-    void setWinRate(double);
-    void setDrawRate(double);
-
- private:
-    core::HuffmanCode HuffmanCode;
-    core::Move16 BestMove;
     double WinRate;
     double DrawRate;
+    core::Move32 BestMove;
+};
+
+class Book {
+ public:
+    Book() {
+    }
+
+    void update(const std::string& Sfen, const BookEntry& Entry) {
+        if (Dictionary.contains(Sfen)) {
+            const std::size_t Index = Dictionary[Sfen];
+            Entries[Index] = Entry;
+        } else {
+            Entries.push_back(Entry);
+            Dictionary.emplace(Sfen, Entries.size() - 1);
+        }
+    }
+
+    const BookEntry* get(const std::string& Sfen) const {
+        if (Dictionary.contains(Sfen)) {
+            return &Entries.at(Dictionary.at(Sfen));
+        } else {
+            return nullptr;
+        }
+    }
+
+ private:
+    std::map<std::string, std::size_t> Dictionary;
+    std::vector<BookEntry> Entries;
 };
 
 } // namespace book

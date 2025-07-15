@@ -101,5 +101,9 @@ void ContextManager::setIsNShogiExtensionLogEnabled(bool Value) {
     Context_->IsNShogiExtensionLogEnabled = Value;
 }
 
+void ContextManager::setIsThoughtLogEnabled(bool Value) {
+    Context_->IsThoughtLogEnabled = Value;
+}
+
 } // namespace engine
 } // namespace nshogi

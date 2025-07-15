@@ -17,26 +17,6 @@ namespace nshogi {
 namespace engine {
 namespace book {
 
-struct BookSeed {
- public:
-    BookSeed();
-    BookSeed(const core::State& State, double LogProbability);
-    BookSeed(const core::State& State, double LogProbability,
-             const core::HuffmanCode& ParentHuffman);
-    BookSeed(const char* Huffman, const char* ParentHuffman,
-             double LogProbability, bool HasParent_);
-
-    const core::HuffmanCode& huffmanCode() const;
-    double logProbability() const;
-    bool hasParent() const;
-    const core::HuffmanCode& parentCode() const;
-
- private:
-    core::HuffmanCode HuffmanCode;
-    double LP;
-    bool HasParent;
-    core::HuffmanCode Parent;
-};
 
 } // namespace book
 } // namespace engine
