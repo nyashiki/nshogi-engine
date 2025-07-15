@@ -10,19 +10,24 @@
 #ifndef NSHOGI_ENGINE_IO_BOOK_H
 #define NSHOGI_ENGINE_IO_BOOK_H
 
-#include "../book/bookentry.h"
 #include <fstream>
 #include <vector>
 
+
 namespace nshogi {
 namespace engine {
+
+namespace book {
+
+class Book;
+
+} // namespace book
+
 namespace io {
 namespace book {
 
-void writeBookEntry(std::ofstream& Ofs,
-                    const nshogi::engine::book::BookEntry& BE);
-nshogi::engine::book::BookEntry readBookEntry(std::ifstream& Ifs);
-std::vector<nshogi::engine::book::BookEntry> readBook(std::ifstream& Ifs);
+void save(const engine::book::Book& Book, std::ofstream&);
+void load(engine::book::Book& Book, std::ifstream&);
 
 } // namespace book
 } // namespace io

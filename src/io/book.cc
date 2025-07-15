@@ -8,6 +8,7 @@
 //
 
 #include "book.h"
+#include "../book/bookentry.h"
 #include <cinttypes>
 
 namespace nshogi {
@@ -15,51 +16,48 @@ namespace engine {
 namespace io {
 namespace book {
 
-void writeBookEntry(std::ofstream& Ofs,
-                    const nshogi::engine::book::BookEntry& BE) {
-    core::Move16 BestMove = BE.bestMove();
-    double WinRate = BE.winRate();
-    double DrawRate = BE.drawRate();
+void save(const engine::book::Book& Book, std::ofstream& Ofs) {
+    for (const auto& [Sfen, Index] : Book.Dictionary) {
+        const auto& Entry = Book.Entries[Index];
 
-    Ofs.write(BE.huffmanCode().data(), (long)core::HuffmanCode::size());
-    Ofs.write(reinterpret_cast<const char*>(&BestMove), sizeof(BestMove));
-    Ofs.write(reinterpret_cast<const char*>(&WinRate), sizeof(WinRate));
-    Ofs.write(reinterpret_cast<const char*>(&DrawRate), sizeof(DrawRate));
+        const std::size_t Size = Sfen.size() + 1;
+        Ofs.write(reinterpret_cast<const char*>(&Size), sizeof(std::size_t));
+        Ofs.write(Sfen.c_str(), (long)Size);
+
+        const uint32_t MoveValue = Entry.BestMove.value();
+        Ofs.write(reinterpret_cast<const char*>(&Entry.WinRate), sizeof(double));
+        Ofs.write(reinterpret_cast<const char*>(&Entry.DrawRate), sizeof(double));
+        Ofs.write(reinterpret_cast<const char*>(&MoveValue), sizeof(uint32_t));
+    }
 }
 
-nshogi::engine::book::BookEntry readBookEntry(std::ifstream& Ifs) {
-    char HC[32];
-    core::Move16 Move;
-    double WinRate;
-    double DrawRate;
+void load(engine::book::Book& Book, std::ifstream& Ifs) {
+    std::vector<char> Buffer(1024);
 
-    Ifs.read(HC, (long)core::HuffmanCode::size());
-    Ifs.read(reinterpret_cast<char*>(&Move), sizeof(Move));
-    Ifs.read(reinterpret_cast<char*>(&WinRate), sizeof(WinRate));
-    Ifs.read(reinterpret_cast<char*>(&DrawRate), sizeof(DrawRate));
+    Book.Dictionary.clear();
+    Book.Entries.clear();
 
-    return nshogi::engine::book::BookEntry(HC, Move, WinRate, DrawRate);
-}
+    while (true) {
+        std::size_t Size = 0;
+        Ifs.read(reinterpret_cast<char*>(&Size), sizeof(std::size_t));
 
-std::vector<nshogi::engine::book::BookEntry> readBook(std::ifstream& Ifs) {
-    Ifs.seekg(0, std::ios::beg);
-    uint64_t UnitSize = 0;
-    {
-        auto Dummy = readBookEntry(Ifs);
-        UnitSize = (uint64_t)Ifs.tellg();
+        if (Ifs.eof()) {
+            break;
+        }
+
+        Ifs.read(Buffer.data(), (long)Size);
+
+        engine::book::BookEntry Entry;
+        uint32_t MoveValue = 0;
+        Ifs.read(reinterpret_cast<char*>(&Entry.WinRate), sizeof(double));
+        Ifs.read(reinterpret_cast<char*>(&Entry.DrawRate), sizeof(double));
+        Ifs.read(reinterpret_cast<char*>(&MoveValue), sizeof(uint32_t));
+        Entry.BestMove = core::Move32::fromValue(MoveValue);
+
+        Book.Entries.push_back(Entry);
+        const std::string Sfen = std::string(Buffer.data());
+        Book.Dictionary[Sfen] = Book.Entries.size() - 1;
     }
-
-    Ifs.seekg(0, std::ios::end);
-    std::streampos FileSize = Ifs.tellg();
-    const uint64_t BookCount = (uint64_t)FileSize / UnitSize;
-    std::vector<nshogi::engine::book::BookEntry> BookEntries;
-    Ifs.seekg(0, std::ios::beg);
-    for (uint64_t I = 0; I < BookCount; ++I) {
-        auto BE = io::book::readBookEntry(Ifs);
-        BookEntries.emplace_back(BE);
-    }
-
-    return BookEntries;
 }
 
 } // namespace book

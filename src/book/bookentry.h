@@ -10,9 +10,12 @@
 #ifndef NSHOGI_ENGINE_BOOK_BOOKENTRY_H
 #define NSHOGI_ENGINE_BOOK_BOOKENTRY_H
 
+#include "../io/book.h"
+
 #include <nshogi/core/huffman.h>
 #include <nshogi/core/types.h>
 
+#include <fstream>
 #include <map>
 #include <string>
 #include <vector>
@@ -38,13 +41,15 @@ class Book {
     Book() {
     }
 
-    void update(const std::string& Sfen, const BookEntry& Entry) {
+    const BookEntry* update(const std::string& Sfen, const BookEntry& Entry) {
         if (Dictionary.contains(Sfen)) {
             const std::size_t Index = Dictionary[Sfen];
             Entries[Index] = Entry;
+            return &Entries[Index];
         } else {
             Entries.push_back(Entry);
             Dictionary.emplace(Sfen, Entries.size() - 1);
+            return &Entries.back();
         }
     }
 
@@ -56,9 +61,16 @@ class Book {
         }
     }
 
+    std::size_t size() const {
+        return Entries.size();
+    }
+
  private:
     std::map<std::string, std::size_t> Dictionary;
     std::vector<BookEntry> Entries;
+
+ friend void nshogi::engine::io::book::save(const Book&, std::ofstream&);
+ friend void nshogi::engine::io::book::load(Book&, std::ifstream&);
 };
 
 } // namespace book
