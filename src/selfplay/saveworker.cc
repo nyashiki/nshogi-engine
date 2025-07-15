@@ -22,12 +22,14 @@ namespace engine {
 namespace selfplay {
 
 SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ,
-                       std::size_t NumSelfplayGames, const char* SavePath)
+                       std::size_t NumSelfplayGames, const char* SavePath,
+                       bool IgnoreDraw)
     : worker::Worker(true)
     , NumSelfplayGamesToStop(NumSelfplayGames)
     , SInfo(SI)
     , SaveQueue(SVQ)
-    , SearchQueue(SCQ) {
+    , SearchQueue(SCQ)
+    , IgnoreDrawGames(IgnoreDraw) {
 
     Ofs.open(SavePath, std::ios::binary);
     if (!Ofs) {
@@ -50,12 +52,13 @@ bool SaveWorker::doTask() {
         auto Task = std::move(Tasks.front());
         Tasks.pop();
 
-        updateStatistics(Task.get());
-        save(Task.get());
+        if (!IgnoreDrawGames || Task->getWinner() != core::NoColor) {
+            updateStatistics(Task.get());
+            save(Task.get());
+        }
 
         assert(Task->getPhase() == SelfplayPhase::Save);
-        if (Statistics.NumBlackWin + Statistics.NumDraw +
-                Statistics.NumWhiteWin + SInfo->getNumOnGoinggames() <
+        if (SInfo->numGenerated() + SInfo->getNumOnGoinggames() <
             NumSelfplayGamesToStop) {
             Task->setPhase(SelfplayPhase::Initialization);
             TasksToAdd.emplace_back(std::move(Task));
@@ -76,27 +79,21 @@ bool SaveWorker::doTask() {
 
 void SaveWorker::updateStatistics(Frame* F) {
     if (F->getWinner() != core::NoColor) {
-        const uint64_t N = Statistics.NumBlackWin + Statistics.NumWhiteWin;
-        Statistics.AveragePly = (Statistics.AveragePly * (double)N +
-                                 (double)F->getState()->getPly(false)) /
-                                (double)(1 + N);
+        SInfo->updateAveragePly(F->getState()->getPly(false));
     } else {
-        Statistics.AveragePlyDraw =
-            (Statistics.AveragePlyDraw * (double)Statistics.NumDraw +
-             (double)F->getState()->getPly(false)) /
-            (double)(1 + Statistics.NumDraw);
+        SInfo->updateAveragePlyDraw(F->getState()->getPly(false));
     }
 
     if (F->getWinner() == core::Black) {
-        ++Statistics.NumBlackWin;
+        SInfo->incrementBlackWin();
     } else if (F->getWinner() == core::White) {
-        ++Statistics.NumWhiteWin;
+        SInfo->incrementWhiteWin();
     } else {
-        ++Statistics.NumDraw;
+        SInfo->incrementDraw();
     }
 
     if (F->getState()->canDeclare()) {
-        ++Statistics.NumDeclare;
+        SInfo->incrementDeclare();
     }
 
     LatestGame = io::sfen::stateToSfen(*F->getState());
@@ -122,41 +119,23 @@ void SaveWorker::printStatistics(bool Force) const {
     const uint32_t ElapsedMinute = ((uint32_t)(Elapsed / 1000 / 60) % 60);
     const uint32_t ElapsedSecond = ((uint32_t)(Elapsed / 1000) % 60);
 
-    const uint64_t NumMatches =
-        Statistics.NumBlackWin + Statistics.NumDraw + Statistics.NumWhiteWin;
-    const double BlackWinRate =
-        (NumMatches == 0)
-            ? 0.0
-            : ((double)Statistics.NumBlackWin / (double)NumMatches);
-    const double DrawRate =
-        (NumMatches == 0) ? 0.0
-                          : ((double)Statistics.NumDraw / (double)NumMatches);
-    const double WhiteWinRate =
-        (NumMatches == 0)
-            ? 0.0
-            : ((double)Statistics.NumWhiteWin / (double)NumMatches);
-    const double DeclareRatio =
-        (NumMatches == 0)
-            ? 0.0
-            : ((double)Statistics.NumDeclare / (double)NumMatches);
     std::printf("\x1b[2J\x1b[0;0H");
     std::printf("\n  Running selfplay ...\n\n");
     std::printf("    Elapsed:\n");
     std::printf("        %02u:%02u:%02u (%.3lf games per second)\n\n",
                 ElapsedHour, ElapsedMinute, ElapsedSecond,
-                (double)NumMatches / (double)Elapsed * 1000.0);
+                (double)SInfo->numGenerated() / (double)Elapsed * 1000.0);
     std::printf("    Results:\n");
     std::printf("        %" PRIu64 " - %" PRIu64 " - %" PRIu64 "\n\n",
-                Statistics.NumBlackWin, Statistics.NumDraw,
-                Statistics.NumWhiteWin);
+                SInfo->numBlackWin(), SInfo->numDraw(), SInfo->numWhiteWin());
     std::printf("    Statistics:\n");
-    std::printf("        - Black win rate: %.3lf\n", BlackWinRate);
-    std::printf("        - White win rate: %.3lf\n", WhiteWinRate);
-    std::printf("        - Draw rate: %.3lf\n", DrawRate);
-    std::printf("        - Declare ratio: %.3lf\n", DeclareRatio);
-    std::printf("        - Average ply: %.3lf\n", Statistics.AveragePly);
+    std::printf("        - Black win rate: %.3lf\n", SInfo->blackWinRate());
+    std::printf("        - White win rate: %.3lf\n", SInfo->whiteWinRate());
+    std::printf("        - Draw rate: %.3lf\n", SInfo->drawRate());
+    std::printf("        - Declare ratio: %.3lf\n", SInfo->declareRate());
+    std::printf("        - Average ply: %.3lf\n", SInfo->averagePly());
     std::printf("        - Average ply (draw): %.3lf\n",
-                Statistics.AveragePlyDraw);
+                SInfo->averagePlyDraw());
     std::printf("\n");
     std::printf("    Evaluation statisitcs:\n");
     std::printf("        - Average batch size: %.3lf\n",

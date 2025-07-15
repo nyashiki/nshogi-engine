@@ -110,7 +110,9 @@ core::Position PositionBuilderShogi816k::build() {
 }
 
 void PositionBuilderShogi816k::shuffle() {
-    static std::mt19937_64 MT(20240630);
+    static thread_local std::random_device SeedGen;
+    ;
+    static thread_local std::mt19937_64 MT(SeedGen());
 
     for (std::size_t I = 0; I < 8; ++I) {
         std::uniform_int_distribution<std::size_t> Dist(I, 8);

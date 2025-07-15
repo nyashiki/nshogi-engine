@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <nshogi/core/position.h>
+#include <nshogi/solver/dfpn.h>
 
 namespace nshogi {
 namespace engine {
@@ -31,6 +32,7 @@ class Worker : public worker::Worker {
     Worker(FrameQueue* QueueForSearch, FrameQueue* QueueForEvaluation,
            FrameQueue* QueueForSave, allocator::Allocator* NodeAllocator,
            allocator::Allocator* EdgeAllocator, mcts::EvalCache*,
+           uint64_t NumPlayouts, uint16_t NumSamplingMoves,
            std::vector<core::Position>* InitialPositionsToPlay,
            bool UseShogi816k, SelfplayInfo*);
 
@@ -73,10 +75,15 @@ class Worker : public worker::Worker {
 
     mutable std::mt19937_64 MT;
 
+    const uint64_t MyNumPlayouts;
+    const uint16_t MyNumSamplingMoves;
+
     std::vector<core::Position>* InitialPositions;
 
     const bool USE_SHOGI816K;
     PositionBuilderShogi816k PositionBuilder;
+
+    mutable solver::dfpn::Solver Solver;
 
     SelfplayInfo* SInfo;
 };
