@@ -9,7 +9,6 @@
 
 #include "usi.h"
 
-#include "../book/bookmaker.h"
 #include "../command/executor.h"
 #include "usilogger.h"
 #include "usioption.h"
@@ -320,26 +319,6 @@ void debug() {
 void nshogiExtension(std::istringstream& Stream) {
     std::string Token;
     Stream >> Token;
-
-    if (Token == "makebook") {
-        std::string OutPath = "book_unrefined.bin";
-        std::string InitialPositionPath = "initial_positions.sfen";
-        Stream >> OutPath;
-        Stream >> InitialPositionPath;
-
-        nshogi::engine::book::BookMaker bookMaker(Executor->getContext(),
-                                                  Logger);
-        bookMaker.makeBook(100000, OutPath, InitialPositionPath);
-    } else if (Token == "refinebook") {
-        std::string UnrefinedPath = "book_unrefined.bin";
-        std::string OutPath = "book.bin";
-        Stream >> UnrefinedPath;
-        Stream >> OutPath;
-
-        nshogi::engine::book::BookMaker bookMaker(Executor->getContext(),
-                                                  Logger);
-        bookMaker.refineBook(UnrefinedPath, OutPath);
-    }
 }
 
 } // namespace

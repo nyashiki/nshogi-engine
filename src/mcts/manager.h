@@ -11,9 +11,7 @@
 
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/segregated_free_list.h"
-#include "../book/bookentry.h"
 #include "../context.h"
-#include "../evaluate/preset.h"
 #include "../globalconfig.h"
 #include "../limit.h"
 #include "checkmatequeue.h"
@@ -74,7 +72,6 @@ class Manager {
     void setupCheckmateQueue(std::size_t NumCheckmateWorkers);
     void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
     void setupEvalCache(std::size_t EvalCacheMB);
-    void setupBook(bool IsBookEnabled, const std::string& BookPath);
     void setupSupervisor();
     void setupWatchDog();
 
@@ -102,8 +99,6 @@ class Manager {
     std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
     std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
-
-    std::map<core::HuffmanCode, book::BookEntry> Book;
 
     std::shared_ptr<logger::Logger> PLogger;
 
