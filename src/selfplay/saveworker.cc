@@ -22,7 +22,8 @@ namespace engine {
 namespace selfplay {
 
 SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ,
-                       std::size_t NumSelfplayGames, const char* SavePath, bool IgnoreDraw)
+                       std::size_t NumSelfplayGames, const char* SavePath,
+                       bool IgnoreDraw)
     : worker::Worker(true)
     , NumSelfplayGamesToStop(NumSelfplayGames)
     , SInfo(SI)
@@ -57,7 +58,8 @@ bool SaveWorker::doTask() {
         }
 
         assert(Task->getPhase() == SelfplayPhase::Save);
-        if (SInfo->numGenerated() + SInfo->getNumOnGoinggames() < NumSelfplayGamesToStop) {
+        if (SInfo->numGenerated() + SInfo->getNumOnGoinggames() <
+            NumSelfplayGamesToStop) {
             Task->setPhase(SelfplayPhase::Initialization);
             TasksToAdd.emplace_back(std::move(Task));
             printStatistics(false);
@@ -125,14 +127,15 @@ void SaveWorker::printStatistics(bool Force) const {
                 (double)SInfo->numGenerated() / (double)Elapsed * 1000.0);
     std::printf("    Results:\n");
     std::printf("        %" PRIu64 " - %" PRIu64 " - %" PRIu64 "\n\n",
-                    SInfo->numBlackWin(), SInfo->numDraw(), SInfo->numWhiteWin());
+                SInfo->numBlackWin(), SInfo->numDraw(), SInfo->numWhiteWin());
     std::printf("    Statistics:\n");
     std::printf("        - Black win rate: %.3lf\n", SInfo->blackWinRate());
     std::printf("        - White win rate: %.3lf\n", SInfo->whiteWinRate());
     std::printf("        - Draw rate: %.3lf\n", SInfo->drawRate());
     std::printf("        - Declare ratio: %.3lf\n", SInfo->declareRate());
     std::printf("        - Average ply: %.3lf\n", SInfo->averagePly());
-    std::printf("        - Average ply (draw): %.3lf\n", SInfo->averagePlyDraw());
+    std::printf("        - Average ply (draw): %.3lf\n",
+                SInfo->averagePlyDraw());
     std::printf("\n");
     std::printf("    Evaluation statisitcs:\n");
     std::printf("        - Average batch size: %.3lf\n",

@@ -9,7 +9,6 @@
 
 #include "evaluationworker.h"
 #include "../globalconfig.h"
-#include "../globalconfig.h"
 #include "../math/math.h"
 
 #ifdef EXECUTOR_ZERO
@@ -87,7 +86,8 @@ bool EvaluationWorker::doTask() {
 
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         global_config::FeatureType::constructAt(
-            Evaluator->getFeatureBitboards() + I * global_config::FeatureType::size(),
+            Evaluator->getFeatureBitboards() +
+                I * global_config::FeatureType::size(),
             *Tasks.at(I)->getState(), *Tasks.at(I)->getStateConfig());
     }
 

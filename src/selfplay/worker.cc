@@ -124,7 +124,8 @@ SelfplayPhase Worker::initialize(Frame* F) {
     // Setup a config.
     auto Config = std::make_unique<core::StateConfig>();
 
-    static std::uniform_int_distribution<> MaxPlyDistribution(160 + 64, 512 + 128);
+    static std::uniform_int_distribution<> MaxPlyDistribution(160 + 64,
+                                                              512 + 128);
     static std::uniform_real_distribution<float> DrawRateDistribution(0.0f,
                                                                       1.0f);
 
@@ -478,7 +479,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
 
 double Worker::sampleGumbelNoise() const {
     std::uniform_real_distribution<double> Distribution(
-            std::numeric_limits<double>::min(), 1.0);
+        std::numeric_limits<double>::min(), 1.0);
 
     const double U = Distribution(MT);
     return -std::log(-std::log(U));
@@ -492,7 +493,8 @@ double Worker::transformQ(double Q, uint64_t MaxN) const {
 }
 
 template <>
-mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color, mcts::Node* N) const {
+mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color,
+                                              mcts::Node* N) const {
     const uint16_t NumChildren = N->getNumChildren();
     for (std::size_t I = 0; I < NumChildren; ++I) {
         if (!F->getIsTarget().at(I)) {
@@ -505,7 +507,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color, mcts::Node*
         mcts::Node* Child = Edge->getTarget();
 
         if (Child == nullptr || (Child->getVisitsAndVirtualLoss() <
-                                  F->getSequentialHalvingPlayouts())) {
+                                 F->getSequentialHalvingPlayouts())) {
             return Edge;
         }
     }
@@ -721,8 +723,8 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
         ScoreWithIndex[I].second = I;
     }
 
-    std::size_t NumSort =
-        std::min((std::size_t)F->getNumSamplingMoves(), F->getIsTarget().size());
+    std::size_t NumSort = std::min((std::size_t)F->getNumSamplingMoves(),
+                                   F->getIsTarget().size());
     assert(NumSort > 1);
     assert(F->getSequentialHalvingCount() > 0);
     NumSort =

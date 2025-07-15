@@ -40,8 +40,12 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("num-selfplay-games", "500000",
                      "The number of selfplay games.");
     Parser.addOption('o', "out", "out.bin", "The output teacher file.");
-    Parser.addOption("num-playouts", "200", "The number of playouts. The parameter of n in the paper.");
-    Parser.addOption("num-sampling-moves", "16", "The number of sampling moves. The parameter of m in the paper.");
+    Parser.addOption(
+        "num-playouts", "200",
+        "The number of playouts. The parameter of n in the paper.");
+    Parser.addOption(
+        "num-sampling-moves", "16",
+        "The number of sampling moves. The parameter of m in the paper.");
     Parser.addOption("initial-positions", "",
                      "Sfen file that contains sfen positions.");
     Parser.addOption("use-shogi816k", "Use shogi816k positions.");
@@ -142,8 +146,8 @@ int main(int Argc, char* Argv[]) {
         SearchWorkers.emplace_back(std::make_unique<Worker>(
             SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(),
             NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(),
-            NumPlayouts, NumSamplingMoves,
-            InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
+            NumPlayouts, NumSamplingMoves, InitialPositions.get(),
+            USE_SHOGI816K, SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU = (std::size_t)std::stoull(

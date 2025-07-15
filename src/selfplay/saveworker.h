@@ -24,7 +24,8 @@ namespace selfplay {
 class SaveWorker : public worker::Worker {
  public:
     SaveWorker(SelfplayInfo*, FrameQueue*, FrameQueue*,
-               std::size_t NumSelfplayGames, const char* SavePath, bool IgnoreDraw);
+               std::size_t NumSelfplayGames, const char* SavePath,
+               bool IgnoreDraw);
 
  private:
     bool doTask() override;

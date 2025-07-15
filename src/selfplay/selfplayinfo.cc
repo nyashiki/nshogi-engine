@@ -172,7 +172,8 @@ void SelfplayInfo::updateAveragePly(uint16_t Ply) {
 
 void SelfplayInfo::updateAveragePlyDraw(uint16_t Ply) {
     std::lock_guard<std::mutex> Lock(MutexStatistics);
-    AveragePlyDraw = (AveragePlyDraw * (double)NumDraw + (double)Ply) / (double)(NumDraw + 1);
+    AveragePlyDraw = (AveragePlyDraw * (double)NumDraw + (double)Ply) /
+                     (double)(NumDraw + 1);
 }
 
 } // namespace selfplay
