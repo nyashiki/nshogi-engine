@@ -59,6 +59,10 @@ void SearchWorker::updateRoot(const core::State& S,
     RootPly = State->getPly();
 }
 
+void SearchWorker::setBannedMoves(const std::vector<core::Move32>& Moves) {
+    BannedMoves = Moves;
+}
+
 Node* SearchWorker::collectOneLeaf() {
     using MtxLockType =
         typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
@@ -201,7 +205,19 @@ int16_t SearchWorker::expandLeaf(Node* LeafNode) {
         return 0;
     }
 
-    return LeafNode->expand(Moves, EA);
+    if (BannedMoves.size() > 0 && LeafNode == RootNode) {
+        core::MoveList FilteredMoves;
+
+        for (const core::Move32 Move : Moves) {
+            if (std::find(BannedMoves.begin(), BannedMoves.end(), Move) == BannedMoves.end()) {
+                FilteredMoves.add(Move);
+            }
+        }
+
+        return LeafNode->expand(FilteredMoves, EA);
+    } else {
+        return LeafNode->expand(Moves, EA);
+    }
 }
 
 void SearchWorker::immediateUpdateByWin(Node* LeafNode) {
@@ -470,10 +486,10 @@ bool SearchWorker::doTask() {
         LeafNode->getVisitsAndVirtualLoss();
     const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
 
-    // Collected leafnode has already evaluated.
+    // The collected leaf node has been already evaluated.
     // This occurs when another thread has evaluated the leaf node,
     // the solver has solved the leaf node, or the leaf node is
-    // game's terminal node e.g., repetition.
+    // game's terminal node (e.g., repetition).
     if (NumVisits > 0) {
         immediateUpdate(LeafNode);
         PStat->incrementNumNonLeaf();

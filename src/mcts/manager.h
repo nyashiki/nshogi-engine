@@ -58,7 +58,7 @@ class Manager {
     void
     thinkNextMove(const core::State&, const core::StateConfig&, engine::Limit,
                   std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
-                      Callback);
+                      Callback, const std::vector<core::Move32>& BannedMoves = {});
     void interrupt();
 
  private:
