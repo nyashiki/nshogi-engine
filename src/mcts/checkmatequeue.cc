@@ -16,67 +16,70 @@ namespace mcts {
 CheckmateQueue::CheckmateQueue(std::size_t MaxSize,
                                std::size_t NumCheckmateWorkers)
     : QueueMaxSize(MaxSize)
-    , NumWorkers(NumCheckmateWorkers)
-    , RoundRobin(0)
-    , IsOpen(false)
-    , Mutexes(NumWorkers)
-    , Queues(NumWorkers) {
+    , IsOpen(false) {
 }
 
 void CheckmateQueue::open() {
-    std::lock_guard<std::mutex> Lock(GlobalMutex);
+    std::lock_guard<lock::SpinLock> Lock(SpinLock);
     IsOpen = true;
 }
 
 void CheckmateQueue::close() {
-    std::lock_guard<std::mutex> Lock(GlobalMutex);
+    std::lock_guard<lock::SpinLock> Lock(SpinLock);
     IsOpen = false;
 }
 
 void CheckmateQueue::add(Node* N, const core::Position& Position,
                          uint64_t Depth) noexcept {
-    std::lock_guard<std::mutex> Lock(GlobalMutex);
+    std::lock_guard<lock::SpinLock> Lock(SpinLock);
     if (IsOpen) {
-        std::lock_guard<std::mutex> LockWorker(Mutexes[RoundRobin]);
-        if (Queues[RoundRobin].size() < QueueMaxSize) {
-            Queues[RoundRobin].emplace(
+        if (Queue.size() < QueueMaxSize) {
+            Queue.emplace(
                 std::make_unique<CheckmateTask>(N, Position, Depth));
-            RoundRobin = (RoundRobin + 1) % NumWorkers;
         }
     }
 }
 
 bool CheckmateQueue::tryAdd(Node* N, const core::Position& Position,
                             uint64_t Depth) noexcept {
-    bool Succeeded = GlobalMutex.try_lock();
+    bool Succeeded = SpinLock.tryLock();
 
     if (!Succeeded) {
         return false;
     }
 
     if (IsOpen) {
-        std::lock_guard<std::mutex> LockWorker(Mutexes[RoundRobin]);
-        if (Queues[RoundRobin].size() < QueueMaxSize) {
-            Queues[RoundRobin].emplace(
+        if (Queue.size() < QueueMaxSize) {
+            Queue.emplace(
                 std::make_unique<CheckmateTask>(N, Position, Depth));
-            RoundRobin = (RoundRobin + 1) % NumWorkers;
         } else {
             Succeeded = false;
         }
     }
 
-    GlobalMutex.unlock();
+    SpinLock.unlock();
     return Succeeded;
+}
+
+auto CheckmateQueue::get(std::size_t WorkerId) noexcept
+    -> std::unique_ptr<CheckmateTask> {
+    std::lock_guard<lock::SpinLock> Lock(SpinLock);
+
+    if (Queue.empty()) {
+        return nullptr;
+    }
+
+    std::unique_ptr<CheckmateTask> Task = std::move(Queue.front());
+    Queue.pop();
+    return Task;
 }
 
 auto CheckmateQueue::getAll(std::size_t WorkerId) noexcept
     -> std::queue<std::unique_ptr<CheckmateTask>> {
     std::queue<std::unique_ptr<CheckmateTask>> Q;
 
-    {
-        std::lock_guard<std::mutex> Lock(Mutexes[WorkerId]);
-        Queues[WorkerId].swap(Q);
-    }
+    std::lock_guard<lock::SpinLock> Lock(SpinLock);
+    Queue.swap(Q);
 
     return Q;
 }

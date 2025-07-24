@@ -17,6 +17,7 @@
 #include <queue>
 
 #include <nshogi/core/position.h>
+#include "../lock/spinlock.h"
 
 namespace nshogi {
 namespace engine {
@@ -56,17 +57,15 @@ class CheckmateQueue {
     void close();
     void add(Node*, const core::Position&, uint64_t Depth) noexcept;
     bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
+    auto get(std::size_t WorkerId) noexcept -> std::unique_ptr<CheckmateTask>;
     auto getAll(std::size_t WorkerId) noexcept
         -> std::queue<std::unique_ptr<CheckmateTask>>;
 
  private:
     const std::size_t QueueMaxSize;
-    const std::size_t NumWorkers;
-    std::size_t RoundRobin;
     bool IsOpen;
-    std::mutex GlobalMutex;
-    std::vector<std::mutex> Mutexes;
-    std::vector<std::queue<std::unique_ptr<CheckmateTask>>> Queues;
+    lock::SpinLock SpinLock;
+    std::queue<std::unique_ptr<CheckmateTask>> Queue;
 };
 
 } // namespace mcts
