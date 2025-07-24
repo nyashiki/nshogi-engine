@@ -151,6 +151,10 @@ void Manager::interrupt() {
     assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
 }
 
+void Manager::resetSearchTree() {
+    SearchTree->reset();
+}
+
 void Manager::setupAllocator() {
     std::thread NodeAllocatorPrepareThread([&]() {
         NodeAllocator.resize(

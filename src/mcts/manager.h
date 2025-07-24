@@ -59,6 +59,8 @@ class Manager {
                       Callback, const std::vector<core::Move32>& BannedMoves = {});
     void interrupt();
 
+    void resetSearchTree();
+
  private:
     void setupAllocator();
     void setupGarbageCollector();
