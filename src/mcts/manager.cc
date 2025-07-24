@@ -362,6 +362,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
         TL->WinRate = 0.0;
         TL->DrawRate = 0.0;
+        TL->PlyToTerminal = 0;
         const uint64_t Visits =
             RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
         if (Visits > 0) {
@@ -369,6 +370,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
                 RootNode->getWinRateAccumulated() / (double)Visits;
             TL->DrawRate =
                 RootNode->getDrawRateAccumulated() / (double)Visits;
+            TL->PlyToTerminal = RootNode->getPlyToTerminalSolved();
         }
     }
 

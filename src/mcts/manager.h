@@ -46,6 +46,7 @@ struct ThoughtLog {
     std::vector<std::pair<core::Move16, uint64_t>> VisitCounts;
     double WinRate;
     double DrawRate;
+    int16_t PlyToTerminal;
 };
 
 class Manager {
