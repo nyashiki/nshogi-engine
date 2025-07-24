@@ -28,7 +28,8 @@ struct BookEntry {
  public:
     BookEntry()
         : WinRate(0.0)
-        , DrawRate(0.0) {
+        , DrawRate(0.0)
+        , BestMove(core::Move32::MoveNone()) {
     }
 
     double WinRate;
@@ -69,7 +70,7 @@ class Book {
     std::map<std::string, std::size_t> Dictionary;
     std::vector<BookEntry> Entries;
 
- friend void nshogi::engine::io::book::save(const Book&, std::ofstream&);
+ friend void nshogi::engine::io::book::save(const Book&, std::ofstream&, nshogi::engine::io::book::Format);
  friend void nshogi::engine::io::book::load(Book&, std::ifstream&);
 };
 

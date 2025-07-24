@@ -13,12 +13,14 @@
 #include <cinttypes>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 
+#include "bookentry.h"
 #include "../context.h"
 #include "../mcts/manager.h"
-#include "bookentry.h"
+#include "../contextmanager.h"
 
 #include <nshogi/core/state.h>
 
@@ -54,15 +56,23 @@ class BookMaker {
     auto startThinking(
             core::State* State,
             const core::StateConfig& Config,
-            const std::vector<core::Move32>& BannedMoves
+            const std::vector<core::Move32>& BannedMoves,
+            const engine::Limit&
     ) -> std::pair<core::Move32, std::unique_ptr<mcts::ThoughtLog>>;
     void evaluate(core::State* State, const core::StateConfig& Config);
     void updateNegaMaxValue(core::State* State, const core::StateConfig& Config);
+    std::optional<BookEntry> updateNegaMaxValueAll(
+            core::State* State,
+            const core::StateConfig& Config,
+            int* Counter,
+            std::set<std::string>& Fixed);
     void executeOneIteration(core::State* State, const core::StateConfig& Config);
     std::vector<core::Move32> getPV(core::State* State, const core::StateConfig& Config);
 
     std::unique_ptr<mcts::Manager> Manager;
     Book MyBook;
+
+    ContextManager CManager;
 };
 
 } // namespace book
