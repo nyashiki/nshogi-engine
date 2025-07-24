@@ -26,7 +26,12 @@ class Book;
 namespace io {
 namespace book {
 
-void save(const engine::book::Book& Book, std::ofstream&);
+enum class Format {
+    NShogi,
+    YaneuraOu,
+};
+
+void save(const engine::book::Book& Book, std::ofstream&, Format = Format::NShogi);
 void load(engine::book::Book& Book, std::ifstream&);
 
 } // namespace book

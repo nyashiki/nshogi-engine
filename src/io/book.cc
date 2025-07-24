@@ -9,6 +9,9 @@
 
 #include "book.h"
 #include "../book/bookentry.h"
+
+#include <nshogi/io/sfen.h>
+#include <cmath>
 #include <cinttypes>
 
 namespace nshogi {
@@ -16,18 +19,47 @@ namespace engine {
 namespace io {
 namespace book {
 
-void save(const engine::book::Book& Book, std::ofstream& Ofs) {
-    for (const auto& [Sfen, Index] : Book.Dictionary) {
-        const auto& Entry = Book.Entries[Index];
+namespace {
 
-        const std::size_t Size = Sfen.size() + 1;
-        Ofs.write(reinterpret_cast<const char*>(&Size), sizeof(std::size_t));
-        Ofs.write(Sfen.c_str(), (long)Size);
+int convertWinRateToScoreCP(double WinRate) {
+    constexpr double Constant = 600;
 
-        const uint32_t MoveValue = Entry.BestMove.value();
-        Ofs.write(reinterpret_cast<const char*>(&Entry.WinRate), sizeof(double));
-        Ofs.write(reinterpret_cast<const char*>(&Entry.DrawRate), sizeof(double));
-        Ofs.write(reinterpret_cast<const char*>(&MoveValue), sizeof(uint32_t));
+    if (WinRate == 0.0) {
+        return -30000;
+    } else if (WinRate == 1.0) {
+        return 30000;
+    }
+
+    return (int)(-Constant * std::log(1.0 / WinRate - 1));
+}
+
+} // namespace
+
+void save(const engine::book::Book& Book, std::ofstream& Ofs, Format OutputFormat) {
+    if (OutputFormat == Format::NShogi) {
+        for (const auto& [Sfen, Index] : Book.Dictionary) {
+            const auto& Entry = Book.Entries[Index];
+
+            const std::size_t Size = Sfen.size() + 1;
+            Ofs.write(reinterpret_cast<const char*>(&Size), sizeof(std::size_t));
+            Ofs.write(Sfen.c_str(), (long)Size);
+
+            const uint32_t MoveValue = Entry.BestMove.value();
+            Ofs.write(reinterpret_cast<const char*>(&Entry.WinRate), sizeof(double));
+            Ofs.write(reinterpret_cast<const char*>(&Entry.DrawRate), sizeof(double));
+            Ofs.write(reinterpret_cast<const char*>(&MoveValue), sizeof(uint32_t));
+        }
+    } else if (OutputFormat == Format::YaneuraOu) {
+        for (const auto& [Sfen, Index] : Book.Dictionary) {
+            const auto& Entry = Book.Entries[Index];
+
+            Ofs << "sfen " << Sfen << std::endl;
+
+            Ofs << nshogi::io::sfen::move32ToSfen(Entry.BestMove) << " ";
+            Ofs << "none ";
+            Ofs << convertWinRateToScoreCP(Entry.WinRate) << " ";
+            Ofs << "1 1" << std::endl;
+        }
     }
 }
 
