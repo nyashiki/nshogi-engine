@@ -41,6 +41,10 @@ class SpinLock {
         }
     }
 
+    bool tryLock() noexcept {
+        return !Flag.test_and_set(std::memory_order_acquire);
+    }
+
     void unlock() {
         Flag.clear(std::memory_order_release);
     }
