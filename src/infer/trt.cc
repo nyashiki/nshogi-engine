@@ -9,7 +9,6 @@
 
 #include "trt.h"
 #include "../cuda/extractbit.h"
-#include "../cuda/math.h"
 
 #include <cstdint>
 #include <fstream>
@@ -112,6 +111,37 @@ void TensorRT::load(const std::string& Path,
             throw std::runtime_error("Could not parse the model.");
         }
 
+        // Insert sigmoid activation at value and draw output.
+        {
+            const int NumOutputs = Network->getNbOutputs();
+            std::vector<nvinfer1::ITensor*> Targets;
+
+            for (int I = 0; I < NumOutputs; ++I) {
+                nvinfer1::ITensor* Out = Network->getOutput(I);
+                const std::string Name = Out->getName();
+
+                if (Name == "value" || Name == "draw") {
+                    Targets.push_back(Out);
+                }
+            }
+
+            for (auto* Out: Targets) {
+                const std::string Name = Out->getName();
+                const std::string OldName = Name + "_logits";
+                const std::string NewName = Name + "_sigmoid";
+
+                Network->unmarkOutput(*Out);
+                Out->setName(OldName.c_str());
+
+                auto Act = Network->addActivation(*Out, nvinfer1::ActivationType::kSIGMOID);
+                Act->setName(NewName.c_str());
+
+                nvinfer1::ITensor* OutActivated = Act->getOutput(0);
+                OutActivated->setName(Name.c_str());
+                Network->markOutput(*OutActivated);
+            }
+        }
+
         BuilderConfig.reset(Builder->createBuilderConfig());
 
         BuilderConfig->setAvgTimingIterations(8);
@@ -197,13 +227,6 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
     Context->setInputShape("input",
                            nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
     Context->enqueueV3(Stream);
-
-    cuda::sigmoid(reinterpret_cast<float*>(DeviceValueOutput),
-                  reinterpret_cast<float*>(DeviceValueOutput), BatchSize,
-                  Stream);
-    cuda::sigmoid(reinterpret_cast<float*>(DeviceDrawOutput),
-                  reinterpret_cast<float*>(DeviceDrawOutput), BatchSize,
-                  Stream);
 
     // Copy GPU output onto CPU.
     cudaMemcpyAsync(DstPolicy, DevicePolicyOutput,

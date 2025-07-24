@@ -91,8 +91,8 @@ ifeq ($(CUDA_ENABLED), 1)
 	LINK_DIRS += -L$(CUDA_DIR)/lib64/
 	LINKS += -lcudart
 	SOURCES += src/infer/trt.cc
-	CUDA_SOURCES := src/cuda/extractbit.cu src/cuda/math.cu
-	TEST_SOURCES += src/test/test_extractbit.cc src/test/test_cuda_math.cc
+	CUDA_SOURCES := src/cuda/extractbit.cu
+	TEST_SOURCES += src/test/test_extractbit.cc
 endif
 
 ifeq ($(NUMA_ENABLED), 1)
