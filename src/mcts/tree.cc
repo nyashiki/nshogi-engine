@@ -101,6 +101,11 @@ const core::State* Tree::getRootState() const {
     return RootState.get();
 }
 
+void Tree::reset() {
+    GC->addGarbage(std::move(Root));
+    RootState.reset();
+}
+
 Node* Tree::createNewRoot(const nshogi::core::State& State) {
     if (PLogger != nullptr) {
         PLogger->printLog("Creating a new root.");
@@ -108,7 +113,7 @@ Node* Tree::createNewRoot(const nshogi::core::State& State) {
 
     GC->addGarbage(std::move(Root));
     if (PLogger != nullptr) {
-        PLogger->printLog("Throwed the previous root away.");
+        PLogger->printLog("Threw the previous root away.");
     }
 
     Root.malloc(NA, nullptr);

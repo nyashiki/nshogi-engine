@@ -33,6 +33,8 @@ class Tree {
     Node* getRoot();
     const core::State* getRootState() const;
 
+    void reset();
+
  private:
     Node* createNewRoot(const nshogi::core::State& State);
 
