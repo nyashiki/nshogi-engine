@@ -77,6 +77,10 @@ TensorRT::~TensorRT() {
     cudaFree(DeviceValueOutput);
     cudaFree(DeviceDrawOutput);
 
+    cudaGraphExecDestroy(CudaGraphExec[0]);
+    cudaGraphDestroy(CudaGraph[0]);
+    cudaGraphExecDestroy(CudaGraphExec[1]);
+    cudaGraphDestroy(CudaGraph[1]);
     cudaStreamDestroy(Stream);
 
     Plan.reset();
@@ -204,8 +208,8 @@ void TensorRT::load(const std::string& Path,
     Context->setTensorAddress("value", DeviceValueOutput);
     Context->setTensorAddress("draw", DeviceDrawOutput);
 
-    // Warm up.
-    dummyInference(5);
+    makeCudaGraph();
+
     Called = false;
 }
 
@@ -219,14 +223,7 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
                     BatchSize * NumC * sizeof(ml::FeatureBitboard),
                     cudaMemcpyHostToDevice, Stream);
 
-    cuda::extractBits(reinterpret_cast<float*>(DeviceInputExtracted),
-                      reinterpret_cast<uint64_t*>(DeviceInput),
-                      (int)BatchSize * (int)NumC, Stream);
-
-    // Do inference.
-    Context->setInputShape("input",
-                           nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
-    Context->enqueueV3(Stream);
+    cudaGraphLaunch(CudaGraphExec[BatchSize > (BatchSizeM + 1) / 2], Stream);
 
     // Copy GPU output onto CPU.
     cudaMemcpyAsync(DstPolicy, DevicePolicyOutput,
@@ -258,15 +255,47 @@ void TensorRT::resetGPU() {
     cudaSetDevice(GPUId_);
 }
 
-void TensorRT::dummyInference(std::size_t Repeat) {
-    std::vector<ml::FeatureBitboard> DummyInput(BatchSizeM * NumC);
-    std::vector<float> DummyPolicy(BatchSizeM * ml::MoveIndexMax);
-    std::vector<float> DummyWinRate(BatchSizeM);
-    std::vector<float> DummyDrawRate(BatchSizeM);
+void TensorRT::makeCudaGraph() {
+    { // Cuda graph for half batch size.
+        Context->setInputShape("input",
+                               nvinfer1::Dims4{(int32_t)(BatchSizeM + 1) / 2, NumC, 9, 9});
 
-    for (std::size_t I = 0; I < Repeat; ++I) {
-        computeBlocking(DummyInput.data(), BatchSizeM, DummyPolicy.data(),
-                        DummyWinRate.data(), DummyDrawRate.data());
+        cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
+
+        cuda::extractBits(reinterpret_cast<float*>(DeviceInputExtracted),
+                          reinterpret_cast<uint64_t*>(DeviceInput),
+                          (int)(BatchSizeM + 1) / 2 * (int)NumC, Stream);
+
+        Context->enqueueV3(Stream);
+
+        cudaStreamEndCapture(Stream, &CudaGraph[0]);
+
+        cudaGraphInstantiate(&CudaGraphExec[0], CudaGraph[0], nullptr, nullptr, 0);
+
+        cudaGraphUpload(CudaGraphExec[0], Stream);
+
+        cudaStreamSynchronize(Stream);
+    }
+
+    { // Cuda graph for full batch size.
+        Context->setInputShape("input",
+                               nvinfer1::Dims4{(int32_t)BatchSizeM, NumC, 9, 9});
+
+        cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
+
+        cuda::extractBits(reinterpret_cast<float*>(DeviceInputExtracted),
+                          reinterpret_cast<uint64_t*>(DeviceInput),
+                          (int)BatchSizeM * (int)NumC, Stream);
+
+        Context->enqueueV3(Stream);
+
+        cudaStreamEndCapture(Stream, &CudaGraph[1]);
+
+        cudaGraphInstantiate(&CudaGraphExec[1], CudaGraph[1], nullptr, nullptr, 0);
+
+        cudaGraphUpload(CudaGraphExec[1], Stream);
+
+        cudaStreamSynchronize(Stream);
     }
 }
 
