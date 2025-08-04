@@ -13,30 +13,17 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateQueue::CheckmateQueue(std::size_t MaxSize,
-                               std::size_t NumCheckmateWorkers)
-    : QueueMaxSize(MaxSize)
-    , IsOpen(false) {
-}
-
-void CheckmateQueue::open() {
-    std::lock_guard<lock::SpinLock> Lock(SpinLock);
-    IsOpen = true;
-}
-
-void CheckmateQueue::close() {
-    std::lock_guard<lock::SpinLock> Lock(SpinLock);
-    IsOpen = false;
+CheckmateQueue::CheckmateQueue()
+    : QueueMaxSize(1UL * 1024UL * 1024 * 1024 / sizeof(CheckmateTask)) // 1 GB.
+    , Generation(0) {
 }
 
 void CheckmateQueue::add(Node* N, const core::Position& Position,
                          uint64_t Depth) noexcept {
     std::lock_guard<lock::SpinLock> Lock(SpinLock);
-    if (IsOpen) {
-        if (Queue.size() < QueueMaxSize) {
-            Queue.emplace(
-                std::make_unique<CheckmateTask>(N, Position, Depth));
-        }
+    if (Queue.size() < QueueMaxSize) {
+        Queue.emplace(
+            std::make_unique<CheckmateTask>(N, Position, Depth, Generation));
     }
 }
 
@@ -48,20 +35,18 @@ bool CheckmateQueue::tryAdd(Node* N, const core::Position& Position,
         return false;
     }
 
-    if (IsOpen) {
-        if (Queue.size() < QueueMaxSize) {
-            Queue.emplace(
-                std::make_unique<CheckmateTask>(N, Position, Depth));
-        } else {
-            Succeeded = false;
-        }
+    if (Queue.size() < QueueMaxSize) {
+        Queue.emplace(
+            std::make_unique<CheckmateTask>(N, Position, Depth, Generation));
+    } else {
+        Succeeded = false;
     }
 
     SpinLock.unlock();
     return Succeeded;
 }
 
-auto CheckmateQueue::get(std::size_t WorkerId) noexcept
+auto CheckmateQueue::get() noexcept
     -> std::unique_ptr<CheckmateTask> {
     std::lock_guard<lock::SpinLock> Lock(SpinLock);
 
@@ -74,7 +59,7 @@ auto CheckmateQueue::get(std::size_t WorkerId) noexcept
     return Task;
 }
 
-auto CheckmateQueue::getAll(std::size_t WorkerId) noexcept
+auto CheckmateQueue::getAll() noexcept
     -> std::queue<std::unique_ptr<CheckmateTask>> {
     std::queue<std::unique_ptr<CheckmateTask>> Q;
 
@@ -82,6 +67,23 @@ auto CheckmateQueue::getAll(std::size_t WorkerId) noexcept
     Queue.swap(Q);
 
     return Q;
+}
+
+void CheckmateQueue::incrementGeneration() {
+    std::lock_guard<lock::SpinLock> Lock(SpinLock);
+    ++Generation;
+}
+
+void CheckmateQueue::lock() noexcept {
+    SpinLock.lock();
+}
+
+void CheckmateQueue::unlock() noexcept {
+    SpinLock.unlock();
+}
+
+uint64_t CheckmateQueue::_generation() {
+    return Generation;
 }
 
 } // namespace mcts

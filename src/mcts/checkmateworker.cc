@@ -16,12 +16,12 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateWorker::CheckmateWorker(std::size_t Id, CheckmateQueue* CQueue,
-                                 Statistics* Stat)
+CheckmateWorker::CheckmateWorker(CheckmateQueue* CQueue,
+                                Statistics* Stat)
     : worker::Worker(true)
-    , MyId(Id)
     , DfPnSolver(64)
     , PCheckmateQueue(CQueue)
+    , LatestGeneration(0)
     , PStat(Stat) {
 
     spawnThread();
@@ -31,19 +31,24 @@ CheckmateWorker::~CheckmateWorker() {
 }
 
 bool CheckmateWorker::doTask() {
-    std::unique_ptr<CheckmateTask> Task = PCheckmateQueue->get(MyId);
+    std::unique_ptr<CheckmateTask> Task = PCheckmateQueue->get();
 
     if (Task == nullptr) {
         return false;
     }
 
-    // This node has been tried to be solved by the solvers.
-    if (!Task->node()->getSolverResult().isNone()) {
-        return true;
+    if (Task->generation() != LatestGeneration) {
+        PCheckmateQueue->lock();
+        LatestGeneration = PCheckmateQueue->_generation();
+        PCheckmateQueue->unlock();
+        if (Task->generation() != LatestGeneration) {
+            return false;
+        }
     }
 
-    if (!isRunning()) {
-        return true;
+    // This node has been tried to be solved by the solvers.
+    if (!Task->node()->getSolverResult().isNone()) {
+        return false;
     }
 
     // Now, trying to solve the position.
@@ -60,17 +65,22 @@ bool CheckmateWorker::doTask() {
     PStat->incrementNumSolverWorked();
     PStat->updateSolverElapsed(Elapsed);
 
-    if (!CheckmateMove.isNone()) {
-        Task->node()->setSolverResult(core::Move16(CheckmateMove));
-        Task->node()->setPlyToTerminalSolved((int16_t)2048);
-    } else {
-        // No solver moves has been found, and mark the node
-        // tried-to-solve by MoveInvalid(), which is different
-        // from MoveNone().
-        Task->node()->setSolverResult(core::Move16::MoveInvalid());
+    PCheckmateQueue->lock();
+    LatestGeneration = PCheckmateQueue->_generation();
+    if (Task->generation() == LatestGeneration) {
+        if (!CheckmateMove.isNone()) {
+            Task->node()->setSolverResult(core::Move16(CheckmateMove));
+            Task->node()->setPlyToTerminalSolved((int16_t)2048);
+        } else {
+            // No solver moves has been found, and mark the node
+            // tried-to-solve by MoveInvalid(), which is different
+            // from MoveNone().
+            Task->node()->setSolverResult(core::Move16::MoveInvalid());
+        }
     }
+    PCheckmateQueue->unlock();
 
-    return true;
+    return false;
 }
 
 } // namespace mcts

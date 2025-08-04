@@ -25,10 +25,11 @@ namespace mcts {
 
 struct CheckmateTask {
  public:
-    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth)
+    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth, uint64_t Gen)
         : TargetNode(N)
         , Position(Pos)
-        , Depth(MaxDepth) {
+        , Depth(MaxDepth)
+        , Generation(Gen) {
     }
 
     Node* node() {
@@ -43,27 +44,37 @@ struct CheckmateTask {
         return Depth;
     }
 
+    uint64_t generation() const {
+        return Generation;
+    }
+
  private:
     Node* TargetNode;
     core::Position Position;
     uint64_t Depth;
+    uint64_t Generation;
 };
 
 class CheckmateQueue {
  public:
-    CheckmateQueue(std::size_t MaxSize, std::size_t NumCheckmateWorkers);
+    CheckmateQueue();
 
-    void open();
-    void close();
     void add(Node*, const core::Position&, uint64_t Depth) noexcept;
     bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
-    auto get(std::size_t WorkerId) noexcept -> std::unique_ptr<CheckmateTask>;
-    auto getAll(std::size_t WorkerId) noexcept
+    auto get() noexcept -> std::unique_ptr<CheckmateTask>;
+    auto getAll() noexcept
         -> std::queue<std::unique_ptr<CheckmateTask>>;
+
+    void incrementGeneration();
+
+    void lock() noexcept;
+    void unlock() noexcept;
+    uint64_t _generation();
 
  private:
     const std::size_t QueueMaxSize;
-    bool IsOpen;
+    uint64_t Generation;
+
     lock::SpinLock SpinLock;
     std::queue<std::unique_ptr<CheckmateTask>> Queue;
 };
