@@ -170,7 +170,7 @@ void BookMaker::updateNegaMaxValue(core::State* State, const core::StateConfig& 
     }
 }
 
-std::optional<BookEntry> BookMaker::updateNegaMaxValueAll(core::State* State, const core::StateConfig& Config, int* Counter, std::set<std::string>& Fixed) {
+std::optional<BookEntry> BookMaker::updateNegaMaxValueAllInternal(core::State* State, const core::StateConfig& Config, std::set<std::string>& Fixed) {
     if (State->getRepetitionStatus() != core::RepetitionStatus::NoRepetition) {
         return std::nullopt;
     }
@@ -208,14 +208,13 @@ std::optional<BookEntry> BookMaker::updateNegaMaxValueAll(core::State* State, co
         return ThisEntry;
     }
 
-    ++(*Counter);
-    std::cout << "\r" << *Counter << std::flush;
+    std::cout << "\r" << Fixed.size() << std::flush;
 
     std::optional<BookEntry> BestEntry;
     double BestScore = -1.0;
     for (const core::Move32 Move : Moves) {
         State->doMove(Move);
-        const auto ChildEntryOpt = updateNegaMaxValueAll(State, Config, Counter, Fixed);
+        const auto ChildEntryOpt = updateNegaMaxValueAllInternal(State, Config, Fixed);
         State->undoMove();
 
         if (!ChildEntryOpt.has_value()) {
@@ -246,6 +245,18 @@ std::optional<BookEntry> BookMaker::updateNegaMaxValueAll(core::State* State, co
     }
 
     return ThisEntry;
+}
+
+void BookMaker::updateNegaMaxValueAll(const core::StateConfig& Config) {
+    std::set<std::string> Fixed;
+
+    for (const auto& Entry : MyBook.dictionary()) {
+        std::unique_ptr<core::State> State =
+            std::make_unique<core::State>(nshogi::io::sfen::StateBuilder::newState(Entry.first));
+
+        updateNegaMaxValueAllInternal(State.get(), Config, Fixed);
+    }
+    std::cout << std::endl;
 }
 
 void BookMaker::executeOneIteration(core::State* State, const core::StateConfig& Config) {
@@ -279,7 +290,7 @@ void BookMaker::executeOneIteration(core::State* State, const core::StateConfig&
         ? (Entry->DrawRate * Config.BlackDrawValue + (1.0 - Entry->DrawRate) * Entry->WinRate)
         : (Entry->DrawRate * Config.WhiteDrawValue + (1.0 - Entry->DrawRate) * Entry->WinRate);
 
-    if (Score > 0.5) {
+    if (Score > 0.62) {
         // If there is a promising child, follow the child.
         State->doMove(Entry->BestMove);
     } else {
@@ -313,7 +324,10 @@ void BookMaker::executeOneIteration(core::State* State, const core::StateConfig&
 
                 State->undoMove();
 
-                if (ChildEntry != nullptr) {
+                if (Move == Entry->BestMove && ChildEntry == nullptr) {
+                    Targets.push_back(Move);
+                    Weights.push_back(Score);
+                } else if (ChildEntry != nullptr) {
                     const double WinRate = 1.0 - ChildEntry->WinRate;
                     const double DrawRate = ChildEntry->DrawRate;
                     const double ChildScore = (State->getSideToMove() == core::Black)
@@ -332,6 +346,23 @@ void BookMaker::executeOneIteration(core::State* State, const core::StateConfig&
                 }
             }
 
+            if (Targets.size() == 0) {
+                std::cerr << "Targets.size() == 0." << std::endl;
+                std::cerr << "Sfen: " << nshogi::io::sfen::positionToSfen(State->getPosition()) << std::endl;
+                std::cerr << "Score: " << Score << std::endl;
+                std::cerr << "Entry->BestMove: " << nshogi::io::sfen::move32ToSfen(Entry->BestMove) << std::endl;
+                std::cerr << "Moves: ";
+                for (const auto& Move : Moves) {
+                    std::cerr << nshogi::io::sfen::move32ToSfen(Move) << " (" << (Move == Entry->BestMove) << "), ";
+                }
+                std::cerr << std::endl;
+                std::cerr << "BannedMoves: ";
+                for (const auto& BannedMove : BannedMoves) {
+                    std::cerr << nshogi::io::sfen::move32ToSfen(BannedMove) << ", ";
+                }
+                std::cerr << std::endl;
+                abort();
+            }
             if (BannedMoves.size() == Moves.size()) {
                 // Already tried all legal moves.
                 // Hence, just follow the best move.
@@ -363,6 +394,7 @@ void BookMaker::executeOneIteration(core::State* State, const core::StateConfig&
                     Manager->resetSearchTree();
                     engine::Limit Limit { 0, 0, 2000 };
                     const auto Result = startThinking(State, Config, BannedMoves, Limit);
+                    assert(!Result.first.isNone());
                     State->doMove(Result.first);
                 } else {
                     State->doMove(SampledMoves);
@@ -530,9 +562,8 @@ void BookMaker::start(const std::string& Dummy) {
         Config.Rule = core::ER_Declare27;
         std::unique_ptr<core::State> State =
             std::make_unique<core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));
-        int Counter = 0;
         std::set<std::string> Fixed;
-        updateNegaMaxValueAll(State.get(), Config, &Counter, Fixed);
+        updateNegaMaxValueAll(State.get(), Config, Fixed);
 
         const auto* Entry = MyBook.get(Sfen);
 
@@ -554,7 +585,25 @@ void BookMaker::start(const std::string& Dummy) {
     }
 
     /*/
-    while (true) {
+    for (uint64_t Iteration = 0; ; ++Iteration) {
+        if (Iteration % 50 == 0) {
+            core::StateConfig Config;
+            Config.BlackDrawValue = 0.0;
+            Config.WhiteDrawValue = 1.0;
+            Config.MaxPly = 320;
+            Config.Rule = core::ER_Declare27;
+            updateNegaMaxValueAll(Config);
+
+            {
+                std::ofstream Ofs("mybook.bin", std::ios::binary);
+                io::book::save(MyBook, Ofs, io::book::Format::NShogi);
+            }
+            {
+                std::ofstream Ofs("user_book1.db");
+                io::book::save(MyBook, Ofs, io::book::Format::YaneuraOu);
+            }
+        }
+
         for (const auto& Sfen : InitialPositions) {
             std::unique_ptr<core::State> State =
                 std::make_unique<core::State>(nshogi::io::sfen::StateBuilder::newState(Sfen));

@@ -61,11 +61,11 @@ class BookMaker {
     ) -> std::pair<core::Move32, std::unique_ptr<mcts::ThoughtLog>>;
     void evaluate(core::State* State, const core::StateConfig& Config);
     void updateNegaMaxValue(core::State* State, const core::StateConfig& Config);
-    std::optional<BookEntry> updateNegaMaxValueAll(
+    std::optional<BookEntry> updateNegaMaxValueAllInternal(
             core::State* State,
             const core::StateConfig& Config,
-            int* Counter,
             std::set<std::string>& Fixed);
+    void updateNegaMaxValueAll(const core::StateConfig& Config);
     void executeOneIteration(core::State* State, const core::StateConfig& Config);
     std::vector<core::Move32> getPV(core::State* State, const core::StateConfig& Config);
 
