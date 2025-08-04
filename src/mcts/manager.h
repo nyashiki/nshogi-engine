@@ -23,7 +23,6 @@
 #include "searchworker.h"
 #include "statistics.h"
 #include "tree.h"
-#include "watchdog.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -63,6 +62,8 @@ class Manager {
     void resetSearchTree();
 
  private:
+    void interruptInternal(bool Internal);
+
     void setupAllocator();
     void setupGarbageCollector();
     void setupMutexPool();
@@ -76,16 +77,15 @@ class Manager {
     void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
     void setupEvalCache(std::size_t EvalCacheMB);
     void setupSupervisor();
-    void setupWatchDog();
 
     void doSupervisorWork(bool CallCackback);
-    void doWatchdogWork();
 
     void stopWorkers();
+    void awaitWorkers();
     core::Move32 getBestmove(Node* Root);
     bool checkMemoryBudgetForPondering();
 
-    void watchdogStopCallback();
+    void searchStopCallback();
 
     bool checkAllVirtualLossIsZero(Node* Root) const;
 
@@ -100,6 +100,7 @@ class Manager {
     std::unique_ptr<EvalCache> ECache;
     std::unique_ptr<MutexPool<>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
+    SearchWorkerMaster* SWorkerMaster;
     std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
@@ -109,7 +110,6 @@ class Manager {
     std::unique_ptr<std::thread> Supervisor;
     std::mutex MutexSupervisor;
     std::condition_variable CVSupervisor;
-    std::unique_ptr<Watchdog> WatchdogWorker;
 
     std::mutex MutexStatus;
     std::condition_variable CVStatus;
@@ -117,7 +117,6 @@ class Manager {
 
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
-    std::unique_ptr<engine::Limit> Limit;
     std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
         BestMoveCallback;
 
