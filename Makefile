@@ -1,35 +1,39 @@
 CXX := clang++
 NVCC := nvcc
 
+BUILD_DIR ?= build_temp
 BUILD ?= release
 EXECUTOR ?= random
 
 CUDA_ENABLED ?= 0
-CUDA_DIR := /opt/cuda/cuda-12.4
-TENSORRT_DIR := /opt/tensorrt/TensorRT-10.0.1.6
-NVCC_ARCH := arch=compute_86,code=sm_86
+CUDA_DIR := /opt/cuda
+TENSORRT_DIR := /opt/tensorrt/TensorRT-10.9.0.34
+NVCC_ARCH := arch=compute_120,code=sm_120
 
-OBJDIR = build/$(BUILD)_$(CXX)
+OBJDIR := $(BUILD_DIR)/$(BUILD)_$(CXX)
 TARGET := $(OBJDIR)/nshogi-engine
 SELFPLAY_TARGET := $(OBJDIR)/nshogi-selfplay
 TEST_TARGET := $(OBJDIR)/nshogi-test
 BENCH_TARGET := $(OBJDIR)/nshogi-bench
 
-INCLUDES :=
-LINK_DIRS :=
+INCLUDES := -I$(HOME)/.local/include
+LINK_DIRS := -L$(HOME)/.local/lib
 LINKS := -lnshogi -lpthread
 TEST_LINKS := -lgtest
 
 ifeq ($(BUILD), debug)
-	CXX_FLAGS = -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -pipe
-	NVCC_FLAGS = --generate-code $(NVCC_ARCH)
-	OPTIM = -g3
+    CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -pipe
+    NVCC_FLAGS := --generate-code $(NVCC_ARCH)
+    OPTIM := -g3
 else
-	CXX_FLAGS = -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
-	# CXX_FLAGS = -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
-	NVCC_FLAGS = -O3 --use_fast_math --generate-code $(NVCC_ARCH)
-	OPTIM = -O3 -ffast-math
+    CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
+    # CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
+    NVCC_FLAGS := -O3 --use_fast_math --generate-code $(NVCC_ARCH)
+    OPTIM := -O3 -ffast-math
+endif
 
+ifeq ($(shell uname), Darwin)
+    CXX_FLAGS += -fexperimental-library
 endif
 
 SOURCES :=                              \
@@ -246,7 +250,7 @@ fmt:
 
 .PHONY: clean
 clean:
-	-rm -r build/
+	-rm -r $(BUILD_DIR)/
 
 # BENCHMARK SCRIPTS
 .PHONY: bench-mcts-with-zero-executor
