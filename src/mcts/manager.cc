@@ -40,24 +40,29 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
                            PContext->getNumEvaluationThreadsPerGPU());
     setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
-    setupWatchDog();
 
     PLogger->setIsNShogiExtensionLogEnabled(
         PContext->isNShogiExtensionLogEnabled());
 }
 
 Manager::~Manager() {
-    interrupt();
+    interruptInternal(true);
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->stop();
+    }
 
     {
         std::lock_guard<std::mutex> LockS(MutexSupervisor);
         IsExiting = true;
     }
-    CVSupervisor.notify_one();
+    CVSupervisor.notify_all();
 
     Supervisor->join();
 
-    WatchdogWorker.reset(nullptr);
+    for (const auto& CheckmateWorker : CheckmateWorkers) {
+        CheckmateWorker->await();
+    }
+
     for (auto& CheckmateWorker : CheckmateWorkers) {
         CheckmateWorker.reset(nullptr);
     }
@@ -78,40 +83,27 @@ void Manager::thinkNextMove(
     const core::State& State, const core::StateConfig& Config,
     engine::Limit Lim,
     std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback, const std::vector<core::Move32>& BannedMoves) {
-    {
-        std::unique_lock<std::mutex> Lock(MutexStatus);
 
-        if (Status != ManagerStatus::Idle) {
-            Status = ManagerStatus::Stopping;
+    interruptInternal(true);
+
+    for (auto& CheckmateWorker : CheckmateWorkers) {
+        if (!CheckmateWorker->isRunning()) {
+            CheckmateWorker->start();
         }
-        WatchdogWorker->stop();
-
-        CVStatus.wait(Lock, [&] { return Status == ManagerStatus::Idle; });
-
-        Status = ManagerStatus::Thinking;
     }
 
-    for (const auto& SearchWorker : SearchWorkers) {
-        SearchWorker->await();
+    {
+        std::lock_guard<std::mutex> Lock(MutexStatus);
+        Status = ManagerStatus::Busy;
     }
-    std::cerr << "[thinkNextMove()] await search worker ok ... " << std::endl;
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->await();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->await();
-    }
-    WatchdogWorker->await();
-
-    assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
 
     // Update the current state.
     {
-        std::lock_guard<std::mutex> Lock(MutexSupervisor);
         CurrentState = std::make_unique<core::State>(State.clone());
         StateConfig = std::make_unique<core::StateConfig>(Config);
-        Limit = std::make_unique<engine::Limit>(Lim);
         BestMoveCallback = Callback;
+        std::lock_guard<std::mutex> Lock(MutexSupervisor);
+        SWorkerMaster->setLimit(Lim);
         assert(!WakeUpSupervisor);
         WakeUpSupervisor = true;
         PLogger->setIsInverse(false);
@@ -121,34 +113,32 @@ void Manager::thinkNextMove(
         SearchWorker->setBannedMoves(BannedMoves);
     }
 
-    // Wake up the supervisor and the watchdog.
+    // Wake up the supervisor.
     CVSupervisor.notify_one();
 }
 
 void Manager::interrupt() {
-    {
-        std::unique_lock<std::mutex> Lock(MutexStatus);
+    interruptInternal(false);
+}
 
-        if (Status != ManagerStatus::Idle) {
-            Status = ManagerStatus::Stopping;
+void Manager::interruptInternal(bool Internal) {
+    std::unique_lock<std::mutex> Lock(MutexStatus);
+    CVStatus.wait(Lock, [&]() { return Status != ManagerStatus::Busy; });
+
+    if (Status != ManagerStatus::Idle && Status != ManagerStatus::Stopping) {
+        Status = ManagerStatus::Stopping;
+        SWorkerMaster->issueStop();
+        if (CQueue != nullptr) {
+            CQueue->incrementGeneration();
         }
-        WatchdogWorker->stop();
 
-        CVStatus.wait(Lock, [&] { return Status == ManagerStatus::Idle; });
+        if (!Internal) {
+            for (auto& CheckmateWorker : CheckmateWorkers) {
+                CheckmateWorker->stop();
+                CheckmateWorker->await();
+            }
+        }
     }
-
-    for (const auto& SearchWorker : SearchWorkers) {
-        SearchWorker->await();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->await();
-    }
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->await();
-    }
-    WatchdogWorker->await();
-
-    assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
 }
 
 void Manager::resetSearchTree() {
@@ -207,18 +197,39 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 }
 
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
-    for (std::size_t I = 0; I < NumSearchWorkers; ++I) {
+    for (std::size_t I = 1; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker>(
             &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
             MtxPool.get(), ECache.get(), &Stat));
     }
+    // IMPORTANT: add SearchWorkerMaster last in SearchWorkers because
+    // the master controls when to stop all workers to search, stopWorkers(),
+    // after its start(). stopWorkers() must be called after all
+    // workers have started searching.
+    // By adding the master as the last element
+    // in `SearchWorkers`,
+    //     for (auto& Worker : SearchWorkers) Worker->start()
+    // naturally guarantees the master starts after the others start.
+    SWorkerMaster = new SearchWorkerMaster(
+        PContext,
+        &NodeAllocator,
+        &EdgeAllocator,
+        EQueue.get(),
+        CQueue.get(),
+        MtxPool.get(),
+        ECache.get(),
+        &Stat,
+        std::bind(&Manager::searchStopCallback, this),
+        PLogger
+    );
+    SearchWorkers.emplace_back(SWorkerMaster);
 }
 
 void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
     // CheckmateQueue must be initialized before SearchWorker is.
     assert(SearchWorkers.size() == 0);
     if (NumCheckmateWorkers > 0) {
-        CQueue = std::make_unique<CheckmateQueue>(100000, NumCheckmateWorkers);
+        CQueue = std::make_unique<CheckmateQueue>();
     }
 }
 
@@ -226,7 +237,7 @@ void Manager::setupCheckmateWorkers(std::size_t NumCheckmateWorkers) {
     assert(NumCheckmateWorkers == 0 || CQueue != nullptr);
     for (std::size_t I = 0; I < NumCheckmateWorkers; ++I) {
         CheckmateWorkers.emplace_back(
-            std::make_unique<CheckmateWorker>(I, CQueue.get(), &Stat));
+            std::make_unique<CheckmateWorker>(CQueue.get(), &Stat));
     }
 }
 
@@ -256,21 +267,33 @@ void Manager::setupSupervisor() {
                 WakeUpSupervisor = false;
             }
         }
+
+        SWorkerMaster->issueStop();
+
+        // Wait for all workers if previous search is running.
+        awaitWorkers();
+        assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
+
+        {
+            std::lock_guard<std::mutex> Lock(MutexStatus);
+            Status = ManagerStatus::Idle;
+        }
+        CVStatus.notify_all();
     });
 }
 
-void Manager::setupWatchDog() {
-    WatchdogWorker = std::make_unique<Watchdog>(PContext, &NodeAllocator,
-                                                &EdgeAllocator, PLogger);
-    WatchdogWorker->setStopSearchingCallback(
-        std::bind(&Manager::watchdogStopCallback, this));
-}
-
 void Manager::doSupervisorWork(bool CallCallback) {
+    // Wait for all workers if previous search is running.
+    awaitWorkers();
+    assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
+
     // Reset statistics.
     Stat.reset();
 
     // Setup the state to think.
+    if (CQueue != nullptr) {
+        CQueue->incrementGeneration();
+    }
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 
     core::Move32 BestMove = core::Move32::MoveNone();
@@ -286,37 +309,23 @@ void Manager::doSupervisorWork(bool CallCallback) {
     assert(EQueue->count() == 0);
 #endif
     EQueue->open();
-    if (CQueue != nullptr) {
-        CQueue->open();
-    }
     for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->start();
     }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->start();
-    }
+    SWorkerMaster->enableImmediateLog();
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->updateRoot(*CurrentState, *StateConfig, RootNode);
         SearchWorker->start();
     }
 
-    WatchdogWorker->updateRoot(CurrentState.get(), StateConfig.get(),
-                               RootNode);
-    WatchdogWorker->setLimit(*Limit);
-    WatchdogWorker->start();
+    {
+        std::lock_guard<std::mutex> Lock(MutexStatus);
+        Status = ManagerStatus::Thinking;
+    }
+    CVStatus.notify_all();
 
     // Await workers until the search stops.
-    for (const auto& SearchWorker : SearchWorkers) {
-        SearchWorker->await();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->await();
-    }
-    for (const auto& EvaluationWorker : EvaluationWorkers) {
-        EvaluationWorker->await();
-    }
-    WatchdogWorker->await();
-
+    awaitWorkers();
     assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
 
 #ifndef NDEBUG
@@ -378,6 +387,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
+    if (CQueue != nullptr) {
+        CQueue->incrementGeneration();
+    }
     CurrentState->doMove(BestMove);
     SearchTree->updateRoot(*CurrentState);
 
@@ -387,39 +399,29 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (Status == ManagerStatus::Busy && PContext->isPonderingEnabled() &&
+        if (Status == ManagerStatus::Thinking && PContext->isPonderingEnabled() &&
             !BestMove.isNone() && !BestMove.isWin() &&
             !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {
                 Status = ManagerStatus::Pondering;
 
-                Limit = std::make_unique<engine::Limit>(NoLimit);
+                SWorkerMaster->setLimit(NoLimit);
 
                 PLogger->setIsInverse(true);
 
                 assert(!EQueue->isOpen());
                 assert(EQueue->count() == 0);
                 EQueue->open();
-                if (CQueue != nullptr) {
-                    CQueue->open();
-                }
                 for (const auto& EvaluationWorker : EvaluationWorkers) {
                     EvaluationWorker->start();
                 }
-                for (const auto& CheckmateWorker : CheckmateWorkers) {
-                    CheckmateWorker->start();
-                }
+                SWorkerMaster->disableImmediateLog();
                 for (const auto& SearchWorker : SearchWorkers) {
                     SearchWorker->updateRoot(*CurrentState, *StateConfig,
                                              RootNodePondering);
                     SearchWorker->start();
                 }
-
-                WatchdogWorker->updateRoot(
-                    CurrentState.get(), StateConfig.get(), RootNodePondering);
-                WatchdogWorker->setLimit(*Limit);
-                WatchdogWorker->start();
             }
         }
 
@@ -431,32 +433,25 @@ void Manager::doSupervisorWork(bool CallCallback) {
             BestMoveCallback(BestMove, std::move(TL));
         }
     }
-    CVStatus.notify_one();
+    CVStatus.notify_all();
 }
 
 void Manager::stopWorkers() {
-    std::lock_guard<std::mutex> Lock(MutexStatus);
-
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->stop();
-    }
-    if (CQueue != nullptr) {
-        CQueue->close();
-    }
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->stop();
     }
     EQueue->close();
     for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->stop();
     }
+}
 
-    if (Status == ManagerStatus::Thinking) {
-        Status = ManagerStatus::Busy;
-    } else if (Status == ManagerStatus::Pondering ||
-               Status == ManagerStatus::Stopping) {
-        Status = ManagerStatus::Idle;
-        CVStatus.notify_all();
+void Manager::awaitWorkers() {
+    for (const auto& SearchWorker : SearchWorkers) {
+        SearchWorker->await();
+    }
+    for (const auto& EvaluationWorker : EvaluationWorkers) {
+        EvaluationWorker->await();
     }
 }
 
@@ -496,7 +491,7 @@ bool Manager::checkMemoryBudgetForPondering() {
     return false;
 }
 
-void Manager::watchdogStopCallback() {
+void Manager::searchStopCallback() {
     stopWorkers();
 }
 
