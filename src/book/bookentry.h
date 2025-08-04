@@ -66,6 +66,10 @@ class Book {
         return Entries.size();
     }
 
+    const std::map<std::string, std::size_t>& dictionary() const {
+        return Dictionary;
+    }
+
  private:
     std::map<std::string, std::size_t> Dictionary;
     std::vector<BookEntry> Entries;
