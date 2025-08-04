@@ -613,6 +613,315 @@ bool SearchWorker::doTask() {
     return false;
 }
 
+SearchWorkerMaster::SearchWorkerMaster(
+    const Context* C,
+    allocator::Allocator* NodeAllocator,
+    allocator::Allocator* EdgeAllocator,
+    EvaluationQueue* EQueue,
+    CheckmateQueue* CQueue,
+    MutexPool<>* MtxPool,
+    EvalCache* ECache,
+    Statistics* Stat,
+    std::function<void()> SearchStopCallback,
+    std::shared_ptr<logger::Logger> L)
+    : SearchWorker(
+            NodeAllocator,
+            EdgeAllocator,
+            EQueue,
+            CQueue,
+            MtxPool,
+            ECache,
+            Stat)
+    , PContext(C)
+    , Callback(SearchStopCallback)
+    , Logger(std::move(L))
+    , ImmediateLogEnabled(true)
+    , Exiting(false) {
+
+    StopCallThread = std::thread([this]() {
+        while (true) {
+            std::unique_lock<std::mutex> Lock(Mutex);
+
+            StopCV.wait(Lock, [&]() { return Exiting || ToCallCallback; });
+
+            if (Exiting) {
+                break;
+            }
+
+            Callback();
+            ToCallCallback = false;
+        }
+    });
+}
+
+SearchWorkerMaster::~SearchWorkerMaster() {
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        Exiting = true;
+    }
+
+    StopCV.notify_one();
+    StopCallThread.join();
+}
+
+void SearchWorkerMaster::setLimit(const engine::Limit& L) {
+    Limit = L;
+}
+
+void SearchWorkerMaster::start() {
+    SearchStartTime = std::chrono::steady_clock::now();
+    MadeUpCheckElapsedPrevious = 0;
+    NumNodesAtStart = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+    LogOutputPrevious = 0;
+    CallbackCalled.store(false, std::memory_order_release);
+    ToCallCallback = false;
+
+    SearchWorker::start();
+}
+
+bool SearchWorkerMaster::doTask() {
+    // Dump log.
+    const auto CurrentTime = std::chrono::steady_clock::now();
+    const uint64_t Elapsed = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(CurrentTime - SearchStartTime)
+            .count());
+    if (Elapsed >= PContext->getLogMargin() + LogOutputPrevious) {
+        dumpPVLog(Elapsed);
+        LogOutputPrevious = Elapsed;
+    }
+
+    if (CallbackCalled.load(std::memory_order_acquire)) {
+        return false;
+    }
+
+    if (checkSearchToStop(Elapsed)) {
+        issueStop();
+        if (ImmediateLogEnabled || Elapsed > PContext->getLogMargin()) {
+            dumpPVLog(Elapsed);
+        }
+        return false;
+    }
+
+    return SearchWorker::doTask();
+}
+
+void SearchWorkerMaster::issueStop() {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    if (isRunning()) {
+        ToCallCallback = true;
+        CallbackCalled.store(true, std::memory_order_release);
+        StopCV.notify_one();
+    }
+}
+
+void SearchWorkerMaster::enableImmediateLog() {
+    ImmediateLogEnabled = true;
+}
+
+void SearchWorkerMaster::disableImmediateLog() {
+    ImmediateLogEnabled = false;
+}
+
+logger::PVLog SearchWorkerMaster::getPVLog() const {
+    logger::PVLog Log;
+
+    Node* N = RootNode;
+
+    const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+
+    Log.NumNodes = Visits;
+    Log.CurrentSideToMove = State->getSideToMove();
+    Log.SolvedGameEndPly = N->getPlyToTerminalSolved();
+    if (Log.SolvedGameEndPly > 0) {
+        Log.WinRate = 1.0;
+        Log.DrawRate = 0.0;
+    } else if (Log.SolvedGameEndPly < 0) {
+        Log.WinRate = 0.0;
+        Log.DrawRate = 0.0;
+    } else {
+        if (Visits > 0) {
+            Log.WinRate = N->getWinRateAccumulated() / (double)Visits;
+            Log.DrawRate = N->getDrawRateAccumulated() / (double)Visits;
+        } else {
+            Log.WinRate = 0.0;
+            Log.DrawRate = 0.0;
+        }
+    }
+    Log.DrawValue = (State->getSideToMove() == core::Black)
+                        ? Config.BlackDrawValue
+                        : Config.WhiteDrawValue;
+
+    while (N != nullptr) {
+        Edge* E = N->mostPromisingEdge();
+
+        if (E == nullptr) {
+            break;
+        }
+
+        Log.PV.push_back(E->getMove());
+        N = E->getTarget();
+    }
+
+    return Log;
+}
+
+void SearchWorkerMaster::dumpPVLog(uint64_t Elapsed) const {
+    logger::PVLog Log = getPVLog();
+
+    Log.ElapsedMilliSeconds = (uint32_t)Elapsed;
+    if (Elapsed > 0) {
+        Log.NodesPerSecond =
+            (uint64_t)((double)(Log.NumNodes - NumNodesAtStart) * 1000ULL /
+                       (double)Elapsed);
+    }
+
+    Logger->printPVLog(Log);
+}
+
+bool SearchWorkerMaster::isRootSolved() const {
+    return RootNode->getPlyToTerminalSolved() != 0;
+}
+
+bool SearchWorkerMaster::checkNodeLimit() const {
+    if (Limit.NumNodes == 0) {
+        return false;
+    }
+
+    const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+    return Visits >= Limit.NumNodes;
+}
+
+bool SearchWorkerMaster::checkMemoryBudget() const {
+    const double Factor = PContext->getMemoryLimitFactor();
+
+    if (NA->getTotal() > 0 &&
+            (double)NA->getUsed() >= (double)NA->getTotal() * Factor) {
+        Logger->printLog("Memory limit (Node).");
+        return true;
+    }
+
+    if (EA->getTotal() > 0 &&
+            (double)EA->getUsed() >= (double)EA->getTotal() * Factor) {
+        Logger->printLog("Memory limit (Edge).");
+        return true;
+    }
+
+    return false;
+}
+
+bool SearchWorkerMaster::checkThinkingTimeBudget(uint64_t Elapsed) const {
+    if (Elapsed >= PContext->getMaximumThinkingTimeMilliseconds()) {
+        return true;
+    }
+
+    if (Elapsed < PContext->getMinimumThinkingTimeMilliseconds()) {
+        return false;
+    }
+
+    const uint64_t Budget =
+        Limit.TimeLimitMilliSeconds +
+        Limit.ByoyomiMilliSeconds +
+        Limit.IncreaseMilliSeconds;
+
+    return Elapsed + PContext->getThinkingTimeMargin() >= Budget;
+}
+
+bool SearchWorkerMaster::hasMadeUpMind(uint64_t Elapsed) {
+    if (Elapsed < MadeUpCheckElapsedPrevious + 470) {
+        return false;
+    }
+
+    const uint16_t NumChildren = RootNode->getNumChildren();
+
+    uint64_t SumVisits = 0;
+    std::vector<double> Visits(NumChildren, 0.0);
+    for (uint16_t I = 0; I < NumChildren; ++I) {
+        Edge* E = &RootNode->getEdge()[I];
+        Node* Child = E->getTarget();
+
+        if (Child != nullptr) {
+            const uint64_t V =
+                Child->getVisitsAndVirtualLoss() & Node::VisitMask;
+            SumVisits += V;
+            Visits[I] = (double)V;
+        }
+    }
+
+    if (SumVisits == 0) {
+        return false;
+    }
+
+    for (uint16_t I = 0; I < NumChildren; ++I) {
+        Visits[I] /= (double)SumVisits;
+    }
+
+    const Edge* BestEdge = RootNode->mostPromisingEdge();
+    if (BestEdge == BestEdgePrevious && Visits.size() == VisitsPrevious.size()) {
+        double KLDivergence = 0.0;
+        double KLDivergenceToPredicted = 0.0;
+
+        for (std::size_t I = 0; I < Visits.size(); ++I) {
+            if (VisitsPrevious[I] == 0.0) {
+                continue;
+            } else if (Visits[I] == 0.0) {
+                KLDivergence = std::numeric_limits<double>::max();
+                break;
+            }
+
+            const double Predicted = RootNode->getEdge()[I].getProbability();
+            const double KLD = VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
+
+            KLDivergence += KLD;
+
+            if (Predicted > 0) {
+                const double KLDToP =
+                    Predicted * std::log(Predicted / Visits[I]);
+                KLDivergenceToPredicted += KLDToP;
+            }
+        }
+
+        const double KLDThreshold = (KLDivergenceToPredicted < 0.4) ? 1e-5 : 1e-6;
+
+        if (KLDivergence < KLDThreshold) {
+            return true;
+        }
+    }
+
+    // Save the variables for the next time.
+    MadeUpCheckElapsedPrevious = Elapsed;
+    BestEdgePrevious = BestEdge;
+    VisitsPrevious = std::move(Visits);
+    return false;
+}
+
+bool SearchWorkerMaster::checkSearchToStop(uint64_t Elapsed) {
+    if (isRootSolved()) {
+        return true;
+    }
+
+    if (checkNodeLimit()) {
+        return true;
+    }
+
+    if (checkMemoryBudget()) {
+        return true;
+    }
+
+    if (!Limit.isNoLimitAboutTime()) {
+        if (checkThinkingTimeBudget(Elapsed)) {
+            Logger->printLog("Time limit.");
+            return true;
+        }
+
+        if (hasMadeUpMind(Elapsed)) {
+            Logger->printLog("Made up mind.");
+            return true;
+        }
+    }
+
+    return false;
+}
+
 } // namespace mcts
 } // namespace engine
 } // namespace nshogi

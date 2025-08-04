@@ -19,10 +19,14 @@
 #include "mutexpool.h"
 #include "node.h"
 #include "statistics.h"
+#include "../context.h"
+#include "../limit.h"
+#include "../logger/logger.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
 
+#include <functional>
 #include <vector>
 
 namespace nshogi {
@@ -39,7 +43,7 @@ class SearchWorker : public worker::Worker {
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
     void setBannedMoves(const std::vector<core::Move32>& Moves);
 
- private:
+ protected:
     static constexpr int32_t CBase = 19652;
     static constexpr double CInit = 1.25;
 
@@ -77,6 +81,67 @@ class SearchWorker : public worker::Worker {
     EvalCache::EvalInfo CacheEvalInfo;
 
     std::vector<core::Move32> BannedMoves;
+};
+
+class SearchWorkerMaster : public SearchWorker {
+ public:
+    SearchWorkerMaster(
+        const Context*,
+        allocator::Allocator* NodeAllocator,
+        allocator::Allocator* EdgeAllocator,
+        EvaluationQueue*,
+        CheckmateQueue*,
+        MutexPool<>*,
+        EvalCache*,
+        Statistics*,
+        std::function<void()> SearchStopCallback,
+        std::shared_ptr<logger::Logger>
+    );
+    ~SearchWorkerMaster() override;
+
+    void setLimit(const engine::Limit& L);
+
+    void start() override;
+    bool doTask() override;
+    void issueStop();
+
+    void enableImmediateLog();
+    void disableImmediateLog();
+
+ private:
+    logger::PVLog getPVLog() const;
+    void dumpPVLog(uint64_t Elapsed) const;
+
+    bool isRootSolved() const;
+    bool checkNodeLimit() const;
+    bool checkMemoryBudget() const;
+    bool checkThinkingTimeBudget(uint64_t Elapsed) const;
+    bool hasMadeUpMind(uint64_t Elapsed);
+
+    bool checkSearchToStop(uint64_t Elapsed);
+
+    const Context* PContext;
+    const std::function<void()> Callback;
+    std::shared_ptr<logger::Logger> Logger;
+    bool ImmediateLogEnabled;
+
+    engine::Limit Limit;
+
+    std::chrono::time_point<std::chrono::steady_clock> SearchStartTime;
+    uint64_t NumNodesAtStart;
+    uint64_t LogOutputPrevious;
+
+    bool Exiting;
+    std::mutex Mutex;
+    std::atomic<bool> CallbackCalled;
+    bool ToCallCallback;
+    std::thread StopCallThread;
+    std::condition_variable StopCV;
+
+    // Variables for checking if we make up the best move.
+    uint64_t MadeUpCheckElapsedPrevious;
+    const Edge* BestEdgePrevious;
+    std::vector<double> VisitsPrevious;
 };
 
 } // namespace mcts
