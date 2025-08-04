@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <stop_token>
 
 namespace nshogi {
 namespace engine {
@@ -21,9 +22,7 @@ namespace worker {
 enum class WorkerState {
     Uninitialized,
     Idle,
-    Starting,
     Running,
-    Stopping,
     Exiting,
     Exit,
 };
@@ -33,9 +32,11 @@ class Worker {
     Worker(bool LoopTask);
     virtual ~Worker();
 
-    void start();
-    void stop();
-    void await();
+    virtual void start();
+    virtual void stop();
+    virtual void await();
+
+    bool isRunning();
 
  protected:
     // spawnThread() must be called exactly once in
@@ -44,7 +45,6 @@ class Worker {
 
     virtual void initializationTask();
     virtual bool doTask() = 0;
-    bool isRunning();
 
  private:
     static constexpr uint64_t STREAK_RUN_PERIOD = 4;
@@ -58,8 +58,8 @@ class Worker {
     std::mutex Mutex;
     std::condition_variable TaskCV;
     std::condition_variable InitializationCV;
-    std::condition_variable StartCV;
     std::condition_variable AwaitCV;
+    std::stop_source StopSource;
 };
 
 } // namespace worker

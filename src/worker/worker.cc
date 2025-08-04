@@ -9,6 +9,8 @@
 
 #include "worker.h"
 
+#include <cassert>
+
 namespace nshogi {
 namespace engine {
 namespace worker {
@@ -21,38 +23,40 @@ Worker::Worker(bool LoopTask)
 Worker::~Worker() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
+        assert(WState == WorkerState::Idle);
         WState = WorkerState::Exiting;
     }
     TaskCV.notify_one();
 
-    await();
+    {
+        std::unique_lock<std::mutex> Lock(Mutex);
+        AwaitCV.wait(Lock, [this] {
+            return WState == WorkerState::Exit;
+        });
+    }
+
     Thread.join();
 }
 
 void Worker::start() {
     {
         std::lock_guard<std::mutex> Lock(Mutex);
-        WState = WorkerState::Starting;
+        assert(WState == WorkerState::Idle);
+        WState = WorkerState::Running;
+        StopSource = std::stop_source();
     }
     TaskCV.notify_one();
-
-    // Ensure the thread has started.
-    std::unique_lock<std::mutex> Lock(Mutex);
-    StartCV.wait(Lock, [this]() { return WState == WorkerState::Running; });
 }
 
 void Worker::stop() {
-    std::lock_guard<std::mutex> Lock(Mutex);
-    if (WState == WorkerState::Running) {
-        WState = WorkerState::Stopping;
-    }
+    StopSource.request_stop();
 }
 
 void Worker::await() {
     // Wait until the thread has stopped.
     std::unique_lock<std::mutex> Lock(Mutex);
     AwaitCV.wait(Lock, [this] {
-        return WState == WorkerState::Idle || WState == WorkerState::Exit;
+        return WState == WorkerState::Idle;
     });
 }
 
@@ -87,25 +91,31 @@ void Worker::mainLoop() {
 
     while (true) {
         {
-            std::unique_lock<std::mutex> Lock(Mutex);
+            std::lock_guard<std::mutex> Lock(Mutex);
             WState = WorkerState::Idle;
             AwaitCV.notify_all();
+        }
+
+        {
+            std::unique_lock<std::mutex> Lock(Mutex);
 
             TaskCV.wait(Lock, [this] {
-                return WState == WorkerState::Starting ||
+                return WState == WorkerState::Running ||
                        WState == WorkerState::Exiting;
             });
 
-            if (WState == WorkerState::Starting) {
-                WState = WorkerState::Running;
-                StartCV.notify_all();
-            } else if (WState == WorkerState::Exiting) {
-                AwaitCV.notify_all();
+            if (WState == WorkerState::Exiting) {
                 break;
             }
         }
 
         uint64_t StreakRun = 0;
+
+        std::stop_token StopToken;
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            StopToken = StopSource.get_token();
+        }
 
         while (true) {
             bool ToContinue = doTask();
@@ -120,8 +130,7 @@ void Worker::mainLoop() {
 
             ++StreakRun;
             if (StreakRun == STREAK_RUN_PERIOD) {
-                std::lock_guard<std::mutex> Lock(Mutex);
-                if (WState == WorkerState::Stopping) {
+                if (StopToken.stop_requested()) {
                     break;
                 }
                 StreakRun = 0;
@@ -129,8 +138,10 @@ void Worker::mainLoop() {
         }
     }
 
-    std::lock_guard<std::mutex> Lock(Mutex);
-    WState = WorkerState::Exit;
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        WState = WorkerState::Exit;
+    }
     AwaitCV.notify_all();
 }
 
