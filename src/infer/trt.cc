@@ -174,7 +174,7 @@ void TensorRT::load(const std::string& Path,
         }
         BuilderConfig->setFlag(nvinfer1::BuilderFlag::kTF32);
 
-        BuilderConfig->setProfileStream(Stream);
+        BuilderConfig->setProfileStream(ProfileStream);
         Plan.reset(Builder->buildSerializedNetwork(*Network, *BuilderConfig));
 
         cudaStreamSynchronize(ProfileStream);
