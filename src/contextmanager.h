@@ -37,6 +37,8 @@ class ContextManager {
 
     void setNumCheckmateSearchThreads(std::size_t NumCheckmateThreads);
 
+    void setNumFeedThreads(std::size_t NumFeedThreads);
+
     void setBatchSize(std::size_t Size);
 
     void setThinkingTimeMargin(uint32_t Margin);

@@ -30,12 +30,15 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
 
     setupSearchTree();
     setupCheckmateQueue(PContext->getNumCheckmateSearchThreads());
-    setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
+    setupFeedQueue();
     setupEvalCache(PContext->getEvalCacheMemoryMB());
+
     setupEvaluationQueue(PContext->getBatchSize(), PContext->getNumGPUs(),
                          PContext->getNumEvaluationThreadsPerGPU());
     setupEvaluationWorkers(PContext->getBatchSize(), PContext->getNumGPUs(),
                            PContext->getNumEvaluationThreadsPerGPU());
+    setupFeedWorkers(PContext->getNumFeedThreads());
+    setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
     setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
 
@@ -69,6 +72,9 @@ Manager::~Manager() {
     }
     for (auto& SearchWorker : SearchWorkers) {
         SearchWorker.reset(nullptr);
+    }
+    for (auto& FeedWorker : FeedWorkers) {
+        FeedWorker.reset(nullptr);
     }
 
     // SearchTree's destructor must be called before
@@ -177,13 +183,23 @@ void Manager::setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
                                                NumEvaluationWorkersPerGPU * 64);
 }
 
+void Manager::setupFeedQueue() {
+    FQueue = std::make_unique<FeedQueue>();
+}
+
+void Manager::setupFeedWorkers(std::size_t NumFeedWorkers) {
+    for (std::size_t I = 0; I < NumFeedWorkers; ++I) {
+        FeedWorkers.emplace_back(std::make_unique<FeedWorker>(PContext, FQueue.get(), ECache.get()));
+    }
+}
+
 void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
                                      std::size_t NumEvaluationWorkersPerGPU) {
     std::size_t ThreadId = 0;
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
             EvaluationWorkers.emplace_back(std::make_unique<EvaluationWorker>(
-                PContext, ThreadId, I, BatchSize, EQueue.get(), ECache.get(),
+                PContext, ThreadId, I, BatchSize, EQueue.get(), FQueue.get(), ECache.get(),
                 &Stat));
             ++ThreadId;
         }
@@ -302,6 +318,10 @@ void Manager::doSupervisorWork(bool CallCallback) {
     assert(EQueue->count() == 0);
 #endif
     EQueue->open();
+    FQueue->notifyEvaluationStarts();
+    for (const auto& FeedWorker : FeedWorkers) {
+        FeedWorker->start();
+    }
     for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->start();
     }
@@ -406,6 +426,10 @@ void Manager::doSupervisorWork(bool CallCallback) {
                 assert(!EQueue->isOpen());
                 assert(EQueue->count() == 0);
                 EQueue->open();
+                FQueue->notifyEvaluationStarts();
+                for (const auto& FeedWorker : FeedWorkers) {
+                    FeedWorker->start();
+                }
                 for (const auto& EvaluationWorker : EvaluationWorkers) {
                     EvaluationWorker->start();
                 }
@@ -445,6 +469,13 @@ void Manager::awaitWorkers() {
     }
     for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->await();
+    }
+    FQueue->notifyEvaluationStops();
+    for (const auto& FeedWorker : FeedWorkers) {
+        FeedWorker->stop();
+    }
+    for (const auto& FeedWorker : FeedWorkers) {
+        FeedWorker->await();
     }
 }
 

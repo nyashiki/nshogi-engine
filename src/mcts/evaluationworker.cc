@@ -43,13 +43,14 @@ namespace mcts {
 
 EvaluationWorker::EvaluationWorker(const Context* C, std::size_t ThreadId,
                                    std::size_t GPUId, std::size_t BatchSize,
-                                   EvaluationQueue* EQ, EvalCache* EC,
-                                   Statistics* Stat)
+                                   EvaluationQueue* EQ, FeedQueue* FQ,
+                                   EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , PContext(C)
     , MyThreadId(ThreadId)
     , BatchSizeMax(BatchSize)
     , EQueue(EQ)
+    , FQueue(FQ)
     , ECache(EC)
     , GPUId_(GPUId)
     , BatchCount(0)
@@ -111,8 +112,8 @@ bool EvaluationWorker::doTask() {
         return EQueue->count() > 0;
     }
 
-    doInference();
-    feedResults();
+    auto B = doInference();
+    addToFeedQueue(std::move(B));
 
     BatchCount = 0;
 
@@ -153,95 +154,49 @@ void EvaluationWorker::getBatch() {
     }
 }
 
-void EvaluationWorker::doInference() {
-    Evaluator->computeBlocking(BatchCount);
+std::unique_ptr<Batch> EvaluationWorker::doInference() {
+    // Start inference.
+    Evaluator->computeNonBlocking(BatchCount);
+
+    std::unique_ptr<core::Color[]> Colors = std::make_unique<core::Color[]>(BatchCount);
+    std::unique_ptr<Node*[]> Nodes = std::make_unique<Node*[]>(BatchCount);
+    std::unique_ptr<uint64_t[]> Hashes = std::make_unique<uint64_t[]>(BatchCount);
+    std::unique_ptr<float[]> Policies = std::make_unique<float[]>(BatchCount * 27 * core::NumSquares);
+    std::unique_ptr<float[]> WinRates = std::make_unique<float[]>(BatchCount);
+    std::unique_ptr<float[]> DrawRates = std::make_unique<float[]>(BatchCount);
+
+    // Copy input.
+    std::memcpy(Colors.get(), PendingSideToMoves, BatchCount * sizeof(core::Color));
+    std::memcpy(Nodes.get(), PendingNodes, BatchCount * sizeof(Node*));
+    std::memcpy(Hashes.get(), PendingHashes, BatchCount * sizeof(uint64_t));
+
     PStat->incrementEvaluationCount();
     PStat->addBatchSizeAccumulated(BatchCount);
+
+    // Await inference.
+    Evaluator->await();
+
+    // Copy output.
+    std::memcpy(Policies.get(), Evaluator->getPolicy(), BatchCount * 27 * core::NumSquares * sizeof(float));
+    std::memcpy(WinRates.get(), Evaluator->getWinRate(), BatchCount * sizeof(float));
+    std::memcpy(DrawRates.get(), Evaluator->getDrawRate(), BatchCount * sizeof(float));
+
+    std::unique_ptr<Batch> B =
+        std::make_unique<Batch>(
+            BatchCount,
+            std::move(Colors),
+            std::move(Nodes),
+            std::move(Hashes),
+            std::move(Policies),
+            std::move(WinRates),
+            std::move(DrawRates)
+        );
+
+    return B;
 }
 
-void EvaluationWorker::feedResults() {
-    for (std::size_t I = 0; I < BatchCount; ++I) {
-        const float* Policy =
-            Evaluator->getPolicy() + 27 * core::NumSquares * I;
-        const float WinRate = *(Evaluator->getWinRate() + I);
-        const float DrawRate = *(Evaluator->getDrawRate() + I);
-
-        feedResult(PendingSideToMoves[I], PendingNodes[I], Policy, WinRate,
-                   DrawRate, PendingHashes[I]);
-    }
-}
-
-void EvaluationWorker::feedResult(core::Color SideToMove, Node* N,
-                                  const float* Policy, float WinRate,
-                                  float DrawRate, uint64_t Hash) {
-    bool NaNFound = false;
-    if (PContext->isNaNFallbackEnabled()) {
-        if (math::isnan_(WinRate)) {
-            std::cerr << "WINRATE NAN FOUND" << std::endl;
-            NaNFound = true;
-            const Node* Parent = N->getParent();
-            if (Parent == nullptr) {
-                WinRate = 0.5f;
-            } else {
-                const double ParentWinRate =
-                    Parent->getWinRateAccumulated() /
-                    (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
-                WinRate = (float)(1.0 - ParentWinRate);
-            }
-        }
-        if (math::isnan_(DrawRate)) {
-            std::cerr << "DRAWRATE NAN FOUND" << std::endl;
-            NaNFound = true;
-            const Node* Parent = N->getParent();
-            if (Parent == nullptr) {
-                DrawRate = 0.0f;
-            } else {
-                const double ParentDrawRate =
-                    Parent->getDrawRateAccumulated() /
-                    (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
-                DrawRate = (float)ParentDrawRate;
-            }
-        }
-    }
-
-    assert(WinRate >= 0.0f && WinRate <= 1.0f);
-    assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
-
-    const uint16_t NumChildren = N->getNumChildren();
-    if (NumChildren == 1) {
-        static constexpr float P[] = {1.0};
-        N->setEvaluation(P, WinRate, DrawRate);
-    } else {
-        if (PContext->isNaNFallbackEnabled()) {
-            for (uint16_t I = 0; I < NumChildren; ++I) {
-                const std::size_t MoveIndex =
-                    ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
-                LegalPolicy[I] = Policy[MoveIndex];
-                if (math::isnan_(LegalPolicy[I])) {
-                    NaNFound = true;
-                    for (uint16_t J = 0; J < NumChildren; ++J) {
-                        LegalPolicy[J] = 1.0f;
-                    }
-                    break;
-                }
-            }
-        } else {
-            for (uint16_t I = 0; I < NumChildren; ++I) {
-                const std::size_t MoveIndex =
-                    ml::getMoveIndex(SideToMove, N->getEdge()[I].getMove());
-                LegalPolicy[I] = Policy[MoveIndex];
-            }
-        }
-        ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
-        N->setEvaluation(LegalPolicy, WinRate, DrawRate);
-        N->sort();
-    }
-
-    N->updateAncestors(WinRate, DrawRate);
-
-    if (ECache != nullptr && !NaNFound) {
-        ECache->store(Hash, NumChildren, LegalPolicy, WinRate, DrawRate);
-    }
+void EvaluationWorker::addToFeedQueue(std::unique_ptr<Batch>&& B) {
+    FQueue->add(std::move(B));
 }
 
 } // namespace mcts

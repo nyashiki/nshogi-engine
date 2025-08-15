@@ -44,6 +44,10 @@ std::size_t Context::getNumCheckmateSearchThreads() const {
     return NumCheckmateSearchThreads;
 }
 
+std::size_t Context::getNumFeedThreads() const {
+    return NumFeedThreads;
+}
+
 std::size_t Context::getBatchSize() const {
     return BatchSize;
 }
