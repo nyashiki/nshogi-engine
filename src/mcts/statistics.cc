@@ -28,17 +28,13 @@ void Statistics::reset() {
     NumFailedToAllocateNode.store(0, std::memory_order_relaxed);
     NumFailedToAllocateEdge.store(0, std::memory_order_relaxed);
     NumConflictNodeAllocation.store(0, std::memory_order_relaxed);
-    NumPolicyGreedyEdge.store(0, std::memory_order_relaxed);
-    NumSpeculativeEdge.store(0, std::memory_order_relaxed);
     NumSpeculativeFailedEdge.store(0, std::memory_order_relaxed);
     NumTooManyVirtualLossEdge.store(0, std::memory_order_relaxed);
-    NumFirstUnvisitedChildEdge.store(0, std::memory_order_relaxed);
     NumBeingExtractedChildren.store(0, std::memory_order_relaxed);
     NumUCBSelectionFailedEdge.store(0, std::memory_order_relaxed);
     NumNullUCBMaxEdge.store(0, std::memory_order_relaxed);
     NumCanDeclare.store(0, std::memory_order_relaxed);
     NumOverMaxPly.store(0, std::memory_order_relaxed);
-    NumSucceededToAddEvaluationQueue.store(0, std::memory_order_relaxed);
     NumFailedToAddEvaluationQueue.store(0, std::memory_order_relaxed);
     NumCacheHit.store(0, std::memory_order_relaxed);
 
@@ -80,24 +76,12 @@ uint64_t Statistics::numConflictNodeAllocation() const {
     return NumConflictNodeAllocation.load(std::memory_order_relaxed);
 }
 
-uint64_t Statistics::numPolicyGreedyEdge() const {
-    return NumPolicyGreedyEdge.load(std::memory_order_relaxed);
-}
-
-uint64_t Statistics::numSpeculativeEdge() const {
-    return NumSpeculativeEdge.load(std::memory_order_relaxed);
-}
-
 uint64_t Statistics::numSpeculativeFailedEdge() const {
     return NumSpeculativeFailedEdge.load(std::memory_order_relaxed);
 }
 
 uint64_t Statistics::numTooManyVirtualLossEdge() const {
     return NumTooManyVirtualLossEdge.load(std::memory_order_relaxed);
-}
-
-uint64_t Statistics::numFirstUnvisitedChildEdge() const {
-    return NumFirstUnvisitedChildEdge.load(std::memory_order_relaxed);
 }
 
 uint64_t Statistics::numBeingExtractedChildren() const {
@@ -118,10 +102,6 @@ uint64_t Statistics::numCanDeclare() const {
 
 uint64_t Statistics::numOverMaxPly() const {
     return NumOverMaxPly.load(std::memory_order_relaxed);
-}
-
-uint64_t Statistics::numSucceededToAddEvaluationQueue() const {
-    return NumSucceededToAddEvaluationQueue.load(std::memory_order_relaxed);
 }
 
 uint64_t Statistics::numFailedToAddEvaluationQueue() const {
@@ -180,24 +160,12 @@ void Statistics::incrementNumConflictNodeAllocation() {
     NumConflictNodeAllocation.fetch_add(1, std::memory_order_relaxed);
 }
 
-void Statistics::incrementNumPolicyGreedyEdge() {
-    NumPolicyGreedyEdge.fetch_add(1, std::memory_order_relaxed);
-}
-
-void Statistics::incrementNumSpeculativeEdge() {
-    NumSpeculativeEdge.fetch_add(1, std::memory_order_relaxed);
-}
-
 void Statistics::incrementNumSpeculativeFailedEdge() {
     NumSpeculativeFailedEdge.fetch_add(1, std::memory_order_relaxed);
 }
 
 void Statistics::incrementNumTooManyVirtualLossEdge() {
     NumTooManyVirtualLossEdge.fetch_add(1, std::memory_order_relaxed);
-}
-
-void Statistics::incrementNumFirstUnvisitedChildEdge() {
-    NumFirstUnvisitedChildEdge.fetch_add(1, std::memory_order_relaxed);
 }
 
 void Statistics::incrementNumBeingExtractedChildren() {
@@ -218,10 +186,6 @@ void Statistics::incrementNumCanDeclare() {
 
 void Statistics::incrementNumOverMaxPly() {
     NumOverMaxPly.fetch_add(1, std::memory_order_relaxed);
-}
-
-void Statistics::incrementNumSucceededToAddEvaluationQueue() {
-    NumSucceededToAddEvaluationQueue.fetch_add(1, std::memory_order_relaxed);
 }
 
 void Statistics::incrementNumFailedToAddEvaluationQueue() {

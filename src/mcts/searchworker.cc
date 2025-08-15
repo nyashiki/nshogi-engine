@@ -252,7 +252,6 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         // is zero.
         if (CurrentVirtualLoss < NumChildren) {
             if (CurrentVirtualLoss == 0) {
-                PStat->incrementNumPolicyGreedyEdge();
                 return &N->getEdge()[0];
             } else {
                 bool Acceptable = true;
@@ -260,7 +259,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 const double ThisPolicy =
                     (double)N->getEdge()[CurrentVirtualLoss].getProbability();
                 const double Const =
-                    1.0 / (CInit * std::sqrt((double)CurrentVirtualLoss + 1.0));
+                    1.0 / (CInit * std::sqrt((double)(CurrentVirtualLoss + (uint64_t)1)));
                 for (uint16_t I = 0; I < CurrentVirtualLoss - 1; ++I) {
                     const double Policy =
                         (double)N->getEdge()[I].getProbability();
@@ -273,7 +272,6 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 }
 
                 if (Acceptable) {
-                    PStat->incrementNumSpeculativeEdge();
                     return &N->getEdge()[CurrentVirtualLoss];
                 } else {
                     PStat->incrementNumSpeculativeFailedEdge();
@@ -334,7 +332,6 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             // The relationship can be broken if the visit count is not zero,
             // but in that case, there is no unvisited child previously in this
             // loop.
-            PStat->incrementNumFirstUnvisitedChildEdge();
             break;
         }
 
@@ -563,9 +560,7 @@ bool SearchWorker::doTask() {
     // Evaluate the leaf node.
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
-        if (Succeeded) {
-            PStat->incrementNumSucceededToAddEvaluationQueue();
-        } else {
+        if (!Succeeded) {
             // Our MCTS implementation marks a node as "in expansion" for speed:
             //     (VisitCount == 0 && VirtualLoss == 1)
             // Because the leaf was already expanded and a virtual loss was
