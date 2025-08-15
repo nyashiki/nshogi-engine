@@ -49,6 +49,10 @@ void ContextManager::setNumCheckmateSearchThreads(
     Context_->NumCheckmateSearchThreads = NumCheckmateThreads;
 }
 
+void ContextManager::setNumFeedThreads(std::size_t NumFeedThreads) {
+    Context_->NumFeedThreads = NumFeedThreads;
+}
+
 void ContextManager::setBatchSize(std::size_t Size) {
     Context_->BatchSize = Size;
 }
