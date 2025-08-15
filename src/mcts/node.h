@@ -79,9 +79,9 @@ struct Node {
         return Edges;
     }
 
-    inline void incrementVirtualLoss() {
+    inline uint64_t incrementVirtualLoss() {
         constexpr uint64_t Value = 1ULL << VirtualLossShift;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
+        return VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline void incrementVisits() {

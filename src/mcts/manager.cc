@@ -25,10 +25,8 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     std::thread AllocatorPrepareThread([&]() { setupAllocator(); });
     std::thread GarbageCollectorPrepareThread(
         [&]() { setupGarbageCollector(); });
-    std::thread MutexPoolPrepareThread([&]() { setupMutexPool(); });
     AllocatorPrepareThread.join();
     GarbageCollectorPrepareThread.join();
-    MutexPoolPrepareThread.join();
 
     setupSearchTree();
     setupCheckmateQueue(PContext->getNumCheckmateSearchThreads());
@@ -168,10 +166,6 @@ void Manager::setupGarbageCollector() {
         &EdgeAllocator);
 }
 
-void Manager::setupMutexPool() {
-    MtxPool = std::make_unique<MutexPool<>>(1ULL * 1024ULL * 1024ULL * 1024ULL);
-}
-
 void Manager::setupSearchTree() {
     SearchTree =
         std::make_unique<Tree>(GC.get(), &NodeAllocator, PLogger.get());
@@ -200,7 +194,7 @@ void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 1; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker>(
             &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
-            MtxPool.get(), ECache.get(), &Stat));
+            ECache.get(), &Stat));
     }
     // IMPORTANT: add SearchWorkerMaster last in SearchWorkers because
     // the master controls when to stop all workers to search, stopWorkers(),
@@ -216,7 +210,6 @@ void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
         &EdgeAllocator,
         EQueue.get(),
         CQueue.get(),
-        MtxPool.get(),
         ECache.get(),
         &Stat,
         std::bind(&Manager::searchStopCallback, this),

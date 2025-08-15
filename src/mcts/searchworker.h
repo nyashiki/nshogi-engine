@@ -16,7 +16,6 @@
 #include "edge.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
-#include "mutexpool.h"
 #include "node.h"
 #include "statistics.h"
 #include "../context.h"
@@ -37,7 +36,7 @@ class SearchWorker : public worker::Worker {
  public:
     SearchWorker(allocator::Allocator* NodeAllocator,
                  allocator::Allocator* EdgeAllocator, EvaluationQueue*,
-                 CheckmateQueue*, MutexPool<>*, EvalCache*, Statistics* Stat);
+                 CheckmateQueue*, EvalCache*, Statistics* Stat);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -74,7 +73,6 @@ class SearchWorker : public worker::Worker {
     allocator::Allocator* EA;
     EvaluationQueue* EQueue;
     CheckmateQueue* CQueue;
-    MutexPool<>* MtxPool;
     EvalCache* ECache;
     Statistics* PStat;
 
@@ -91,7 +89,6 @@ class SearchWorkerMaster : public SearchWorker {
         allocator::Allocator* EdgeAllocator,
         EvaluationQueue*,
         CheckmateQueue*,
-        MutexPool<>*,
         EvalCache*,
         Statistics*,
         std::function<void()> SearchStopCallback,

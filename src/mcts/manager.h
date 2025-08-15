@@ -66,7 +66,6 @@ class Manager {
 
     void setupAllocator();
     void setupGarbageCollector();
-    void setupMutexPool();
     void setupSearchTree();
     void setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
                               std::size_t NumEvaluationWorkersPerGPU);
@@ -98,7 +97,6 @@ class Manager {
     std::unique_ptr<EvaluationQueue> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<EvalCache> ECache;
-    std::unique_ptr<MutexPool<>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
     SearchWorkerMaster* SWorkerMaster;
     std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;

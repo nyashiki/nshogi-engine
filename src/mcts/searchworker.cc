@@ -33,13 +33,12 @@ void cancelVirtualLoss(Node* N) {
 SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
                            allocator::Allocator* EdgeAllocator,
                            EvaluationQueue* EQ, CheckmateQueue* CQ,
-                           MutexPool<>* MP, EvalCache* EC, Statistics* Stat)
+                           EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EQueue(EQ)
     , CQueue(CQ)
-    , MtxPool(MP)
     , ECache(EC)
     , PStat(Stat) {
 
@@ -64,9 +63,6 @@ void SearchWorker::setBannedMoves(const std::vector<core::Move32>& Moves) {
 }
 
 Node* SearchWorker::collectOneLeaf() {
-    using MtxLockType =
-        typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
-
     Node* CurrentNode = RootNode;
 
     while (true) {
@@ -84,26 +80,20 @@ Node* SearchWorker::collectOneLeaf() {
         }
 
         if (Visits == 0) {
-            const uint64_t VirtualLoss =
-                VisitsAndVirtualLoss >> Node::VirtualLossShift;
+            if (VisitsAndVirtualLoss == 0) {  // i.e., Visit == 0 && VirtualLoss == 0.
+                const uint64_t VisitsAndVirtualLossOld = CurrentNode->incrementVirtualLoss();
 
-            if (VirtualLoss == 0) {
-                std::unique_lock<MtxLockType> Lock;
-                if (MtxPool != nullptr) {
-                    const uint64_t NodeMtxHash =
-                        reinterpret_cast<uint64_t>(CurrentNode);
-                    Lock = std::unique_lock<MtxLockType>(
-                        *MtxPool->get(NodeMtxHash));
-                }
-
-                // Re-check the number of visit and virtual loss after getting a
-                // lock. It is no longer zero if another thread has expanded
-                // this leaf.
-                if (CurrentNode->getVisitsAndVirtualLoss() != 0ULL) {
+                if (VisitsAndVirtualLossOld != 0) {
+                    // Another thread has collected this leaf node,
+                    // so there is nothing to do here.
+                    CurrentNode->decrementVirtualLoss();
                     return nullptr;
                 }
 
-                incrementVirtualLosses(CurrentNode);
+                // Increment ancestors' virtual loss.
+                if (CurrentNode->getParent() != nullptr) {
+                    incrementVirtualLosses(CurrentNode->getParent());
+                }
                 return CurrentNode;
             }
 
@@ -152,9 +142,15 @@ Node* SearchWorker::collectOneLeaf() {
         State->doMove(State->getMove32FromMove16(E->getMove()));
 
         Node* Target = E->getTarget();
+        // If `Target` is nullptr,
+        // we have not extracted the child of this node.
         if (Target == nullptr) {
-            // If `Target` is nullptr, we have not extracted the child of this
-            // node.
+            const bool IsBeingExpanded = E->markExpanding();
+
+            if (IsBeingExpanded) {
+                PStat->incrementNumConflictNodeAllocation();
+                return nullptr;
+            }
 
             // Malloc a new node first before getting the lock for speed.
             Pointer<Node> NewNode;
@@ -165,23 +161,6 @@ Node* SearchWorker::collectOneLeaf() {
                 // new node.
                 PStat->incrementNumFailedToAllocateNode();
                 return nullptr;
-            }
-
-            std::unique_lock<MtxLockType> Lock;
-            if (MtxPool != nullptr) {
-                const uint64_t EdgeMtxHash = reinterpret_cast<uint64_t>(E);
-                Lock =
-                    std::unique_lock<MtxLockType>(*MtxPool->get(EdgeMtxHash));
-
-                if (E->getTarget() != nullptr) {
-                    // This thread has reached a leaf node but another thread
-                    // also had reached this leaf node and has evaluated this
-                    // leaf node. Therefore E->getTarget() is no longer nullptr
-                    // and nothing to do is left.
-                    NewNode.destroy(NA, 1);
-                    PStat->incrementNumConflictNodeAllocation();
-                    return nullptr;
-                }
             }
 
             auto* NewNodePtr = NewNode.get();
@@ -496,12 +475,6 @@ bool SearchWorker::doTask() {
         return false;
     }
 
-#ifndef NDEBUG
-    const uint64_t VirtualLoss =
-        NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
-    assert(VirtualLoss == 1);
-#endif
-
     // Check repetition.
     if (LeafNode != RootNode) {
         const auto RS = State->getRepetitionStatus();
@@ -619,7 +592,6 @@ SearchWorkerMaster::SearchWorkerMaster(
     allocator::Allocator* EdgeAllocator,
     EvaluationQueue* EQueue,
     CheckmateQueue* CQueue,
-    MutexPool<>* MtxPool,
     EvalCache* ECache,
     Statistics* Stat,
     std::function<void()> SearchStopCallback,
@@ -629,7 +601,6 @@ SearchWorkerMaster::SearchWorkerMaster(
             EdgeAllocator,
             EQueue,
             CQueue,
-            MtxPool,
             ECache,
             Stat)
     , PContext(C)

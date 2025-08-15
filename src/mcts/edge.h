@@ -26,7 +26,8 @@ struct Node;
 struct Edge {
  public:
     Edge()
-        : Ready(false) {
+        : Ready(false)
+        , Expanding(false) {
     }
 
     Edge(const Edge& E) {
@@ -87,11 +88,16 @@ struct Edge {
         return Move;
     }
 
+    bool markExpanding() {
+        return Expanding.exchange(true, std::memory_order_relaxed);
+    }
+
  private:
     Pointer<Node> Target;
     float Probability;
     core::Move16 Move;
     std::atomic<bool> Ready;
+    std::atomic<bool> Expanding;
 };
 
 } // namespace mcts
