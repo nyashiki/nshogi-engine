@@ -17,6 +17,7 @@
 #include "../worker/worker.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
+#include "feedqueue.h"
 #include "node.h"
 #include "statistics.h"
 
@@ -34,8 +35,8 @@ namespace mcts {
 class EvaluationWorker : public worker::Worker {
  public:
     EvaluationWorker(const Context*, std::size_t ThreadId, std::size_t GPUId,
-                     std::size_t BatchSize, EvaluationQueue*, EvalCache*,
-                     Statistics* Stat);
+                     std::size_t BatchSize, EvaluationQueue*, FeedQueue* ,
+                     EvalCache*, Statistics* Stat);
     ~EvaluationWorker();
 
  private:
@@ -44,10 +45,8 @@ class EvaluationWorker : public worker::Worker {
     void initializationTask() override;
     bool doTask() override;
     void getBatch();
-    void doInference();
-    void feedResults();
-    void feedResult(core::Color, Node*, const float* Policy, float WinRate,
-                    float DrawRate, uint64_t Hash);
+    std::unique_ptr<Batch> doInference();
+    void addToFeedQueue(std::unique_ptr<Batch>&& B);
 
     const Context* PContext;
 
@@ -55,6 +54,7 @@ class EvaluationWorker : public worker::Worker {
 
     const std::size_t BatchSizeMax;
     EvaluationQueue* const EQueue;
+    FeedQueue* const FQueue;
     EvalCache* const ECache;
 
     std::unique_ptr<infer::Infer> Infer;
