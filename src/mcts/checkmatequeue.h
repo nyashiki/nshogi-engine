@@ -16,8 +16,8 @@
 #include <mutex>
 #include <queue>
 
-#include <nshogi/core/position.h>
 #include "../lock/spinlock.h"
+#include <nshogi/core/position.h>
 
 namespace nshogi {
 namespace engine {
@@ -25,7 +25,8 @@ namespace mcts {
 
 struct CheckmateTask {
  public:
-    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth, uint64_t Gen)
+    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth,
+                  uint64_t Gen)
         : TargetNode(N)
         , Position(Pos)
         , Depth(MaxDepth)
@@ -62,8 +63,7 @@ class CheckmateQueue {
     void add(Node*, const core::Position&, uint64_t Depth) noexcept;
     bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
     auto get() noexcept -> std::unique_ptr<CheckmateTask>;
-    auto getAll() noexcept
-        -> std::queue<std::unique_ptr<CheckmateTask>>;
+    auto getAll() noexcept -> std::queue<std::unique_ptr<CheckmateTask>>;
 
     void incrementGeneration();
 

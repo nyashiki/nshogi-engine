@@ -19,6 +19,8 @@
 #include "evalcache.h"
 #include "evaluationqueue.h"
 #include "evaluationworker.h"
+#include "feedqueue.h"
+#include "feedworker.h"
 #include "garbagecollector.h"
 #include "searchworker.h"
 #include "statistics.h"
@@ -53,10 +55,10 @@ class Manager {
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
-    void
-    thinkNextMove(const core::State&, const core::StateConfig&, engine::Limit,
-                  std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
-                      Callback, const std::vector<core::Move32>& BannedMoves = {});
+    void thinkNextMove(
+        const core::State&, const core::StateConfig&, engine::Limit,
+        std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback,
+        const std::vector<core::Move32>& BannedMoves = {});
     void interrupt();
 
     void resetSearchTree();
@@ -66,10 +68,11 @@ class Manager {
 
     void setupAllocator();
     void setupGarbageCollector();
-    void setupMutexPool();
     void setupSearchTree();
     void setupEvaluationQueue(std::size_t BatchSize, std::size_t NumGPUs,
                               std::size_t NumEvaluationWorkersPerGPU);
+    void setupFeedQueue();
+    void setupFeedWorkers(std::size_t NumFeedWorkers);
     void setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
                                 std::size_t NumEvaluationWorkersPerGPU);
     void setupSearchWorkers(std::size_t NumSearchWorkers);
@@ -97,11 +100,12 @@ class Manager {
     std::unique_ptr<GarbageCollector> GC;
     std::unique_ptr<EvaluationQueue> EQueue;
     std::unique_ptr<CheckmateQueue> CQueue;
+    std::unique_ptr<FeedQueue> FQueue;
     std::unique_ptr<EvalCache> ECache;
-    std::unique_ptr<MutexPool<>> MtxPool;
     std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
     SearchWorkerMaster* SWorkerMaster;
     std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
+    std::vector<std::unique_ptr<FeedWorker>> FeedWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::shared_ptr<logger::Logger> PLogger;

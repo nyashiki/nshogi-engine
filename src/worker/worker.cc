@@ -30,9 +30,7 @@ Worker::~Worker() {
 
     {
         std::unique_lock<std::mutex> Lock(Mutex);
-        AwaitCV.wait(Lock, [this] {
-            return WState == WorkerState::Exit;
-        });
+        AwaitCV.wait(Lock, [this] { return WState == WorkerState::Exit; });
     }
 
     Thread.join();
@@ -55,9 +53,7 @@ void Worker::stop() {
 void Worker::await() {
     // Wait until the thread has stopped.
     std::unique_lock<std::mutex> Lock(Mutex);
-    AwaitCV.wait(Lock, [this] {
-        return WState == WorkerState::Idle;
-    });
+    AwaitCV.wait(Lock, [this] { return WState == WorkerState::Idle; });
 }
 
 void Worker::spawnThread() {

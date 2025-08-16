@@ -129,7 +129,8 @@ void Executor::executeCommand(const commands::Think* Command) {
         const Limit* MyLimit = State->getSideToMove() == core::Black
                                    ? &Command->limit()[0]
                                    : &Command->limit()[1];
-        Manager->thinkNextMove(*State, *StateConfig, *MyLimit, Command->callback());
+        Manager->thinkNextMove(*State, *StateConfig, *MyLimit,
+                               Command->callback());
     }
 }
 
@@ -172,6 +173,9 @@ void Executor::setConfig(const commands::IntegerConfig* Config) {
     } else if (Config->configurable() ==
                commands::Configurable::NumCheckmateSearchThreads) {
         CManager.setNumCheckmateSearchThreads((std::size_t)Config->value());
+    } else if (Config->configurable() ==
+               commands::Configurable::NumFeedThreads) {
+        CManager.setNumFeedThreads((std::size_t)Config->value());
     } else if (Config->configurable() == commands::Configurable::BatchSize) {
         CManager.setBatchSize((std::size_t)Config->value());
     } else if (Config->configurable() == commands::Configurable::HashMemoryMB) {

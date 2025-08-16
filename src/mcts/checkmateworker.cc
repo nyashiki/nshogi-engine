@@ -16,8 +16,7 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateWorker::CheckmateWorker(CheckmateQueue* CQueue,
-                                Statistics* Stat)
+CheckmateWorker::CheckmateWorker(CheckmateQueue* CQueue, Statistics* Stat)
     : worker::Worker(true)
     , DfPnSolver(64)
     , PCheckmateQueue(CQueue)
@@ -54,8 +53,7 @@ bool CheckmateWorker::doTask() {
     // Now, trying to solve the position.
     const auto StartTime = std::chrono::steady_clock::now();
     auto State = core::StateBuilder::newState(Task->position());
-    const auto CheckmateMove =
-        DfPnSolver.solve(&State, 1000, Task->depth());
+    const auto CheckmateMove = DfPnSolver.solve(&State, 1000, Task->depth());
     const auto EndTime = std::chrono::steady_clock::now();
     const uint64_t Elapsed =
         (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(

@@ -10,18 +10,17 @@
 #ifndef NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 #define NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 
+#include "../context.h"
+#include "../limit.h"
 #include "../lock/spinlock.h"
+#include "../logger/logger.h"
 #include "../worker/worker.h"
 #include "checkmatequeue.h"
 #include "edge.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
-#include "mutexpool.h"
 #include "node.h"
 #include "statistics.h"
-#include "../context.h"
-#include "../limit.h"
-#include "../logger/logger.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -37,7 +36,7 @@ class SearchWorker : public worker::Worker {
  public:
     SearchWorker(allocator::Allocator* NodeAllocator,
                  allocator::Allocator* EdgeAllocator, EvaluationQueue*,
-                 CheckmateQueue*, MutexPool<>*, EvalCache*, Statistics* Stat);
+                 CheckmateQueue*, EvalCache*, Statistics* Stat);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -74,7 +73,6 @@ class SearchWorker : public worker::Worker {
     allocator::Allocator* EA;
     EvaluationQueue* EQueue;
     CheckmateQueue* CQueue;
-    MutexPool<>* MtxPool;
     EvalCache* ECache;
     Statistics* PStat;
 
@@ -85,18 +83,11 @@ class SearchWorker : public worker::Worker {
 
 class SearchWorkerMaster : public SearchWorker {
  public:
-    SearchWorkerMaster(
-        const Context*,
-        allocator::Allocator* NodeAllocator,
-        allocator::Allocator* EdgeAllocator,
-        EvaluationQueue*,
-        CheckmateQueue*,
-        MutexPool<>*,
-        EvalCache*,
-        Statistics*,
-        std::function<void()> SearchStopCallback,
-        std::shared_ptr<logger::Logger>
-    );
+    SearchWorkerMaster(const Context*, allocator::Allocator* NodeAllocator,
+                       allocator::Allocator* EdgeAllocator, EvaluationQueue*,
+                       CheckmateQueue*, EvalCache*, Statistics*,
+                       std::function<void()> SearchStopCallback,
+                       std::shared_ptr<logger::Logger>);
     ~SearchWorkerMaster() override;
 
     void setLimit(const engine::Limit& L);

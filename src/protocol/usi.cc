@@ -49,6 +49,7 @@ constexpr static const char* USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU =
     "NumEvaluationThreadsPerGPU";
 constexpr static const char* USI_OPTION_NUM_CHECKMATE_THREADS =
     "NumCheckmateSearchThreads";
+constexpr static const char* USI_OPTION_NUM_FEED_THREADS = "NumFeedThreads";
 constexpr static const char* USI_OPTION_BATCH_SIZE = "BatchSize";
 constexpr static const char* USI_OPTION_BOOK_ENABLED = "IsBookEnabled";
 constexpr static const char* USI_OPTION_WEIGHT_PATH = "WeightPath";
@@ -80,6 +81,8 @@ void setupOption(const Context* C) {
                         (int64_t)C->getNumEvaluationThreadsPerGPU(), 1, 2048);
     Option.addIntOption(USI_OPTION_NUM_CHECKMATE_THREADS,
                         (int64_t)C->getNumCheckmateSearchThreads(), 0, 128);
+    Option.addIntOption(USI_OPTION_NUM_FEED_THREADS,
+                        (int64_t)C->getNumFeedThreads(), 1, 128);
     Option.addIntOption(USI_OPTION_BATCH_SIZE, (int64_t)C->getBatchSize(), 1,
                         4096);
     Option.addBoolOption(USI_OPTION_BOOK_ENABLED, C->isBookEnabled());
@@ -90,10 +93,8 @@ void setupOption(const Context* C) {
                         (int64_t)C->getEvalCacheMemoryMB(), 0LL, 1024 * 1024LL);
     Option.addIntOption(USI_OPTION_THINKING_TIME_MARGIN,
                         (int64_t)C->getThinkingTimeMargin(), 0LL, 60 * 1000);
-    Option.addIntOption(USI_OPTION_BLACK_DRAW_VALUE,
-                        50, 0, 100);
-    Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE,
-                        50, 0, 100);
+    Option.addIntOption(USI_OPTION_BLACK_DRAW_VALUE, 50, 0, 100);
+    Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE, 50, 0, 100);
     Option.addIntOption(USI_OPTION_MINIMUM_THINKING_TIME,
                         (int)C->getMinimumThinkingTimeMilliseconds(), 0,
                         9999999);
@@ -154,6 +155,9 @@ void isready() {
     Executor->pushCommand(std::make_shared<IntegerConfig>(
         Configurable::NumCheckmateSearchThreads,
         Option.getIntOption(USI_OPTION_NUM_CHECKMATE_THREADS)));
+    Executor->pushCommand(std::make_shared<IntegerConfig>(
+        Configurable::NumFeedThreads,
+        Option.getIntOption(USI_OPTION_NUM_FEED_THREADS)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(
         Configurable::BatchSize, Option.getIntOption(USI_OPTION_BATCH_SIZE)));
     Executor->pushCommand(std::make_shared<IntegerConfig>(

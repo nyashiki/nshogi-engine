@@ -12,8 +12,8 @@
 
 #include <condition_variable>
 #include <mutex>
-#include <thread>
 #include <stop_token>
+#include <thread>
 
 namespace nshogi {
 namespace engine {
