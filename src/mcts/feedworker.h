@@ -10,10 +10,10 @@
 #ifndef NSHOGI_ENGINE_MCTS_FEEDWORKER_H_
 #define NSHOGI_ENGINE_MCTS_FEEDWORKER_H_
 
-#include "feedqueue.h"
-#include "evalcache.h"
-#include "../worker/worker.h"
 #include "../context.h"
+#include "../worker/worker.h"
+#include "evalcache.h"
+#include "feedqueue.h"
 
 #include <memory>
 
@@ -33,14 +33,8 @@ class FeedWorker : public worker::Worker {
     void feedResults(std::unique_ptr<Batch>&&);
 
     template <bool NaNFallbackEnabled>
-    void feedResult(
-        core::Color SideToMove,
-        Node* N,
-        const float* Policy,
-        float WinRate,
-        float DrawRate,
-        uint64_t Hash
-    );
+    void feedResult(core::Color SideToMove, Node* N, const float* Policy,
+                    float WinRate, float DrawRate, uint64_t Hash);
 
     const Context* PContext;
     FeedQueue* Queue;

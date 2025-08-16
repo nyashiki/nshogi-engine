@@ -46,8 +46,7 @@ bool CheckmateQueue::tryAdd(Node* N, const core::Position& Position,
     return Succeeded;
 }
 
-auto CheckmateQueue::get() noexcept
-    -> std::unique_ptr<CheckmateTask> {
+auto CheckmateQueue::get() noexcept -> std::unique_ptr<CheckmateTask> {
     std::lock_guard<lock::SpinLock> Lock(SpinLock);
 
     if (Queue.empty()) {

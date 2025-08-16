@@ -86,7 +86,8 @@ Manager::~Manager() {
 void Manager::thinkNextMove(
     const core::State& State, const core::StateConfig& Config,
     engine::Limit Lim,
-    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback, const std::vector<core::Move32>& BannedMoves) {
+    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback,
+    const std::vector<core::Move32>& BannedMoves) {
 
     interruptInternal(true);
 
@@ -189,7 +190,8 @@ void Manager::setupFeedQueue() {
 
 void Manager::setupFeedWorkers(std::size_t NumFeedWorkers) {
     for (std::size_t I = 0; I < NumFeedWorkers; ++I) {
-        FeedWorkers.emplace_back(std::make_unique<FeedWorker>(PContext, FQueue.get(), ECache.get()));
+        FeedWorkers.emplace_back(
+            std::make_unique<FeedWorker>(PContext, FQueue.get(), ECache.get()));
     }
 }
 
@@ -199,7 +201,8 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
     for (std::size_t I = 0; I < NumGPUs; ++I) {
         for (std::size_t J = 0; J < NumEvaluationWorkersPerGPU; ++J) {
             EvaluationWorkers.emplace_back(std::make_unique<EvaluationWorker>(
-                PContext, ThreadId, I, BatchSize, EQueue.get(), FQueue.get(), &Stat));
+                PContext, ThreadId, I, BatchSize, EQueue.get(), FQueue.get(),
+                &Stat));
             ++ThreadId;
         }
     }
@@ -220,16 +223,9 @@ void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     //     for (auto& Worker : SearchWorkers) Worker->start()
     // naturally guarantees the master starts after the others start.
     SWorkerMaster = new SearchWorkerMaster(
-        PContext,
-        &NodeAllocator,
-        &EdgeAllocator,
-        EQueue.get(),
-        CQueue.get(),
-        ECache.get(),
-        &Stat,
-        std::bind(&Manager::searchStopCallback, this),
-        PLogger
-    );
+        PContext, &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
+        ECache.get(), &Stat, std::bind(&Manager::searchStopCallback, this),
+        PLogger);
     SearchWorkers.emplace_back(SWorkerMaster);
 }
 
@@ -387,10 +383,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
         const uint64_t Visits =
             RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
         if (Visits > 0) {
-            TL->WinRate =
-                RootNode->getWinRateAccumulated() / (double)Visits;
-            TL->DrawRate =
-                RootNode->getDrawRateAccumulated() / (double)Visits;
+            TL->WinRate = RootNode->getWinRateAccumulated() / (double)Visits;
+            TL->DrawRate = RootNode->getDrawRateAccumulated() / (double)Visits;
             TL->PlyToTerminal = RootNode->getPlyToTerminalSolved();
         }
     }
@@ -411,9 +405,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
         // Start pondering before sending the bestmove
         // not to cause timing issue caused by pondering
         // and a given immediate next thinkNextMove() calling.
-        if (Status == ManagerStatus::Thinking && PContext->isPonderingEnabled() &&
-            !BestMove.isNone() && !BestMove.isWin() &&
-            !checkMemoryBudgetForPondering()) {
+        if (Status == ManagerStatus::Thinking &&
+            PContext->isPonderingEnabled() && !BestMove.isNone() &&
+            !BestMove.isWin() && !checkMemoryBudgetForPondering()) {
             Node* RootNodePondering = SearchTree->getRoot();
             if (RootNodePondering->getPlyToTerminalSolved() == 0) {
                 Status = ManagerStatus::Pondering;

@@ -25,21 +25,19 @@ namespace mcts {
 
 struct Batch {
  public:
-    Batch(
-        std::size_t BatchSize,
-        std::unique_ptr<core::Color[]>&& Colors,
-        std::unique_ptr<Node*[]>&& Nodes,
-        std::unique_ptr<uint64_t[]>&& Hashes,
-        std::unique_ptr<float[]>&& Policies,
-        std::unique_ptr<float[]>&& WinRates,
-        std::unique_ptr<float[]>&& DrawRates)
-    : Size(BatchSize)
-    , MyColors(std::move(Colors))
-    , MyNodes(std::move(Nodes))
-    , MyHashes(std::move(Hashes))
-    , MyPolicies(std::move(Policies))
-    , MyWinRates(std::move(WinRates))
-    , MyDrawRates(std::move(DrawRates)) {
+    Batch(std::size_t BatchSize, std::unique_ptr<core::Color[]>&& Colors,
+          std::unique_ptr<Node*[]>&& Nodes,
+          std::unique_ptr<uint64_t[]>&& Hashes,
+          std::unique_ptr<float[]>&& Policies,
+          std::unique_ptr<float[]>&& WinRates,
+          std::unique_ptr<float[]>&& DrawRates)
+        : Size(BatchSize)
+        , MyColors(std::move(Colors))
+        , MyNodes(std::move(Nodes))
+        , MyHashes(std::move(Hashes))
+        , MyPolicies(std::move(Policies))
+        , MyWinRates(std::move(WinRates))
+        , MyDrawRates(std::move(DrawRates)) {
     }
 
     std::size_t size() const {

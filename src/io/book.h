@@ -13,7 +13,6 @@
 #include <fstream>
 #include <vector>
 
-
 namespace nshogi {
 namespace engine {
 
@@ -31,7 +30,8 @@ enum class Format {
     YaneuraOu,
 };
 
-void save(const engine::book::Book& Book, std::ofstream&, Format = Format::NShogi);
+void save(const engine::book::Book& Book, std::ofstream&,
+          Format = Format::NShogi);
 void load(engine::book::Book& Book, std::ifstream&);
 
 } // namespace book

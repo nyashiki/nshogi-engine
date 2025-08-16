@@ -17,10 +17,10 @@
 #include <set>
 #include <vector>
 
-#include "bookentry.h"
 #include "../context.h"
-#include "../mcts/manager.h"
 #include "../contextmanager.h"
+#include "../mcts/manager.h"
+#include "bookentry.h"
 
 #include <nshogi/core/state.h>
 
@@ -53,21 +53,22 @@ class BookMaker {
     void start(const std::string& Sfen);
 
  private:
-    auto startThinking(
-            core::State* State,
-            const core::StateConfig& Config,
-            const std::vector<core::Move32>& BannedMoves,
-            const engine::Limit&
-    ) -> std::pair<core::Move32, std::unique_ptr<mcts::ThoughtLog>>;
+    auto startThinking(core::State* State, const core::StateConfig& Config,
+                       const std::vector<core::Move32>& BannedMoves,
+                       const engine::Limit&)
+        -> std::pair<core::Move32, std::unique_ptr<mcts::ThoughtLog>>;
     void evaluate(core::State* State, const core::StateConfig& Config);
-    void updateNegaMaxValue(core::State* State, const core::StateConfig& Config);
-    std::optional<BookEntry> updateNegaMaxValueAllInternal(
-            core::State* State,
-            const core::StateConfig& Config,
-            std::set<std::string>& Fixed);
+    void updateNegaMaxValue(core::State* State,
+                            const core::StateConfig& Config);
+    std::optional<BookEntry>
+    updateNegaMaxValueAllInternal(core::State* State,
+                                  const core::StateConfig& Config,
+                                  std::set<std::string>& Fixed);
     void updateNegaMaxValueAll(const core::StateConfig& Config);
-    void executeOneIteration(core::State* State, const core::StateConfig& Config);
-    std::vector<core::Move32> getPV(core::State* State, const core::StateConfig& Config);
+    void executeOneIteration(core::State* State,
+                             const core::StateConfig& Config);
+    std::vector<core::Move32> getPV(core::State* State,
+                                    const core::StateConfig& Config);
 
     std::unique_ptr<mcts::Manager> Manager;
     Book MyBook;

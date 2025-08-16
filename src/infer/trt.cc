@@ -129,7 +129,7 @@ void TensorRT::load(const std::string& Path,
                 }
             }
 
-            for (auto* Out: Targets) {
+            for (auto* Out : Targets) {
                 const std::string Name = Out->getName();
                 const std::string OldName = Name + "_logits";
                 const std::string NewName = Name + "_sigmoid";
@@ -137,7 +137,8 @@ void TensorRT::load(const std::string& Path,
                 Network->unmarkOutput(*Out);
                 Out->setName(OldName.c_str());
 
-                auto Act = Network->addActivation(*Out, nvinfer1::ActivationType::kSIGMOID);
+                auto Act = Network->addActivation(
+                    *Out, nvinfer1::ActivationType::kSIGMOID);
                 Act->setName(NewName.c_str());
 
                 nvinfer1::ITensor* OutActivated = Act->getOutput(0);
@@ -257,8 +258,9 @@ void TensorRT::resetGPU() {
 
 void TensorRT::makeCudaGraph() {
     { // Cuda graph for half batch size.
-        Context->setInputShape("input",
-                               nvinfer1::Dims4{(int32_t)(BatchSizeM + 1) / 2, NumC, 9, 9});
+        Context->setInputShape(
+            "input",
+            nvinfer1::Dims4{(int32_t)(BatchSizeM + 1) / 2, NumC, 9, 9});
 
         cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
 
@@ -270,7 +272,8 @@ void TensorRT::makeCudaGraph() {
 
         cudaStreamEndCapture(Stream, &CudaGraph[0]);
 
-        cudaGraphInstantiate(&CudaGraphExec[0], CudaGraph[0], nullptr, nullptr, 0);
+        cudaGraphInstantiate(&CudaGraphExec[0], CudaGraph[0], nullptr, nullptr,
+                             0);
 
         cudaGraphUpload(CudaGraphExec[0], Stream);
 
@@ -278,8 +281,8 @@ void TensorRT::makeCudaGraph() {
     }
 
     { // Cuda graph for full batch size.
-        Context->setInputShape("input",
-                               nvinfer1::Dims4{(int32_t)BatchSizeM, NumC, 9, 9});
+        Context->setInputShape(
+            "input", nvinfer1::Dims4{(int32_t)BatchSizeM, NumC, 9, 9});
 
         cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
 
@@ -291,7 +294,8 @@ void TensorRT::makeCudaGraph() {
 
         cudaStreamEndCapture(Stream, &CudaGraph[1]);
 
-        cudaGraphInstantiate(&CudaGraphExec[1], CudaGraph[1], nullptr, nullptr, 0);
+        cudaGraphInstantiate(&CudaGraphExec[1], CudaGraph[1], nullptr, nullptr,
+                             0);
 
         cudaGraphUpload(CudaGraphExec[1], Stream);
 

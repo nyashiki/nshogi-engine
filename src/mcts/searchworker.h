@@ -10,7 +10,10 @@
 #ifndef NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 #define NSHOGI_ENGINE_MCTS_SEARCHWORKER_H
 
+#include "../context.h"
+#include "../limit.h"
 #include "../lock/spinlock.h"
+#include "../logger/logger.h"
 #include "../worker/worker.h"
 #include "checkmatequeue.h"
 #include "edge.h"
@@ -18,9 +21,6 @@
 #include "evaluationqueue.h"
 #include "node.h"
 #include "statistics.h"
-#include "../context.h"
-#include "../limit.h"
-#include "../logger/logger.h"
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
@@ -83,17 +83,11 @@ class SearchWorker : public worker::Worker {
 
 class SearchWorkerMaster : public SearchWorker {
  public:
-    SearchWorkerMaster(
-        const Context*,
-        allocator::Allocator* NodeAllocator,
-        allocator::Allocator* EdgeAllocator,
-        EvaluationQueue*,
-        CheckmateQueue*,
-        EvalCache*,
-        Statistics*,
-        std::function<void()> SearchStopCallback,
-        std::shared_ptr<logger::Logger>
-    );
+    SearchWorkerMaster(const Context*, allocator::Allocator* NodeAllocator,
+                       allocator::Allocator* EdgeAllocator, EvaluationQueue*,
+                       CheckmateQueue*, EvalCache*, Statistics*,
+                       std::function<void()> SearchStopCallback,
+                       std::shared_ptr<logger::Logger>);
     ~SearchWorkerMaster() override;
 
     void setLimit(const engine::Limit& L);

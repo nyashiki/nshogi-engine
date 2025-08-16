@@ -80,8 +80,10 @@ Node* SearchWorker::collectOneLeaf() {
         }
 
         if (Visits == 0) {
-            if (VisitsAndVirtualLoss == 0) {  // i.e., Visit == 0 && VirtualLoss == 0.
-                const uint64_t VisitsAndVirtualLossOld = CurrentNode->incrementVirtualLoss();
+            if (VisitsAndVirtualLoss ==
+                0) { // i.e., Visit == 0 && VirtualLoss == 0.
+                const uint64_t VisitsAndVirtualLossOld =
+                    CurrentNode->incrementVirtualLoss();
 
                 if (VisitsAndVirtualLossOld != 0) {
                     // Another thread has collected this leaf node,
@@ -188,7 +190,8 @@ int16_t SearchWorker::expandLeaf(Node* LeafNode) {
         core::MoveList FilteredMoves;
 
         for (const core::Move32 Move : Moves) {
-            if (std::find(BannedMoves.begin(), BannedMoves.end(), Move) == BannedMoves.end()) {
+            if (std::find(BannedMoves.begin(), BannedMoves.end(), Move) ==
+                BannedMoves.end()) {
                 FilteredMoves.add(Move);
             }
         }
@@ -259,7 +262,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 const double ThisPolicy =
                     (double)N->getEdge()[CurrentVirtualLoss].getProbability();
                 const double Const =
-                    1.0 / (CInit * std::sqrt((double)(CurrentVirtualLoss + (uint64_t)1)));
+                    1.0 / (CInit * std::sqrt((double)(CurrentVirtualLoss +
+                                                      (uint64_t)1)));
                 for (uint16_t I = 0; I < CurrentVirtualLoss - 1; ++I) {
                     const double Policy =
                         (double)N->getEdge()[I].getProbability();
@@ -582,22 +586,11 @@ bool SearchWorker::doTask() {
 }
 
 SearchWorkerMaster::SearchWorkerMaster(
-    const Context* C,
-    allocator::Allocator* NodeAllocator,
-    allocator::Allocator* EdgeAllocator,
-    EvaluationQueue* EQueue,
-    CheckmateQueue* CQueue,
-    EvalCache* ECache,
-    Statistics* Stat,
-    std::function<void()> SearchStopCallback,
-    std::shared_ptr<logger::Logger> L)
-    : SearchWorker(
-            NodeAllocator,
-            EdgeAllocator,
-            EQueue,
-            CQueue,
-            ECache,
-            Stat)
+    const Context* C, allocator::Allocator* NodeAllocator,
+    allocator::Allocator* EdgeAllocator, EvaluationQueue* EQueue,
+    CheckmateQueue* CQueue, EvalCache* ECache, Statistics* Stat,
+    std::function<void()> SearchStopCallback, std::shared_ptr<logger::Logger> L)
+    : SearchWorker(NodeAllocator, EdgeAllocator, EQueue, CQueue, ECache, Stat)
     , PContext(C)
     , Callback(SearchStopCallback)
     , Logger(std::move(L))
@@ -649,7 +642,8 @@ bool SearchWorkerMaster::doTask() {
     // Dump log.
     const auto CurrentTime = std::chrono::steady_clock::now();
     const uint64_t Elapsed = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(CurrentTime - SearchStartTime)
+        std::chrono::duration_cast<std::chrono::milliseconds>(CurrentTime -
+                                                              SearchStartTime)
             .count());
     if (Elapsed >= PContext->getLogMargin() + LogOutputPrevious) {
         dumpPVLog(Elapsed);
@@ -693,7 +687,8 @@ logger::PVLog SearchWorkerMaster::getPVLog() const {
 
     Node* N = RootNode;
 
-    const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+    const uint64_t Visits =
+        RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
 
     Log.NumNodes = Visits;
     Log.CurrentSideToMove = State->getSideToMove();
@@ -753,7 +748,8 @@ bool SearchWorkerMaster::checkNodeLimit() const {
         return false;
     }
 
-    const uint64_t Visits = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+    const uint64_t Visits =
+        RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
     return Visits >= Limit.NumNodes;
 }
 
@@ -761,13 +757,13 @@ bool SearchWorkerMaster::checkMemoryBudget() const {
     const double Factor = PContext->getMemoryLimitFactor();
 
     if (NA->getTotal() > 0 &&
-            (double)NA->getUsed() >= (double)NA->getTotal() * Factor) {
+        (double)NA->getUsed() >= (double)NA->getTotal() * Factor) {
         Logger->printLog("Memory limit (Node).");
         return true;
     }
 
     if (EA->getTotal() > 0 &&
-            (double)EA->getUsed() >= (double)EA->getTotal() * Factor) {
+        (double)EA->getUsed() >= (double)EA->getTotal() * Factor) {
         Logger->printLog("Memory limit (Edge).");
         return true;
     }
@@ -784,10 +780,9 @@ bool SearchWorkerMaster::checkThinkingTimeBudget(uint64_t Elapsed) const {
         return false;
     }
 
-    const uint64_t Budget =
-        Limit.TimeLimitMilliSeconds +
-        Limit.ByoyomiMilliSeconds +
-        Limit.IncreaseMilliSeconds;
+    const uint64_t Budget = Limit.TimeLimitMilliSeconds +
+                            Limit.ByoyomiMilliSeconds +
+                            Limit.IncreaseMilliSeconds;
 
     return Elapsed + PContext->getThinkingTimeMargin() >= Budget;
 }
@@ -822,7 +817,8 @@ bool SearchWorkerMaster::hasMadeUpMind(uint64_t Elapsed) {
     }
 
     const Edge* BestEdge = RootNode->mostPromisingEdge();
-    if (BestEdge == BestEdgePrevious && Visits.size() == VisitsPrevious.size()) {
+    if (BestEdge == BestEdgePrevious &&
+        Visits.size() == VisitsPrevious.size()) {
         double KLDivergence = 0.0;
         double KLDivergenceToPredicted = 0.0;
 
@@ -835,7 +831,8 @@ bool SearchWorkerMaster::hasMadeUpMind(uint64_t Elapsed) {
             }
 
             const double Predicted = RootNode->getEdge()[I].getProbability();
-            const double KLD = VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
+            const double KLD =
+                VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
 
             KLDivergence += KLD;
 
@@ -846,7 +843,8 @@ bool SearchWorkerMaster::hasMadeUpMind(uint64_t Elapsed) {
             }
         }
 
-        const double KLDThreshold = (KLDivergenceToPredicted < 0.4) ? 1e-5 : 1e-6;
+        const double KLDThreshold =
+            (KLDivergenceToPredicted < 0.4) ? 1e-5 : 1e-6;
 
         if (KLDivergence < KLDThreshold) {
             return true;

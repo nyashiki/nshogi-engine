@@ -10,9 +10,9 @@
 #include "book.h"
 #include "../book/bookentry.h"
 
-#include <nshogi/io/sfen.h>
-#include <cmath>
 #include <cinttypes>
+#include <cmath>
+#include <nshogi/io/sfen.h>
 
 namespace nshogi {
 namespace engine {
@@ -35,19 +35,24 @@ int convertWinRateToScoreCP(double WinRate) {
 
 } // namespace
 
-void save(const engine::book::Book& Book, std::ofstream& Ofs, Format OutputFormat) {
+void save(const engine::book::Book& Book, std::ofstream& Ofs,
+          Format OutputFormat) {
     if (OutputFormat == Format::NShogi) {
         for (const auto& [Sfen, Index] : Book.Dictionary) {
             const auto& Entry = Book.Entries[Index];
 
             const std::size_t Size = Sfen.size() + 1;
-            Ofs.write(reinterpret_cast<const char*>(&Size), sizeof(std::size_t));
+            Ofs.write(reinterpret_cast<const char*>(&Size),
+                      sizeof(std::size_t));
             Ofs.write(Sfen.c_str(), (long)Size);
 
             const uint32_t MoveValue = Entry.BestMove.value();
-            Ofs.write(reinterpret_cast<const char*>(&Entry.WinRate), sizeof(double));
-            Ofs.write(reinterpret_cast<const char*>(&Entry.DrawRate), sizeof(double));
-            Ofs.write(reinterpret_cast<const char*>(&MoveValue), sizeof(uint32_t));
+            Ofs.write(reinterpret_cast<const char*>(&Entry.WinRate),
+                      sizeof(double));
+            Ofs.write(reinterpret_cast<const char*>(&Entry.DrawRate),
+                      sizeof(double));
+            Ofs.write(reinterpret_cast<const char*>(&MoveValue),
+                      sizeof(uint32_t));
         }
     } else if (OutputFormat == Format::YaneuraOu) {
         for (const auto& [Sfen, Index] : Book.Dictionary) {

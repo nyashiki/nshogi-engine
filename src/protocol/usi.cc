@@ -49,8 +49,7 @@ constexpr static const char* USI_OPTION_NUM_EVALUATION_THREADS_PER_GPU =
     "NumEvaluationThreadsPerGPU";
 constexpr static const char* USI_OPTION_NUM_CHECKMATE_THREADS =
     "NumCheckmateSearchThreads";
-constexpr static const char* USI_OPTION_NUM_FEED_THREADS =
-    "NumFeedThreads";
+constexpr static const char* USI_OPTION_NUM_FEED_THREADS = "NumFeedThreads";
 constexpr static const char* USI_OPTION_BATCH_SIZE = "BatchSize";
 constexpr static const char* USI_OPTION_BOOK_ENABLED = "IsBookEnabled";
 constexpr static const char* USI_OPTION_WEIGHT_PATH = "WeightPath";
@@ -94,10 +93,8 @@ void setupOption(const Context* C) {
                         (int64_t)C->getEvalCacheMemoryMB(), 0LL, 1024 * 1024LL);
     Option.addIntOption(USI_OPTION_THINKING_TIME_MARGIN,
                         (int64_t)C->getThinkingTimeMargin(), 0LL, 60 * 1000);
-    Option.addIntOption(USI_OPTION_BLACK_DRAW_VALUE,
-                        50, 0, 100);
-    Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE,
-                        50, 0, 100);
+    Option.addIntOption(USI_OPTION_BLACK_DRAW_VALUE, 50, 0, 100);
+    Option.addIntOption(USI_OPTION_WHITE_DRAW_VALUE, 50, 0, 100);
     Option.addIntOption(USI_OPTION_MINIMUM_THINKING_TIME,
                         (int)C->getMinimumThinkingTimeMilliseconds(), 0,
                         9999999);

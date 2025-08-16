@@ -11,9 +11,6 @@
 
 namespace nshogi {
 namespace engine {
-namespace book {
-
-
-} // namespace book
+namespace book {} // namespace book
 } // namespace engine
 } // namespace nshogi

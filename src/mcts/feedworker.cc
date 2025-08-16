@@ -40,38 +40,21 @@ bool FeedWorker::doTask() {
 void FeedWorker::feedResults(std::unique_ptr<Batch>&& B) {
     if (PContext->isNaNFallbackEnabled()) {
         for (std::size_t I = 0; I < B->size(); ++I) {
-            feedResult<true>(
-                B->color(I),
-                B->node(I),
-                B->policy(I),
-                B->winRate(I),
-                B->drawRate(I),
-                B->hash(I)
-            );
+            feedResult<true>(B->color(I), B->node(I), B->policy(I),
+                             B->winRate(I), B->drawRate(I), B->hash(I));
         }
     } else {
         for (std::size_t I = 0; I < B->size(); ++I) {
-            feedResult<false>(
-                B->color(I),
-                B->node(I),
-                B->policy(I),
-                B->winRate(I),
-                B->drawRate(I),
-                B->hash(I)
-            );
+            feedResult<false>(B->color(I), B->node(I), B->policy(I),
+                              B->winRate(I), B->drawRate(I), B->hash(I));
         }
     }
 }
 
 template <bool NaNFallbackEnabled>
-void FeedWorker::feedResult(
-    core::Color SideToMove,
-    Node* N,
-    const float* Policy,
-    float WinRate,
-    float DrawRate,
-    uint64_t Hash
-) {
+void FeedWorker::feedResult(core::Color SideToMove, Node* N,
+                            const float* Policy, float WinRate, float DrawRate,
+                            uint64_t Hash) {
     bool NaNFound = false;
     if constexpr (NaNFallbackEnabled) {
         if (math::isnan_(WinRate)) {

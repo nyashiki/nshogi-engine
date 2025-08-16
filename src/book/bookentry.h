@@ -74,8 +74,10 @@ class Book {
     std::map<std::string, std::size_t> Dictionary;
     std::vector<BookEntry> Entries;
 
- friend void nshogi::engine::io::book::save(const Book&, std::ofstream&, nshogi::engine::io::book::Format);
- friend void nshogi::engine::io::book::load(Book&, std::ifstream&);
+    friend void
+    nshogi::engine::io::book::save(const Book&, std::ofstream&,
+                                   nshogi::engine::io::book::Format);
+    friend void nshogi::engine::io::book::load(Book&, std::ifstream&);
 };
 
 } // namespace book

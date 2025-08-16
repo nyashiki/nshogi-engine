@@ -157,15 +157,19 @@ std::unique_ptr<Batch> EvaluationWorker::doInference() {
     // Start inference.
     Evaluator->computeNonBlocking(BatchCount);
 
-    std::unique_ptr<core::Color[]> Colors = std::make_unique<core::Color[]>(BatchCount);
+    std::unique_ptr<core::Color[]> Colors =
+        std::make_unique<core::Color[]>(BatchCount);
     std::unique_ptr<Node*[]> Nodes = std::make_unique<Node*[]>(BatchCount);
-    std::unique_ptr<uint64_t[]> Hashes = std::make_unique<uint64_t[]>(BatchCount);
-    std::unique_ptr<float[]> Policies = std::make_unique<float[]>(BatchCount * 27 * core::NumSquares);
+    std::unique_ptr<uint64_t[]> Hashes =
+        std::make_unique<uint64_t[]>(BatchCount);
+    std::unique_ptr<float[]> Policies =
+        std::make_unique<float[]>(BatchCount * 27 * core::NumSquares);
     std::unique_ptr<float[]> WinRates = std::make_unique<float[]>(BatchCount);
     std::unique_ptr<float[]> DrawRates = std::make_unique<float[]>(BatchCount);
 
     // Copy input.
-    std::memcpy(Colors.get(), PendingSideToMoves, BatchCount * sizeof(core::Color));
+    std::memcpy(Colors.get(), PendingSideToMoves,
+                BatchCount * sizeof(core::Color));
     std::memcpy(Nodes.get(), PendingNodes, BatchCount * sizeof(Node*));
     std::memcpy(Hashes.get(), PendingHashes, BatchCount * sizeof(uint64_t));
 
@@ -176,20 +180,16 @@ std::unique_ptr<Batch> EvaluationWorker::doInference() {
     Evaluator->await();
 
     // Copy output.
-    std::memcpy(Policies.get(), Evaluator->getPolicy(), BatchCount * 27 * core::NumSquares * sizeof(float));
-    std::memcpy(WinRates.get(), Evaluator->getWinRate(), BatchCount * sizeof(float));
-    std::memcpy(DrawRates.get(), Evaluator->getDrawRate(), BatchCount * sizeof(float));
+    std::memcpy(Policies.get(), Evaluator->getPolicy(),
+                BatchCount * 27 * core::NumSquares * sizeof(float));
+    std::memcpy(WinRates.get(), Evaluator->getWinRate(),
+                BatchCount * sizeof(float));
+    std::memcpy(DrawRates.get(), Evaluator->getDrawRate(),
+                BatchCount * sizeof(float));
 
-    std::unique_ptr<Batch> B =
-        std::make_unique<Batch>(
-            BatchCount,
-            std::move(Colors),
-            std::move(Nodes),
-            std::move(Hashes),
-            std::move(Policies),
-            std::move(WinRates),
-            std::move(DrawRates)
-        );
+    std::unique_ptr<Batch> B = std::make_unique<Batch>(
+        BatchCount, std::move(Colors), std::move(Nodes), std::move(Hashes),
+        std::move(Policies), std::move(WinRates), std::move(DrawRates));
 
     return B;
 }

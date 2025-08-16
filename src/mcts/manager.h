@@ -55,10 +55,10 @@ class Manager {
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
-    void
-    thinkNextMove(const core::State&, const core::StateConfig&, engine::Limit,
-                  std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
-                      Callback, const std::vector<core::Move32>& BannedMoves = {});
+    void thinkNextMove(
+        const core::State&, const core::StateConfig&, engine::Limit,
+        std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback,
+        const std::vector<core::Move32>& BannedMoves = {});
     void interrupt();
 
     void resetSearchTree();
