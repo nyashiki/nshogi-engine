@@ -44,14 +44,13 @@ namespace mcts {
 EvaluationWorker::EvaluationWorker(const Context* C, std::size_t ThreadId,
                                    std::size_t GPUId, std::size_t BatchSize,
                                    EvaluationQueue* EQ, FeedQueue* FQ,
-                                   EvalCache* EC, Statistics* Stat)
+                                   Statistics* Stat)
     : worker::Worker(true)
     , PContext(C)
     , MyThreadId(ThreadId)
     , BatchSizeMax(BatchSize)
     , EQueue(EQ)
     , FQueue(FQ)
-    , ECache(EC)
     , GPUId_(GPUId)
     , BatchCount(0)
     , PendingSideToMoves(nullptr)

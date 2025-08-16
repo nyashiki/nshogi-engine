@@ -36,7 +36,7 @@ class EvaluationWorker : public worker::Worker {
  public:
     EvaluationWorker(const Context*, std::size_t ThreadId, std::size_t GPUId,
                      std::size_t BatchSize, EvaluationQueue*, FeedQueue* ,
-                     EvalCache*, Statistics* Stat);
+                     Statistics* Stat);
     ~EvaluationWorker();
 
  private:
@@ -55,7 +55,6 @@ class EvaluationWorker : public worker::Worker {
     const std::size_t BatchSizeMax;
     EvaluationQueue* const EQueue;
     FeedQueue* const FQueue;
-    EvalCache* const ECache;
 
     std::unique_ptr<infer::Infer> Infer;
     std::unique_ptr<evaluate::Evaluator> Evaluator;
