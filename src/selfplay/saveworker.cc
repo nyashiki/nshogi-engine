@@ -31,6 +31,15 @@ SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ,
     , SearchQueue(SCQ)
     , IgnoreDrawGames(IgnoreDraw) {
 
+    // If SavePath is already exists, throw an exception.
+    if (std::string(SavePath) != "/dev/null") {
+        std::ifstream Ifs(SavePath, std::ios::binary);
+        if (Ifs) {
+            throw std::runtime_error(std::string(SavePath) +
+                                     " already exists.");
+        }
+    }
+
     Ofs.open(SavePath, std::ios::binary);
     if (!Ofs) {
         throw std::runtime_error(std::string("Failed to open ") + SavePath +
