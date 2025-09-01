@@ -18,6 +18,7 @@
 #include <nshogi/core/statebuilder.h>
 #include <nshogi/ml/math.h>
 #include <nshogi/solver/dfs.h>
+#include <nshogi/io/sfen.h>
 
 namespace nshogi {
 namespace engine {
@@ -234,6 +235,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // This node has been already evaluated.
     if (F->getNodeToEvaluate()->getVisitsAndVirtualLoss() > 0) {
         assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         return SelfplayPhase::Backpropagation;
     }
 
@@ -241,14 +243,17 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
         F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::LossRepetition) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
         F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                                     ? F->getStateConfig()->BlackDrawValue
                                     : F->getStateConfig()->WhiteDrawValue;
@@ -260,6 +265,16 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // Declaration.
     if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27) {
         if (F->getState()->canDeclare()) {
+#ifndef NDEBUG
+            if (F->getNodeToEvaluate() == F->getSearchTree()->getRoot()) {
+                std::cerr << "State: " <<
+                    nshogi::io::sfen::stateToSfen(*F->getState()) << std::endl;
+                std::cerr << "Error: The root node cannot be a declaration."
+                          << std::endl;
+                std::abort();
+            }
+#endif
+            assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
         }
@@ -274,11 +289,13 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
             // Check if the last move is a checkmate by dropping a pawn.
             const auto LastMove = F->getState()->getLastMove();
             if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
                 F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
                 return SelfplayPhase::Backpropagation;
             }
         }
 
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     }
@@ -288,6 +305,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                                     ? F->getStateConfig()->BlackDrawValue
                                     : F->getStateConfig()->WhiteDrawValue;
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
         return SelfplayPhase::Backpropagation;
     }
@@ -296,14 +314,21 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     if (F->getState()->getPly() > F->getRootPly()) {
         if (isCheckmated(F)) {
             F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
+            assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
         } else if (!solver::dfs::solve(F->getState(), 5).isNone()) {
             F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
+            assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
         }
     }
 
-    F->getNodeToEvaluate()->expand(LegalMoves, EA);
+    const int16_t NumEdges = F->getNodeToEvaluate()->expand(LegalMoves, EA);
+    if (NumEdges < 0) {
+        std::cerr << "Error: Failed to allocate memory for edges."
+                  << std::endl;
+        std::abort();
+    }
 
     // Check evaluation cache.
     assert(EvalCache != nullptr);
@@ -331,7 +356,22 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         F->getState()->undoMove();
     }
 
-    assert(F->getSearchTree()->getRoot()->getNumChildren() > 0);
+#ifndef NDEBUG
+    if (F->getSearchTree()->getRoot()->getNumChildren() == 0) {
+        std::cerr << "State: " <<
+            nshogi::io::sfen::stateToSfen(*F->getState()) << std::endl;
+        std::cerr << "Moves: ";
+        const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
+        for (const core::Move32 Move : Moves) {
+            std::cerr << nshogi::io::sfen::move32ToSfen(Move) << ", ";
+        }
+        std::cerr << std::endl;
+
+        std::cerr << "Error: No legal moves at the root node."
+                  << std::endl;
+        std::abort();
+    }
+#endif
     return SelfplayPhase::SequentialHalving;
 }
 

@@ -128,8 +128,26 @@ int main(int Argc, char* Argv[]) {
                 if (Line == "" || Line[0] == '#') {
                     continue;
                 }
-                InitialPositions->emplace_back(
-                    nshogi::io::sfen::PositionBuilder::newPosition(Line));
+                const auto State = nshogi::io::sfen::StateBuilder::newState(Line);
+                if (State.canDeclare()) {
+                    std::cerr << "Declaration position is not allowed." << std::endl;
+                    std::cerr << Line << std::endl;
+                    abort();
+                }
+
+                const auto Moves = core::MoveGenerator::generateLegalMoves(State);
+
+                if (Moves.size() == 0) {
+                    std::cerr << "No moves in the position." << std::endl;
+                    std::cerr << Line << std::endl;
+                    abort();
+                }
+
+                if (Moves.size() > 0) {
+                    InitialPositions->emplace_back(
+                        nshogi::io::sfen::PositionBuilder::newPosition(Line)
+                    );
+                }
             }
         }
     }
