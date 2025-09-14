@@ -44,8 +44,8 @@ void testExtractBit(const nshogi::core::State& State) {
                FeatureType::size() * 2 * sizeof(uint64_t),
                cudaMemcpyHostToDevice);
 
-    nshogi::engine::cuda::extractBits<ChannelsFirst>(DeviceOut, DeviceIn,
-                                      1, FeatureType::size());
+    nshogi::engine::cuda::extractBits<ChannelsFirst>(DeviceOut, DeviceIn, 1,
+                                                     FeatureType::size());
 
     std::vector<float> Output(FeatureType::size() * 81);
     cudaMemcpy(Output.data(), DeviceOut,

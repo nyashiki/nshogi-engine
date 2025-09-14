@@ -95,7 +95,8 @@ void FeedWorker::feedResult(core::Color SideToMove, Node* N,
         if constexpr (NaNFallbackEnabled) {
             for (uint16_t I = 0; I < NumChildren; ++I) {
                 const std::size_t MoveIndex =
-                    ml::getMoveIndex<global_config::ChannelsFirst>(SideToMove, N->getEdge()[I].getMove());
+                    ml::getMoveIndex<global_config::ChannelsFirst>(
+                        SideToMove, N->getEdge()[I].getMove());
                 LegalPolicy[I] = Policy[MoveIndex];
                 if (math::isnan_(LegalPolicy[I])) {
                     NaNFound = true;
@@ -108,7 +109,8 @@ void FeedWorker::feedResult(core::Color SideToMove, Node* N,
         } else {
             for (uint16_t I = 0; I < NumChildren; ++I) {
                 const std::size_t MoveIndex =
-                    ml::getMoveIndex<global_config::ChannelsFirst>(SideToMove, N->getEdge()[I].getMove());
+                    ml::getMoveIndex<global_config::ChannelsFirst>(
+                        SideToMove, N->getEdge()[I].getMove());
                 LegalPolicy[I] = Policy[MoveIndex];
             }
         }
