@@ -16,9 +16,9 @@
 
 #include <nshogi/core/movegenerator.h>
 #include <nshogi/core/statebuilder.h>
+#include <nshogi/io/sfen.h>
 #include <nshogi/ml/math.h>
 #include <nshogi/solver/dfs.h>
-#include <nshogi/io/sfen.h>
 
 namespace nshogi {
 namespace engine {
@@ -267,8 +267,9 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         if (F->getState()->canDeclare()) {
 #ifndef NDEBUG
             if (F->getNodeToEvaluate() == F->getSearchTree()->getRoot()) {
-                std::cerr << "State: " <<
-                    nshogi::io::sfen::stateToSfen(*F->getState()) << std::endl;
+                std::cerr << "State: "
+                          << nshogi::io::sfen::stateToSfen(*F->getState())
+                          << std::endl;
                 std::cerr << "Error: The root node cannot be a declaration."
                           << std::endl;
                 std::abort();
@@ -325,8 +326,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     const int16_t NumEdges = F->getNodeToEvaluate()->expand(LegalMoves, EA);
     if (NumEdges < 0) {
-        std::cerr << "Error: Failed to allocate memory for edges."
-                  << std::endl;
+        std::cerr << "Error: Failed to allocate memory for edges." << std::endl;
         std::abort();
     }
 
@@ -358,17 +358,17 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
 
 #ifndef NDEBUG
     if (F->getSearchTree()->getRoot()->getNumChildren() == 0) {
-        std::cerr << "State: " <<
-            nshogi::io::sfen::stateToSfen(*F->getState()) << std::endl;
+        std::cerr << "State: " << nshogi::io::sfen::stateToSfen(*F->getState())
+                  << std::endl;
         std::cerr << "Moves: ";
-        const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
+        const auto Moves =
+            core::MoveGenerator::generateLegalMoves(*F->getState());
         for (const core::Move32 Move : Moves) {
             std::cerr << nshogi::io::sfen::move32ToSfen(Move) << ", ";
         }
         std::cerr << std::endl;
 
-        std::cerr << "Error: No legal moves at the root node."
-                  << std::endl;
+        std::cerr << "Error: No legal moves at the root node." << std::endl;
         std::abort();
     }
 #endif

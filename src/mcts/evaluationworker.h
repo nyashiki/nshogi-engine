@@ -60,8 +60,6 @@ class EvaluationWorker : public worker::Worker {
     std::unique_ptr<evaluate::Evaluator> Evaluator;
     std::size_t GPUId_;
 
-    float LegalPolicy[ml::MoveIndexMax];
-
     std::size_t BatchCount;
     core::Color* PendingSideToMoves;
     Node** PendingNodes;

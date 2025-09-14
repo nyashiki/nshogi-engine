@@ -28,7 +28,7 @@ ifeq ($(BUILD), debug)
 else
     CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
     # CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
-    NVCC_FLAGS := -O3 --use_fast_math --generate-code $(NVCC_ARCH)
+    NVCC_FLAGS := -O3 --use_fast_math --generate-code $(NVCC_ARCH) -DNDEBUG
     OPTIM := -O3 -ffast-math
 endif
 
