@@ -9,6 +9,7 @@
 
 #include "trt.h"
 #include "../cuda/extractbit.h"
+#include "../globalconfig.h"
 
 #include <cstdint>
 #include <fstream>
@@ -258,15 +259,28 @@ void TensorRT::resetGPU() {
 
 void TensorRT::makeCudaGraph() {
     { // Cuda graph for half batch size.
-        Context->setInputShape(
-            "input",
-            nvinfer1::Dims4{(int32_t)(BatchSizeM + 1) / 2, NumC, 9, 9});
+        if constexpr (global_config::ChannelsFirst) {
+            if (!Context->setInputShape(
+                "input",
+                nvinfer1::Dims4{(int32_t)(BatchSizeM + 1) / 2, NumC, 9, 9})) {
+                std::cerr << "[makeCudaGraph()] Context->setInputShape() failed." << std::endl;
+                std::abort();
+            }
+        } else {
+            if (!Context->setInputShape(
+                "input",
+                nvinfer1::Dims4{(int32_t)(BatchSizeM + 1) / 2, 9, 9, NumC})) {
+                std::cerr << "[makeCudaGraph()] Context->setInputShape() failed." << std::endl;
+                std::abort();
+            }
+        }
 
         cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
 
-        cuda::extractBits(reinterpret_cast<float*>(DeviceInputExtracted),
-                          reinterpret_cast<uint64_t*>(DeviceInput),
-                          (int)(BatchSizeM + 1) / 2 * (int)NumC, Stream);
+        cuda::extractBits<global_config::ChannelsFirst>(
+                reinterpret_cast<float*>(DeviceInputExtracted),
+                reinterpret_cast<uint64_t*>(DeviceInput),
+                (int)(BatchSizeM + 1) / 2, (int)NumC, Stream);
 
         Context->enqueueV3(Stream);
 
@@ -281,14 +295,26 @@ void TensorRT::makeCudaGraph() {
     }
 
     { // Cuda graph for full batch size.
-        Context->setInputShape(
-            "input", nvinfer1::Dims4{(int32_t)BatchSizeM, NumC, 9, 9});
+        if constexpr (global_config::ChannelsFirst) {
+            if (!Context->setInputShape(
+                "input", nvinfer1::Dims4{(int32_t)BatchSizeM, NumC, 9, 9})) {
+                std::cerr << "[makeCudaGraph()] Context->setInputShape() failed." << std::endl;
+                std::abort();
+            }
+        } else {
+            if (!Context->setInputShape(
+                "input", nvinfer1::Dims4{(int32_t)BatchSizeM, 9, 9, NumC})) {
+                std::cerr << "[makeCudaGraph()] Context->setInputShape() failed." << std::endl;
+                std::abort();
+            }
+        }
 
         cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
 
-        cuda::extractBits(reinterpret_cast<float*>(DeviceInputExtracted),
-                          reinterpret_cast<uint64_t*>(DeviceInput),
-                          (int)BatchSizeM * (int)NumC, Stream);
+        cuda::extractBits<global_config::ChannelsFirst>(
+                reinterpret_cast<float*>(DeviceInputExtracted),
+                reinterpret_cast<uint64_t*>(DeviceInput),
+                (int)BatchSizeM, (int)NumC, Stream);
 
         Context->enqueueV3(Stream);
 
