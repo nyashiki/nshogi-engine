@@ -84,8 +84,18 @@ void FeedWorker::feedResult(core::Color SideToMove, Node* N,
         }
     }
 
-    assert(WinRate >= 0.0f && WinRate <= 1.0f);
-    assert(DrawRate >= 0.0f && DrawRate <= 1.0f);
+#ifndef NDEBUG
+    if (WinRate < 0.0f || WinRate > 1.0f) {
+        std::cerr << "Warning: WinRate is out of range: " << WinRate
+                  << std::endl;
+        std::abort();
+    }
+    if (DrawRate < 0.0f || DrawRate > 1.0f) {
+        std::cerr << "Warning: DrawRate is out of range: " << DrawRate
+                  << std::endl;
+        std::abort();
+    }
+#endif
 
     const uint16_t NumChildren = N->getNumChildren();
     if (NumChildren == 1) {
