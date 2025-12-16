@@ -29,7 +29,7 @@ uint64_t computeFileHash(const std::string& Path) {
     const uint64_t FNVOffsetBasis = 14695981039346656037ULL;
     const uint64_t FNVPrime = 1099511628211ULL;
 
-    std::ifstream Ifs(Path);
+    std::ifstream Ifs(Path, std::ios::binary);
 
     uint64_t HashValue = FNVOffsetBasis;
 
@@ -52,17 +52,24 @@ TensorRT::TensorRT(int GPUId, uint16_t BatchSizeMax, uint16_t NumChannels)
     cudaSetDevice(GPUId_);
     cudaMalloc(reinterpret_cast<void**>(&DeviceInput),
                BatchSizeMax * NumChannels * sizeof(ml::FeatureBitboard));
-
     cudaMalloc(reinterpret_cast<void**>(&DeviceInputExtracted),
                BatchSizeMax * NumChannels * core::NumSquares * sizeof(float));
-
     cudaMalloc(reinterpret_cast<void**>(&DevicePolicyOutput),
                BatchSizeMax * ml::MoveIndexMax * sizeof(float));
-
     cudaMalloc(reinterpret_cast<void**>(&DeviceValueOutput),
                BatchSizeMax * sizeof(float));
-
     cudaMalloc(reinterpret_cast<void**>(&DeviceDrawOutput),
+               BatchSizeMax * sizeof(float));
+
+    cudaMemset(reinterpret_cast<void*>(DeviceInput), 0,
+               BatchSizeMax * NumChannels * sizeof(ml::FeatureBitboard));
+    cudaMemset(reinterpret_cast<void*>(DeviceInputExtracted), 0,
+               BatchSizeMax * NumChannels * core::NumSquares * sizeof(float));
+    cudaMemset(reinterpret_cast<void*>(DevicePolicyOutput), 0,
+               BatchSizeMax * ml::MoveIndexMax * sizeof(float));
+    cudaMemset(reinterpret_cast<void*>(DeviceValueOutput), 0,
+               BatchSizeMax * sizeof(float));
+    cudaMemset(reinterpret_cast<void*>(DeviceDrawOutput), 0,
                BatchSizeMax * sizeof(float));
 
     cudaStreamCreateWithFlags(&Stream, cudaStreamNonBlocking);
@@ -116,38 +123,6 @@ void TensorRT::load(const std::string& Path,
             throw std::runtime_error("Could not parse the model.");
         }
 
-        // Insert sigmoid activation at value and draw output.
-        {
-            const int NumOutputs = Network->getNbOutputs();
-            std::vector<nvinfer1::ITensor*> Targets;
-
-            for (int I = 0; I < NumOutputs; ++I) {
-                nvinfer1::ITensor* Out = Network->getOutput(I);
-                const std::string Name = Out->getName();
-
-                if (Name == "value" || Name == "draw") {
-                    Targets.push_back(Out);
-                }
-            }
-
-            for (auto* Out : Targets) {
-                const std::string Name = Out->getName();
-                const std::string OldName = Name + "_logits";
-                const std::string NewName = Name + "_sigmoid";
-
-                Network->unmarkOutput(*Out);
-                Out->setName(OldName.c_str());
-
-                auto Act = Network->addActivation(
-                    *Out, nvinfer1::ActivationType::kSIGMOID);
-                Act->setName(NewName.c_str());
-
-                nvinfer1::ITensor* OutActivated = Act->getOutput(0);
-                OutActivated->setName(Name.c_str());
-                Network->markOutput(*OutActivated);
-            }
-        }
-
         BuilderConfig.reset(Builder->createBuilderConfig());
 
         BuilderConfig->setAvgTimingIterations(8);
@@ -155,9 +130,7 @@ void TensorRT::load(const std::string& Path,
         BuilderConfig->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE,
                                           64ULL << 20);
 
-        cudaStream_t ProfileStream;
-        cudaStreamCreate(&ProfileStream);
-        BuilderConfig->setProfileStream(ProfileStream);
+        BuilderConfig->setProfileStream(Stream);
 
         auto Profile = Builder->createOptimizationProfile();
 
@@ -185,11 +158,9 @@ void TensorRT::load(const std::string& Path,
         }
         BuilderConfig->setFlag(nvinfer1::BuilderFlag::kTF32);
 
-        BuilderConfig->setProfileStream(ProfileStream);
         Plan.reset(Builder->buildSerializedNetwork(*Network, *BuilderConfig));
 
-        cudaStreamSynchronize(ProfileStream);
-        cudaStreamDestroy(ProfileStream);
+        cudaStreamSynchronize(Stream);
 
         Runtime.reset(nvinfer1::createInferRuntime(Logger));
         CudaEngine.reset(
@@ -213,15 +184,43 @@ void TensorRT::load(const std::string& Path,
     }
 
     Context.reset(CudaEngine->createExecutionContext());
+    Context->setOptimizationProfileAsync(0, Stream);
+
+    // Check policy size.
+    const nvinfer1::Dims PolicyDims = Context->getTensorShape("policy");
+    const std::size_t PolicySize = [PolicyDims]() -> std::size_t {
+        std::size_t Size = 1;
+        for (std::size_t I = 0; I < (std::size_t)PolicyDims.nbDims; ++I) {
+            if (PolicyDims.d[I] == -1) {
+                continue;
+            }
+            Size *= (std::size_t)PolicyDims.d[I];
+        }
+        return Size;
+    }();
+
+    if (PolicySize != nshogi::ml::MoveIndexMax) {
+        std::cerr << "Unexpected PolicySize: " << PolicySize
+                  << " (expected: " << nshogi::ml::MoveIndexMax << ")."
+                  << std::endl;
+        std::abort();
+    }
 
     Context->setInputTensorAddress("input", DeviceInputExtracted);
-    Context->setTensorAddress("policy", DevicePolicyOutput);
-    Context->setTensorAddress("value", DeviceValueOutput);
-    Context->setTensorAddress("draw", DeviceDrawOutput);
+    if (!Context->setTensorAddress("policy", DevicePolicyOutput)) {
+        std::cerr << "[load()] Context->setTensorAddress() for policy failed." << std::endl;
+        std::abort();
+    }
+    if (!Context->setTensorAddress("value", DeviceValueOutput)) {
+        std::cerr << "[load()] Context->setTensorAddress() for value failed." << std::endl;
+        std::abort();
+    }
+    if (!Context->setTensorAddress("draw", DeviceDrawOutput)) {
+        std::cerr << "[load()] Context->setTensorAddress() for draw failed." << std::endl;
+        std::abort();
+    }
 
     makeCudaGraph();
-
-    Called = false;
 }
 
 void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
@@ -242,7 +241,6 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
                     cudaMemcpyDeviceToHost, Stream);
     cudaMemcpyAsync(DstWinRate, DeviceValueOutput, BatchSize * sizeof(float),
                     cudaMemcpyDeviceToHost, Stream);
-
     cudaMemcpyAsync(DstDrawRate, DeviceDrawOutput, BatchSize * sizeof(float),
                     cudaMemcpyDeviceToHost, Stream);
 }
