@@ -447,10 +447,10 @@ void Manager::doSupervisorWork(bool CallCallback) {
 }
 
 void Manager::stopWorkers() {
+    EQueue->close();
     for (const auto& SearchWorker : SearchWorkers) {
         SearchWorker->stop();
     }
-    EQueue->close();
     for (const auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker->stop();
     }
