@@ -292,7 +292,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVirtualVisits = CurrentVisits + CurrentVirtualLoss;
 
     const double Const =
-        std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase +
+        (std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase) +
                  CInit) *
         std::sqrt((double)CurrentVirtualVisits);
 
