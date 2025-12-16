@@ -244,7 +244,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVisitsAndVirtualLoss = N->getVisitsAndVirtualLoss();
     const uint64_t CurrentVisits =
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
-    const uint64_t CurrentVirtualLoss =
+    uint64_t CurrentVirtualLoss =
         CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
     if (CurrentVisits == 1) {
@@ -316,9 +316,17 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         // The child is not visited yet.
         if (Child == nullptr || ChildVisitsAndVirtualLoss == 0) {
-            const double UCBValue = regardNotVisitedWin
-                                        ? (1.0 + Const * Edge->getProbability())
-                                        : (Const * Edge->getProbability());
+            double UCBValue;
+            const bool IsExpanding = Edge->isExpanding();
+            if (IsExpanding) {
+                // To consider the virtual loss, we simply
+                // use 0.0 as the win rate of the child.
+                UCBValue = Const * Edge->getProbability();
+            } else {
+                UCBValue = regardNotVisitedWin
+                    ? (1.0 + Const * Edge->getProbability())
+                    : (Const * Edge->getProbability());
+            }
 
             // Since there is at least one unvisited child, which means
             // the child is not solved, we don't know all children are loss
@@ -336,7 +344,11 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             // The relationship can be broken if the visit count is not zero,
             // but in that case, there is no unvisited child previously in this
             // loop.
-            break;
+            if (!IsExpanding) {
+                break;
+            } else {
+                continue;
+            }
         }
 
         const uint64_t ChildVisits =

@@ -92,6 +92,10 @@ struct Edge {
         return Expanding.exchange(true, std::memory_order_relaxed);
     }
 
+    bool isExpanding() const {
+        return Expanding.load(std::memory_order_relaxed);
+    }
+
  private:
     Pointer<Node> Target;
     float Probability;
