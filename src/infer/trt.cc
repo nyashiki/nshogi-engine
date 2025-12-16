@@ -161,12 +161,21 @@ void TensorRT::load(const std::string& Path,
 
         auto Profile = Builder->createOptimizationProfile();
 
-        Profile->setDimensions("input", nvinfer1::OptProfileSelector::kMIN,
-                               nvinfer1::Dims4{1, NumC, 9, 9});
-        Profile->setDimensions("input", nvinfer1::OptProfileSelector::kOPT,
-                               nvinfer1::Dims4{BatchSizeM, NumC, 9, 9});
-        Profile->setDimensions("input", nvinfer1::OptProfileSelector::kMAX,
-                               nvinfer1::Dims4{BatchSizeM, NumC, 9, 9});
+        if constexpr (global_config::ChannelsFirst) {
+            Profile->setDimensions("input", nvinfer1::OptProfileSelector::kMIN,
+                                   nvinfer1::Dims4{1, NumC, 9, 9});
+            Profile->setDimensions("input", nvinfer1::OptProfileSelector::kOPT,
+                                   nvinfer1::Dims4{BatchSizeM, NumC, 9, 9});
+            Profile->setDimensions("input", nvinfer1::OptProfileSelector::kMAX,
+                                   nvinfer1::Dims4{BatchSizeM, NumC, 9, 9});
+        } else {
+            Profile->setDimensions("input", nvinfer1::OptProfileSelector::kMIN,
+                                   nvinfer1::Dims4{1, 9, 9, NumC});
+            Profile->setDimensions("input", nvinfer1::OptProfileSelector::kOPT,
+                                   nvinfer1::Dims4{BatchSizeM, 9, 9, NumC});
+            Profile->setDimensions("input", nvinfer1::OptProfileSelector::kMAX,
+                                   nvinfer1::Dims4{BatchSizeM, 9, 9, NumC});
+        }
         BuilderConfig->addOptimizationProfile(Profile);
 
         BuilderConfig->setFlag(nvinfer1::BuilderFlag::kSPARSE_WEIGHTS);

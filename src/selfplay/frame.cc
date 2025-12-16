@@ -8,6 +8,7 @@
 //
 
 #include "frame.h"
+#include "../globalconfig.h"
 
 #include <nshogi/ml/common.h>
 #include <nshogi/ml/math.h>
@@ -96,7 +97,7 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         if constexpr (Aggregated) {
             LegalPolicyLogits[I] = Policy[I];
         } else {
-            const std::size_t MoveIndex = ml::getMoveIndex(
+            const std::size_t MoveIndex = ml::getMoveIndex<global_config::ChannelsFirst>(
                 State->getSideToMove(), NodeToEvaluate->getEdge()[I].getMove());
             LegalPolicyLogits[I] = Policy[MoveIndex];
         }
