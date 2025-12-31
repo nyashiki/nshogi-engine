@@ -38,10 +38,6 @@ inline bool isnan_(T X) {
            ((Bits & FractionMask) != 0);
 }
 
-inline float sigmoid(float X) {
-    return 1.0f / (1.0f + std::exp(-X));
-}
-
 } // namespace math
 } // namespace engine
 } // namespace nshogi
