@@ -96,6 +96,12 @@ bool EvaluationWorker::doTask() {
     for (std::size_t I = 0; I < Tasks.size(); ++I) {
         assert(!math::isnan_(Evaluator->getWinRate()[I]));
         assert(!math::isnan_(Evaluator->getDrawRate()[I]));
+        assert(!std::isnan(Evaluator->getWinRate()[I]));
+        assert(!std::isnan(Evaluator->getDrawRate()[I]));
+        assert(!std::isinf(Evaluator->getWinRate()[I]));
+        assert(!std::isinf(Evaluator->getDrawRate()[I]));
+        assert(std::isfinite(Evaluator->getWinRate()[I]));
+        assert(std::isfinite(Evaluator->getDrawRate()[I]));
 
         Tasks.at(I)->setEvaluation<false>(
             Evaluator->getPolicy() + 27 * core::NumSquares * I,

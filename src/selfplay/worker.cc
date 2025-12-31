@@ -213,6 +213,8 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
 
         mcts::Edge* E =
             pickUpEdgeToExplore(F, F->getState()->getSideToMove(), Node, Depth);
+        assert(E != nullptr);
+
         F->getState()->doMove(F->getState()->getMove32FromMove16(E->getMove()));
 
         if (E->getTarget() == nullptr) {
@@ -787,6 +789,8 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
 
 void Worker::updateSequentialHalvingSchedule(Frame* F,
                                              uint16_t NumValidChilds) const {
+    assert(NumValidChilds >= 2);
+
     const uint16_t MD =
         std::max((uint16_t)1, (uint16_t)(F->getNumSamplingMoves() >>
                                          F->getSequentialHalvingCount()));
@@ -795,6 +799,8 @@ void Worker::updateSequentialHalvingSchedule(Frame* F,
         (uint64_t)(std::floor((double)F->getNumPlayouts() / D));
 
     if (ExtraVisits == 0 || NumValidChilds <= 2) {
+        assert(NumValidChilds == 2);
+
         // Use all left simulation budgets to identify the best move.
         assert(F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() > 0);
         assert(F->getNumPlayouts() + 1 >
