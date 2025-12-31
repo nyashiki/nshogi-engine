@@ -466,8 +466,11 @@ SelfplayPhase Worker::judge(Frame* F) const {
         return SelfplayPhase::Save;
     }
 
-    if (!Solver.solve(F->getState(), 10000, 0).isNone()) {
+    const auto CheckmateMove = Solver.solve(F->getState(), 100000, 0);
+
+    if (!CheckmateMove.isNone()) {
         F->setWinner(F->getState()->getSideToMove());
+        F->getState()->doMove(CheckmateMove);
         return SelfplayPhase::Save;
     }
 

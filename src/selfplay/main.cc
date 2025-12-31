@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <nshogi/core/initializer.h>
+#include <nshogi/core/movegenerator.h>
 #include <nshogi/io/sfen.h>
 
 int main(int Argc, char* Argv[]) {
