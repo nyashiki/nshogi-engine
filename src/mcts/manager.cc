@@ -86,8 +86,7 @@ Manager::~Manager() {
 void Manager::thinkNextMove(
     const core::State& State, const core::StateConfig& Config,
     engine::Limit Lim,
-    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback,
-    const std::vector<core::Move32>& BannedMoves) {
+    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
 
     interruptInternal(true);
 
@@ -112,10 +111,6 @@ void Manager::thinkNextMove(
         assert(!WakeUpSupervisor);
         WakeUpSupervisor = true;
         PLogger->setIsInverse(false);
-    }
-
-    for (auto& SearchWorker : SearchWorkers) {
-        SearchWorker->setBannedMoves(BannedMoves);
     }
 
     // Wake up the supervisor.

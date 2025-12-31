@@ -58,10 +58,6 @@ void SearchWorker::updateRoot(const core::State& S,
     RootPly = State->getPly();
 }
 
-void SearchWorker::setBannedMoves(const std::vector<core::Move32>& Moves) {
-    BannedMoves = Moves;
-}
-
 Node* SearchWorker::collectOneLeaf() {
     Node* CurrentNode = RootNode;
 
@@ -186,20 +182,7 @@ int16_t SearchWorker::expandLeaf(Node* LeafNode) {
         return 0;
     }
 
-    if (BannedMoves.size() > 0 && LeafNode == RootNode) {
-        core::MoveList FilteredMoves;
-
-        for (const core::Move32 Move : Moves) {
-            if (std::find(BannedMoves.begin(), BannedMoves.end(), Move) ==
-                BannedMoves.end()) {
-                FilteredMoves.add(Move);
-            }
-        }
-
-        return LeafNode->expand(FilteredMoves, EA);
-    } else {
-        return LeafNode->expand(Moves, EA);
-    }
+    return LeafNode->expand(Moves, EA);
 }
 
 void SearchWorker::immediateUpdateByWin(Node* LeafNode) {

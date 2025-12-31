@@ -47,7 +47,7 @@ BookMaker::startThinking(core::State* State, const core::StateConfig& Config,
             CV.notify_one();
         };
 
-    Manager->thinkNextMove(*State, Config, Limit, Callback, BannedMoves);
+    Manager->thinkNextMove(*State, Config, Limit, Callback);
 
     {
         std::unique_lock<std::mutex> Lock(Mutex);
