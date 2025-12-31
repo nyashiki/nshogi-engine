@@ -40,7 +40,6 @@ class SearchWorker : public worker::Worker {
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
-    void setBannedMoves(const std::vector<core::Move32>& Moves);
 
  protected:
     static constexpr int32_t CBase = 19652;
@@ -77,8 +76,6 @@ class SearchWorker : public worker::Worker {
     Statistics* PStat;
 
     EvalCache::EvalInfo CacheEvalInfo;
-
-    std::vector<core::Move32> BannedMoves;
 };
 
 class SearchWorkerMaster : public SearchWorker {
