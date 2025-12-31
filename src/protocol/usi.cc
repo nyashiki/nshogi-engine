@@ -341,7 +341,7 @@ void mainLoop() {
             isready();
         } else if (Command == "position") {
             position(Stream);
-        } else if (Command == "go") {
+        } else if (Command == "go" || Command == "g") {
             go(Stream);
         } else if (Command == "setoption") {
             setOption(Stream);
@@ -349,7 +349,7 @@ void mainLoop() {
             stop();
         } else if (Command == "d" || Command == "debug") {
             debug();
-        } else if (Command == "quit" || Command == "exit") {
+        } else if (Command == "quit" || Command == "exit" || Command == "q") {
             quit();
             break;
         } else if (Command == "nshogiext") {
