@@ -82,7 +82,6 @@ class TensorRT : public Infer {
     void* DevicePolicyOutput;
     void* DeviceValueOutput;
     void* DeviceDrawOutput;
-    bool Called = false;
     std::thread::id ThreadIDPrev;
 };
 
