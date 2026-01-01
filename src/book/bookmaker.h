@@ -10,70 +10,41 @@
 #ifndef NSHOGI_ENGINE_BOOK_BOOKMAKER_H
 #define NSHOGI_ENGINE_BOOK_BOOKMAKER_H
 
-#include <cinttypes>
-#include <map>
-#include <memory>
-#include <optional>
-#include <set>
+#include <cstddef>
+#include <unordered_map>
+#include <string>
 #include <vector>
+#include <iostream>
 
-#include "../context.h"
-#include "../contextmanager.h"
-#include "../mcts/manager.h"
-#include "bookentry.h"
+#include "node.h"
 
-#include <nshogi/core/state.h>
+#include <nshogi/solver/dfpn.h>
 
 namespace nshogi {
 namespace engine {
 namespace book {
 
-struct Evaluation {
- public:
-    Evaluation(double Win, double Draw)
-        : WinRate(Win)
-        , DrawRate(Draw) {
-    }
-
-    double winRate() const {
-        return WinRate;
-    }
-
-    double drawRate() const {
-        return DrawRate;
-    }
-
- private:
-    double WinRate;
-    double DrawRate;
-};
-
 class BookMaker {
  public:
-    void start(const std::string& Sfen);
+    explicit BookMaker();
+
+    void start(const core::State& RootState, uint64_t NumSimulations);
 
  private:
-    auto startThinking(core::State* State, const core::StateConfig& Config,
-                       const std::vector<core::Move32>& BannedMoves,
-                       const engine::Limit&)
-        -> std::pair<core::Move32, std::unique_ptr<mcts::ThoughtLog>>;
-    void evaluate(core::State* State, const core::StateConfig& Config);
-    void updateNegaMaxValue(core::State* State,
-                            const core::StateConfig& Config);
-    std::optional<BookEntry>
-    updateNegaMaxValueAllInternal(core::State* State,
-                                  const core::StateConfig& Config,
-                                  std::set<std::string>& Fixed);
-    void updateNegaMaxValueAll(const core::StateConfig& Config);
-    void executeOneIteration(core::State* State,
-                             const core::StateConfig& Config);
-    std::vector<core::Move32> getPV(core::State* State,
-                                    const core::StateConfig& Config);
+    void prepareRoot(const core::State& RootState);
+    auto collectOneLeaf(core::State*) -> NodeIndex;
+    void expandAndEvaluate(core::State*, NodeIndex);
+    void evaluate(NodeIndex);
+    void backpropagate(NodeIndex, float WinRate, float DrawRate);
 
-    std::unique_ptr<mcts::Manager> Manager;
-    Book MyBook;
+    auto computeUCBMaxChild(core::State*, NodeIndex) -> std::pair<NodeIndex, core::Move32>;
+    void debugOutput() const;
+    auto currentPV(NodeIndex) const -> std::vector<core::Move32>;
 
-    ContextManager CManager;
+    std::unordered_map<std::string, NodeIndex> NodeIndices;
+    std::vector<Node> Nodes;
+
+    solver::dfpn::Solver Solver;
 };
 
 } // namespace book
