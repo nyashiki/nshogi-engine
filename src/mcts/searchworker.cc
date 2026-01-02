@@ -775,6 +775,10 @@ bool SearchWorkerMaster::checkThinkingTimeBudget(uint64_t Elapsed) const {
         return false;
     }
 
+    if (!Limit.isNoLimitAboutTime()) {
+        return false;
+    }
+
     const uint64_t Budget = Limit.TimeLimitMilliSeconds +
                             Limit.ByoyomiMilliSeconds +
                             Limit.IncreaseMilliSeconds;
@@ -866,12 +870,12 @@ bool SearchWorkerMaster::checkSearchToStop(uint64_t Elapsed) {
         return true;
     }
 
-    if (!Limit.isNoLimitAboutTime()) {
-        if (checkThinkingTimeBudget(Elapsed)) {
-            Logger->printLog("Time limit.");
-            return true;
-        }
+    if (checkThinkingTimeBudget(Elapsed)) {
+        Logger->printLog("Time limit.");
+        return true;
+    }
 
+    if (!Limit.isNoLimitAboutTime()) {
         if (hasMadeUpMind(Elapsed)) {
             Logger->printLog("Made up mind.");
             return true;

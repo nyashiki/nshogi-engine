@@ -28,20 +28,20 @@ enum NodeIndex : std::size_t {
 struct Node {
  public:
     Node(NodeIndex);
-    Node(NodeIndex, NodeIndex Parent);
-    Node(NodeIndex, NodeIndex Parent, float WinRate, float DrawRate);
+    Node(NodeIndex, float WinRate, float DrawRate);
+
+    uint64_t visitCount() const;
 
     NodeIndex Index;
 
-    uint64_t VisitCount;
-    double WinRateAccumulated;
-    double DrawRateAccumulated;
+    std::vector<float> PolicyRaw;
     float WinRateRaw;
     float DrawRateRaw;
-    std::vector<NodeIndex> Parents;
 
     std::vector<core::Move32> Moves;
-    std::vector<float> Policies;
+    std::vector<uint64_t> VisitCounts;
+    std::vector<double> WinRateAccumulateds;
+    std::vector<double> DrawRateAccumulateds;
     std::vector<NodeIndex> Children;
 };
 

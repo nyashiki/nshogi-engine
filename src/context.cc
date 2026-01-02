@@ -96,6 +96,10 @@ bool Context::isNShogiExtensionLogEnabled() const {
     return IsNShogiExtensionLogEnabled;
 }
 
+bool Context::printStatistics() const {
+    return PrintStatistics;
+}
+
 bool Context::isNaNFallbackEnabled() const {
     return IsNaNFallbackEnabled;
 }

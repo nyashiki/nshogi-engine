@@ -18,21 +18,24 @@ namespace engine {
 
 namespace book {
 
-class Book;
+class BookMaker;
 
 } // namespace book
 
 namespace io {
 namespace book {
 
-enum class Format {
-    NShogi,
-    YaneuraOu,
-};
+// enum class Format {
+//     NShogi,
+//     YaneuraOu,
+// };
+//
+// void save(const engine::book::Book& Book, std::ofstream&,
+//           Format = Format::NShogi);
+// void load(engine::book::Book& Book, std::ifstream&);
 
-void save(const engine::book::Book& Book, std::ofstream&,
-          Format = Format::NShogi);
-void load(engine::book::Book& Book, std::ifstream&);
+void save(const engine::book::BookMaker& Maker, std::ofstream& IndexOfs, std::ofstream& DataOfs);
+void load(engine::book::BookMaker* Maker, std::ifstream& IndexIfs, std::ifstream& DataIfs);
 
 } // namespace book
 } // namespace io

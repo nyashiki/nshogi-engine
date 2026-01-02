@@ -60,6 +60,8 @@ class Context {
 
     bool isNShogiExtensionLogEnabled() const;
 
+    bool printStatistics() const;
+
     bool isNaNFallbackEnabled() const;
 
  private:
@@ -95,6 +97,8 @@ class Context {
     std::string Bookpath = "";
 
     bool IsNShogiExtensionLogEnabled = true;
+
+    bool PrintStatistics = true;
 
     bool IsNaNFallbackEnabled = false;
 

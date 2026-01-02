@@ -15,31 +15,22 @@ namespace book {
 
 Node::Node(NodeIndex I)
     : Index(I)
-    , VisitCount(0)
-    , WinRateAccumulated(0.0)
-    , DrawRateAccumulated(0.0)
     , WinRateRaw(0.0f)
     , DrawRateRaw(0.0f) {
 }
 
-Node::Node(NodeIndex I, NodeIndex Parent)
+Node::Node(NodeIndex I, float WinRate, float DrawRate)
     : Index(I)
-    , VisitCount(0)
-    , WinRateAccumulated(0.0)
-    , DrawRateAccumulated(0.0)
-    , WinRateRaw(0.0f)
-    , DrawRateRaw(0.0f) {
-    Parents.push_back(Parent);
-}
-
-Node::Node(NodeIndex I, NodeIndex Parent, float WinRate, float DrawRate)
-    : Index(I)
-    , VisitCount(0)
-    , WinRateAccumulated(0.0)
-    , DrawRateAccumulated(0.0)
     , WinRateRaw(WinRate)
     , DrawRateRaw(DrawRate) {
-    Parents.push_back(Parent);
+}
+
+uint64_t Node::visitCount() const {
+    uint64_t Total = 0;
+    for (const auto& VC : VisitCounts) {
+        Total += VC;
+    }
+    return Total;
 }
 
 } // namespace book

@@ -55,10 +55,6 @@ class ContextManager {
 
     void setBookEnabled(bool Value);
 
-    void setBlackDrawValue(float DrawValue);
-
-    void setWhiteDrawValue(float DrawValue);
-
     void setRepetitionBookAllowed(bool Value);
 
     void setBookPath(const std::string& Path);
@@ -66,6 +62,8 @@ class ContextManager {
     void setIsNShogiExtensionLogEnabled(bool Value);
 
     void setIsThoughtLogEnabled(bool Value);
+
+    void setPrintStatistics(bool Value);
 
  private:
     const std::unique_ptr<Context> Context_;

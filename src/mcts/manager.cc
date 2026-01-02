@@ -347,7 +347,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
     }
 #endif
     // Show statistics.
-    PLogger->printStatistics(Stat);
+    if (PContext->printStatistics()) {
+        PLogger->printStatistics(Stat);
+    }
 
     // Prepare ThoughtLog if IsThoughtLogEnabled is true.
     if (PContext->isThoughtLogEnabled()) {
