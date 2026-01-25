@@ -28,6 +28,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
                allocator::Allocator* NodeAllocator,
                allocator::Allocator* EdgeAllocator, mcts::EvalCache* EC,
                uint64_t NumPlayouts, uint16_t NumSamplingMoves,
+               double FullSearchRatio,
                std::vector<core::Position>* InitialPositionsToPlay,
                bool UseShogi816k, SelfplayInfo* SI)
     : worker::Worker(true)
@@ -39,6 +40,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
     , EvalCache(EC)
     , MyNumPlayouts(NumPlayouts)
     , MyNumSamplingMoves(NumSamplingMoves)
+    , MyFullSearchRatio(FullSearchRatio)
     , InitialPositions(InitialPositionsToPlay)
     , USE_SHOGI816K(UseShogi816k)
     , Solver(64)
@@ -63,16 +65,16 @@ bool Worker::doTask() {
         // clang-format off
         //
         // [selfplay loop]
-        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition -- (proceed one move) --> judge -- (if the game is finished) --> save
-        //     |               |              |                |                                    |              |                                                                            |                                      |
-        //     |               |              |                |                                    |              |                                                                            |                                      |
-        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                                            |                                      |
-        //     |               |              |                                                                    |                                                                            |                                      |
-        //     |               |              --<----------- (if it reaches sequential halving threshold) -------<--                                                                            |                                      |
-        //     |               |                                                                                                                                                                |                                      |
-        //     |               --<------------------------------------------------------------------------------------------------------------------------------------------------------------<--                                      |
-        //     |                                                                                                                                                                                                                       |
-        //     --<--------------------------------------------------------------------------------------------- (start a new game) --------------------------------------------------------------------------------------------------<--
+        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition -------> judge -- (if the game is finished) --> save
+        //     |               |              |                |                                    |              |                                  (proceed one move)       |                                      |
+        //     |               |              |                |                                    |              |                                                           |                                      |
+        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                           |                                      |
+        //     |               |              |                                                                    |                                                           |                                      |
+        //     |               |              --<----------------------------------------------------------------<--                                                           |                                      |
+        //     |               |                                                                                                                                               |                                      |
+        //     |               --<-------------------------------------------------------------------------------------------------------------------------------------------<--                                      |
+        //     |                                                                                                                                                                                                      |
+        //     --<--------------------------------------------------------------------------------------------- (start a new game) ---------------------------------------------------------------------------------<--
         //
         // clang-format on
         //
@@ -144,9 +146,7 @@ SelfplayPhase Worker::initialize(Frame* F) {
 
     F->setConfig(std::move(Config));
 
-    // Other settings.
-    F->setNumPlayouts(MyNumPlayouts);
-    F->setNumSamplingMoves(MyNumSamplingMoves);
+    F->clearDidFullSearch();
 
     return SelfplayPhase::RootPreparation;
 }
@@ -163,13 +163,20 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
         F->getGumbelNoise().at(I) = sampleGumbelNoise();
     }
 
-    // if (F->getState()->getPly() < 30) {
-    //     F->setNumPlayouts(16);
-    //     F->setNumSamplingMove(16);
-    // } else {
-    //     F->setNumPlayouts(32);
-    //     F->setNumSamplingMove(32);
-    // }
+    std::uniform_real_distribution<double> Distribution(0.0, 1.0);
+    const double R = Distribution(MT);
+    const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
+    if (Moves.size() == 1 || R > MyFullSearchRatio) {
+        // NumPlayouts == NumSamplingMoves.
+        F->setNumPlayouts(MyNumSamplingMoves);
+        F->setNumSamplingMoves(MyNumSamplingMoves);
+        F->pushDidFullSearch(false);
+    } else {
+        // Full search.
+        F->setNumPlayouts(MyNumPlayouts);
+        F->setNumSamplingMoves(MyNumSamplingMoves);
+        F->pushDidFullSearch(true);
+    }
 
     const uint64_t InitialSequentialHalvingPlayouts = (uint64_t)(std::floor(
         (double)F->getNumPlayouts() /
@@ -319,7 +326,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
             F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
             assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
-        } else if (!solver::dfs::solve(F->getState(), 5).isNone()) {
+        } else if (!solver::dfs::solve(F->getState(), 3).isNone()) {
             F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
             assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
@@ -420,7 +427,11 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
             }
 
             const uint16_t NumValidChilds = executeSequentialHalving(F);
-            updateSequentialHalvingSchedule(F, NumValidChilds);
+            assert(NumValidChilds >= 2);
+            const bool ExtraVisitsLeft = updateSequentialHalvingSchedule(F, NumValidChilds);
+            if (!ExtraVisitsLeft) {
+                return SelfplayPhase::Transition;
+            }
         }
     }
 
@@ -471,6 +482,7 @@ SelfplayPhase Worker::judge(Frame* F) const {
     if (!CheckmateMove.isNone()) {
         F->setWinner(F->getState()->getSideToMove());
         F->getState()->doMove(CheckmateMove);
+        F->pushDidFullSearch(true);
         return SelfplayPhase::Save;
     }
 
@@ -736,7 +748,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     return (uint16_t)NumSort;
 }
 
-void Worker::updateSequentialHalvingSchedule(Frame* F,
+bool Worker::updateSequentialHalvingSchedule(Frame* F,
                                              uint16_t NumValidChilds) const {
     assert(NumValidChilds >= 2);
 
@@ -747,7 +759,11 @@ void Worker::updateSequentialHalvingSchedule(Frame* F,
     const uint64_t ExtraVisits =
         (uint64_t)(std::floor((double)F->getNumPlayouts() / D));
 
-    if (ExtraVisits == 0 || NumValidChilds <= 2) {
+    if (ExtraVisits == 0) {
+        return false;
+    }
+
+    if (NumValidChilds <= 2) {
         assert(NumValidChilds == 2);
 
         // Use all left simulation budgets to identify the best move.
@@ -765,6 +781,8 @@ void Worker::updateSequentialHalvingSchedule(Frame* F,
                                         ExtraVisits);
         F->setSequentialHalvingCount(F->getSequentialHalvingCount() + 1);
     }
+
+    return true;
 }
 
 } // namespace selfplay

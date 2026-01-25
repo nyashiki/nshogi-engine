@@ -51,6 +51,8 @@ int main(int Argc, char* Argv[]) {
                      "Sfen file that contains sfen positions.");
     Parser.addOption("use-shogi816k", "Use shogi816k positions.");
     Parser.addOption("ignore-draw", "Ignore draw games.");
+    Parser.addOption("full-search-ratio", "0.25",
+                     "The ratio of full searches.");
 
     Parser.parse(Argc, Argv);
 
@@ -84,7 +86,7 @@ int main(int Argc, char* Argv[]) {
     auto SaveQueue = std::make_unique<FrameQueue>();
 
     // Prepare garbage collectors.
-    auto GC = std::make_unique<mcts::GarbageCollector>(1, NodeAllocator.get(),
+    auto GC = std::make_unique<mcts::GarbageCollector>(2, NodeAllocator.get(),
                                                        EdgeAllocator.get());
 
     // Prepare evaluation cache.
@@ -162,12 +164,15 @@ int main(int Argc, char* Argv[]) {
         (uint64_t)std::stoull(Parser.getOption("num-playouts"));
     const uint64_t NumSamplingMoves =
         (uint16_t)std::stoul(Parser.getOption("num-sampling-moves"));
+    const double FullSearchRatio =
+        std::stod(Parser.getOption("full-search-ratio"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(std::make_unique<Worker>(
             SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(),
             NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(),
-            NumPlayouts, NumSamplingMoves, InitialPositions.get(),
+            NumPlayouts, NumSamplingMoves, FullSearchRatio,
+            InitialPositions.get(),
             USE_SHOGI816K, SInfo.get()));
     }
 

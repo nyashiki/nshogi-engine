@@ -59,6 +59,10 @@ struct Frame {
     void setSequentialHalvingCount(uint8_t);
     void setNumSamplingMoves(uint16_t);
 
+    void clearDidFullSearch();
+    void pushDidFullSearch(bool);
+    const std::vector<bool>& getDidFullSearch() const;
+
  private:
     void setSearchTree(std::unique_ptr<mcts::Tree>&&);
     void allocatePolicyArray();
@@ -86,6 +90,8 @@ struct Frame {
     uint16_t NumSamplingMoves; // m in the paper.
     std::vector<double> GumbelNoise;
     std::vector<bool> IsTarget;
+
+    std::vector<bool> DidFullSearch;
 };
 
 } // namespace selfplay

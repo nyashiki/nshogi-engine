@@ -33,6 +33,7 @@ class Worker : public worker::Worker {
            FrameQueue* QueueForSave, allocator::Allocator* NodeAllocator,
            allocator::Allocator* EdgeAllocator, mcts::EvalCache*,
            uint64_t NumPlayouts, uint16_t NumSamplingMoves,
+           double FullSearchRatio,
            std::vector<core::Position>* InitialPositionsToPlay,
            bool UseShogi816k, SelfplayInfo*);
 
@@ -62,7 +63,7 @@ class Worker : public worker::Worker {
     bool isCheckmated(Frame* F) const;
     void sampleTopMMoves(Frame*) const;
     uint16_t executeSequentialHalving(Frame*) const;
-    void updateSequentialHalvingSchedule(Frame*, uint16_t NumValidChilds) const;
+    bool updateSequentialHalvingSchedule(Frame*, uint16_t NumValidChilds) const;
 
     FrameQueue* FQueue;
     FrameQueue* EvaluationQueue;
@@ -77,6 +78,7 @@ class Worker : public worker::Worker {
 
     const uint64_t MyNumPlayouts;
     const uint16_t MyNumSamplingMoves;
+    const double MyFullSearchRatio;
 
     std::vector<core::Position>* InitialPositions;
 

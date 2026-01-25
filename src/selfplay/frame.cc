@@ -156,6 +156,18 @@ void Frame::setNumSamplingMoves(uint16_t M) {
     NumSamplingMoves = M;
 }
 
+void Frame::clearDidFullSearch() {
+    DidFullSearch.clear();
+}
+
+void Frame::pushDidFullSearch(bool V) {
+    DidFullSearch.emplace_back(V);
+}
+
+const std::vector<bool>& Frame::getDidFullSearch() const {
+    return DidFullSearch;
+}
+
 template void Frame::setEvaluation<false>(const float* Policy, float WinRate,
                                           float DrawRate);
 template void Frame::setEvaluation<true>(const float* Policy, float WinRate,
