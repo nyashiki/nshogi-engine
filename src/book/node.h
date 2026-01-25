@@ -22,7 +22,6 @@ namespace book {
 
 enum NodeIndex : std::size_t {
     NI_Null = 0,
-    NI_Root = 1,
 };
 
 struct Node {

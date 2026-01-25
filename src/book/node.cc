@@ -30,7 +30,7 @@ uint64_t Node::visitCount() const {
     for (const auto& VC : VisitCounts) {
         Total += VC;
     }
-    return Total;
+    return Total + 1;
 }
 
 } // namespace book
