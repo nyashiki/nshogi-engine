@@ -61,8 +61,6 @@ class ContextManager {
 
     void setIsNShogiExtensionLogEnabled(bool Value);
 
-    void setIsThoughtLogEnabled(bool Value);
-
     void setPrintStatistics(bool Value);
 
  private:

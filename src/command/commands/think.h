@@ -25,18 +25,15 @@ namespace commands {
 class Think : public ICommand {
  public:
     Think(Limit Limits[2],
-          std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
-              Callback = nullptr);
+          std::function<void(core::Move32)> Callback = nullptr);
     ~Think();
 
     CommandType type() const;
     const Limit* limit() const;
-    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
-    callback() const;
+    std::function<void(core::Move32)> callback() const;
 
  private:
-    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
-        CallbackFunc;
+    std::function<void(core::Move32)> CallbackFunc;
     Limit L[2];
 };
 

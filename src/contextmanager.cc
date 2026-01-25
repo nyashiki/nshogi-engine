@@ -97,10 +97,6 @@ void ContextManager::setIsNShogiExtensionLogEnabled(bool Value) {
     Context_->IsNShogiExtensionLogEnabled = Value;
 }
 
-void ContextManager::setIsThoughtLogEnabled(bool Value) {
-    Context_->IsThoughtLogEnabled = Value;
-}
-
 void ContextManager::setPrintStatistics(bool Value) {
     Context_->PrintStatistics = Value;
 }

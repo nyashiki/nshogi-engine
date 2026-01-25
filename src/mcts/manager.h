@@ -43,13 +43,6 @@ enum class ManagerStatus {
     Busy,
 };
 
-struct ThoughtLog {
-    std::vector<std::pair<core::Move16, uint64_t>> VisitCounts;
-    double WinRate;
-    double DrawRate;
-    int16_t PlyToTerminal;
-};
-
 class Manager {
  public:
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
@@ -57,7 +50,8 @@ class Manager {
 
     void thinkNextMove(
         const core::State&, const core::StateConfig&, engine::Limit,
-        std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback);
+        std::function<void(core::Move32)> Callback,
+        std::function<void(Tree*)> SearchTreeCallback = nullptr);
     void interrupt();
 
     void resetSearchTree();
@@ -120,8 +114,8 @@ class Manager {
 
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
-    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)>
-        BestMoveCallback;
+    std::function<void(core::Move32)> BestMoveCallback;
+    std::function<void(Tree*)> STCallback;
 
     Statistics Stat;
 

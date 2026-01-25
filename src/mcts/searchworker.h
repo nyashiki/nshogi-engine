@@ -67,6 +67,7 @@ class SearchWorker : public worker::Worker {
     core::StateConfig Config;
     Node* RootNode;
     uint16_t RootPly;
+    core::Color RootSideToMove;
 
     allocator::Allocator* NA;
     allocator::Allocator* EA;

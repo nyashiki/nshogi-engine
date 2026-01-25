@@ -54,6 +54,7 @@ void SearchWorker::updateRoot(const core::State& S,
     State = std::make_unique<core::State>(S.clone());
     Config = StateConfig;
     RootNode = Root;
+    RootSideToMove = State->getSideToMove();
 
     RootPly = State->getPly();
 }
@@ -686,7 +687,7 @@ logger::PVLog SearchWorkerMaster::getPVLog() const {
         RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
 
     Log.NumNodes = Visits;
-    Log.CurrentSideToMove = State->getSideToMove();
+    Log.CurrentSideToMove = RootSideToMove;
     Log.SolvedGameEndPly = N->getPlyToTerminalSolved();
     if (Log.SolvedGameEndPly > 0) {
         Log.WinRate = 1.0;
@@ -775,7 +776,7 @@ bool SearchWorkerMaster::checkThinkingTimeBudget(uint64_t Elapsed) const {
         return false;
     }
 
-    if (!Limit.isNoLimitAboutTime()) {
+    if (Limit.isNoLimitAboutTime()) {
         return false;
     }
 

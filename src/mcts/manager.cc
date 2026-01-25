@@ -86,7 +86,8 @@ Manager::~Manager() {
 void Manager::thinkNextMove(
     const core::State& State, const core::StateConfig& Config,
     engine::Limit Lim,
-    std::function<void(core::Move32, std::unique_ptr<ThoughtLog>)> Callback) {
+    std::function<void(core::Move32)> Callback,
+    std::function<void(Tree*)> SearchTreeCallback) {
 
     interruptInternal(true);
 
@@ -106,6 +107,7 @@ void Manager::thinkNextMove(
         CurrentState = std::make_unique<core::State>(State.clone());
         StateConfig = std::make_unique<core::StateConfig>(Config);
         BestMoveCallback = Callback;
+        STCallback = SearchTreeCallback;
         std::lock_guard<std::mutex> Lock(MutexSupervisor);
         SWorkerMaster->setLimit(Lim);
         assert(!WakeUpSupervisor);
@@ -297,7 +299,6 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     core::Move32 BestMove = core::Move32::MoveNone();
 
-    std::unique_ptr<ThoughtLog> TL;
     // Start thinking.
 #ifndef NDEBUG
     assert(!EQueue->isOpen());
@@ -351,39 +352,8 @@ void Manager::doSupervisorWork(bool CallCallback) {
         PLogger->printStatistics(Stat);
     }
 
-    // Prepare ThoughtLog if IsThoughtLogEnabled is true.
-    if (PContext->isThoughtLogEnabled()) {
-        TL = std::make_unique<ThoughtLog>();
-        const uint64_t NumChildren = RootNode->getNumChildren();
-        TL->VisitCounts.reserve(NumChildren);
-        for (std::size_t I = 0; I < NumChildren; ++I) {
-            auto* Edge = &RootNode->getEdge()[I];
-            auto* Child = Edge->getTarget();
-
-            if (Child == nullptr) {
-                continue;
-            }
-
-            const uint64_t ChildVisits =
-                Child->getVisitsAndVirtualLoss() & Node::VisitMask;
-
-            if (ChildVisits <= 1) {
-                continue;
-            }
-
-            TL->VisitCounts.emplace_back(Edge->getMove(), ChildVisits);
-        }
-
-        TL->WinRate = 0.0;
-        TL->DrawRate = 0.0;
-        TL->PlyToTerminal = 0;
-        const uint64_t Visits =
-            RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
-        if (Visits > 0) {
-            TL->WinRate = RootNode->getWinRateAccumulated() / (double)Visits;
-            TL->DrawRate = RootNode->getDrawRateAccumulated() / (double)Visits;
-            TL->PlyToTerminal = RootNode->getPlyToTerminalSolved();
-        }
+    if (STCallback != nullptr) {
+        STCallback(SearchTree.get());
     }
 
     BestMove = getBestmove(RootNode);
@@ -437,7 +407,7 @@ void Manager::doSupervisorWork(bool CallCallback) {
         }
 
         if (BestMoveCallback != nullptr) {
-            BestMoveCallback(BestMove, std::move(TL));
+            BestMoveCallback(BestMove);
         }
     }
     CVStatus.notify_all();

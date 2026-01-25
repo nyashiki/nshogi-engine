@@ -224,8 +224,7 @@ void position(std::istringstream& Stream) {
         std::make_shared<command::commands::SetPosition>(Sfen.c_str()));
 }
 
-void bestMoveCallBackFunction(nshogi::core::Move32 Move,
-                              std::unique_ptr<mcts::ThoughtLog>) {
+void bestMoveCallBackFunction(nshogi::core::Move32 Move) {
     Logger->printBestMove(Move);
 }
 

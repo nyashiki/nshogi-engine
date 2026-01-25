@@ -16,8 +16,7 @@ namespace commands {
 
 Think::Think(
     Limit Limits[2],
-    std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
-        Callback) {
+    std::function<void(core::Move32)> Callback) {
     L[0] = Limits[0];
     L[1] = Limits[1];
 
@@ -35,8 +34,7 @@ const Limit* Think::limit() const {
     return L;
 }
 
-std::function<void(core::Move32, std::unique_ptr<mcts::ThoughtLog>)>
-Think::callback() const {
+std::function<void(core::Move32)> Think::callback() const {
     return CallbackFunc;
 }
 
