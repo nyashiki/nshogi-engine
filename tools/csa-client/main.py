@@ -70,17 +70,17 @@ class CSAClient:
             self.viewer_thread.start()
 
         while True:
+            # Prepare engine.
+            self.engine = Engine(config["engine"], True)
+
+            if config["viewer"]["enabled"]:
+                self.engine.add_read_message_callback(self.callback_read_message)
+                self.engine.add_send_message_callback(self.callback_send_message)
+
+            self.engine.usi()
+            self.engine.isready()
+
             try:
-                # Prepare engine.
-                self.engine = Engine(config["engine"], True)
-
-                if config["viewer"]["enabled"]:
-                    self.engine.add_read_message_callback(self.callback_read_message)
-                    self.engine.add_send_message_callback(self.callback_send_message)
-
-                self.engine.usi()
-                self.engine.isready()
-
                 # Start communication.
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -125,6 +125,8 @@ class CSAClient:
                 pass
             except IOError:
                 pass
+            except RuntimeError:
+                pass
             finally:
                 self.socket.close()
 
@@ -132,6 +134,7 @@ class CSAClient:
 
             if not config["client"]["loop"]:
                 break
+
 
     def _login(self, username, password):
         self._send_message(f"LOGIN {username} {password}")
