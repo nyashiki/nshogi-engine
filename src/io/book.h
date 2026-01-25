@@ -10,6 +10,8 @@
 #ifndef NSHOGI_ENGINE_IO_BOOK_H
 #define NSHOGI_ENGINE_IO_BOOK_H
 
+#include "../book/book.h"
+
 #include <fstream>
 #include <vector>
 
@@ -25,10 +27,10 @@ class BookMaker;
 namespace io {
 namespace book {
 
-// enum class Format {
-//     NShogi,
-//     YaneuraOu,
-// };
+enum class Format {
+    NShogi,
+    YaneuraOu,
+};
 //
 // void save(const engine::book::Book& Book, std::ofstream&,
 //           Format = Format::NShogi);
@@ -36,6 +38,8 @@ namespace book {
 
 void save(const engine::book::BookMaker& Maker, std::ofstream& IndexOfs, std::ofstream& DataOfs);
 void load(engine::book::BookMaker* Maker, std::ifstream& IndexIfs, std::ifstream& DataIfs);
+
+void save(const std::vector<engine::book::BookEntry>& Book, Format, std::ofstream& Ofs);
 
 } // namespace book
 } // namespace io

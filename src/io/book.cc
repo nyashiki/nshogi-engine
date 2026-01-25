@@ -232,6 +232,22 @@ void load(engine::book::BookMaker* Maker, std::ifstream& IndexIfs, std::ifstream
     }
 }
 
+void save(const std::vector<engine::book::BookEntry>& Book, Format OutputFormat, std::ofstream& Ofs) {
+    if (OutputFormat == Format::YaneuraOu) {
+        Ofs << "#YANEURAOU-DB2016 1.00" << std::endl;
+
+        for (const auto& Entry : Book) {
+            Ofs << "sfen " << Entry.Sfen << std::endl;
+
+            Ofs << nshogi::io::sfen::move32ToSfen(Entry.Move) << " ";
+            Ofs << "none ";
+            const double WinRate = std::clamp(static_cast<double>(Entry.WinRate), 0.1, 0.9);
+            Ofs << (int)(-600.0 * std::log(1.0 / WinRate - 1.0)) << " ";
+            Ofs << "1 1" << std::endl;
+        }
+    }
+}
+
 } // namespace book
 } // namespace io
 } // namespace engine
