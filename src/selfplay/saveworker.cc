@@ -9,6 +9,7 @@
 
 #include "saveworker.h"
 
+#include <cassert>
 #include <cstdio>
 
 #include <nshogi/core/movegenerator.h>
@@ -168,6 +169,8 @@ void SaveWorker::save(Frame* F) {
         const auto NextMove =
             F->getState()->getHistoryMove(Replay.getPly(false));
 
+        // Only save teachers where full search was conducted.
+        assert(F->getDidFullSearch().size() > Replay.getPly(false));
         if (F->getDidFullSearch().at(Replay.getPly(false))) {
             STeacher.setState(Replay);
             STeacher.setNextMove(core::Move16(NextMove));
