@@ -17,11 +17,12 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Frame::Frame(mcts::GarbageCollector* GC, allocator::Allocator* NodeAllocator)
-    : Phase(SelfplayPhase::Initialization) {
+Frame::Frame(bool IsGumbel, mcts::GarbageCollector* GC, allocator::Allocator* NodeAllocator)
+    : IsGumbel_(IsGumbel)
+    , Phase(SelfplayPhase::Initialization) {
     setSearchTree(std::make_unique<mcts::Tree>(GC, NodeAllocator, nullptr));
     allocatePolicyArray();
-    GumbelNoise.resize(600);
+    Noise.resize(600);
 }
 
 SelfplayPhase Frame::getPhase() const {
@@ -109,8 +110,17 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
                          WinRate, DrawRate);
     }
 
-    if (NodeToEvaluate != SearchTree->getRoot()) {
+    if (!isGumbel() || NodeToEvaluate != SearchTree->getRoot()) {
         ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+    }
+
+    // Add dirichlet noise.
+    if (!isGumbel() && NodeToEvaluate == SearchTree->getRoot()) {
+        const double EPS = 0.25;
+        for (std::size_t I = 0; I < NumChildren; ++I) {
+            LegalPolicyLogits[I] =
+                (float)((1 - EPS) * (double)LegalPolicyLogits[I] + EPS * Noise[I]);
+        }
     }
 
     NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
@@ -132,8 +142,8 @@ uint16_t Frame::getNumSamplingMoves() const {
     return NumSamplingMoves;
 }
 
-std::vector<double>& Frame::getGumbelNoise() {
-    return GumbelNoise;
+std::vector<double>& Frame::getNoise() {
+    return Noise;
 }
 
 std::vector<bool>& Frame::getIsTarget() {

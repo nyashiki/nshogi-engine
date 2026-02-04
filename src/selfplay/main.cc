@@ -53,6 +53,8 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("ignore-draw", "Ignore draw games.");
     Parser.addOption("full-search-ratio", "0.25",
                      "The ratio of full searches.");
+    Parser.addOption("gumbel",
+                      "Gumbel AlphaZero style self-play.");
 
     Parser.parse(Argc, Argv);
 
@@ -96,10 +98,11 @@ int main(int Argc, char* Argv[]) {
     auto EvalCache = std::make_unique<mcts::EvalCache>(EVALCACHE_MEMORY_MB);
 
     // Prepare empty frames.
+    const bool IsGumbel = Parser.isSpecified("gumbel");
     const std::size_t NUM_FRAME_POOL =
         (std::size_t)std::stoull(Parser.getOption("frame-pool-size"));
     for (std::size_t I = 0; I < NUM_FRAME_POOL; ++I) {
-        auto F = std::make_unique<Frame>(GC.get(), NodeAllocator.get());
+        auto F = std::make_unique<Frame>(IsGumbel, GC.get(), NodeAllocator.get());
         F->setEvaluationCache(EvalCache.get());
         SearchQueue->add(std::move(F));
     }

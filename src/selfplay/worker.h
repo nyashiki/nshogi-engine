@@ -49,7 +49,7 @@ class Worker : public worker::Worker {
     SelfplayPhase judge(Frame*) const;
     SelfplayPhase transition(Frame*) const;
 
-    double sampleGumbelNoise() const;
+    double sampleNoise(Frame* F) const;
     double transformQ(double, uint64_t MaxN) const;
     template <bool IsRoot>
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove,
