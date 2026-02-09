@@ -85,10 +85,13 @@ TensorRT::~TensorRT() {
     cudaFree(DeviceValueOutput);
     cudaFree(DeviceDrawOutput);
 
-    cudaGraphExecDestroy(CudaGraphExec[0]);
-    cudaGraphDestroy(CudaGraph[0]);
-    cudaGraphExecDestroy(CudaGraphExec[1]);
-    cudaGraphDestroy(CudaGraph[1]);
+    if (UseCudaGraph) {
+        cudaGraphExecDestroy(CudaGraphExec[0]);
+        cudaGraphDestroy(CudaGraph[0]);
+        cudaGraphExecDestroy(CudaGraphExec[1]);
+        cudaGraphDestroy(CudaGraph[1]);
+    }
+
     cudaStreamDestroy(Stream);
 
     Plan.reset();
@@ -185,6 +188,7 @@ void TensorRT::load(const std::string& Path,
 
     Context.reset(CudaEngine->createExecutionContext());
     Context->setOptimizationProfileAsync(0, Stream);
+    cudaStreamSynchronize(Stream);
 
     // Check policy size.
     const nvinfer1::Dims PolicyDims = Context->getTensorShape("policy");
@@ -220,7 +224,9 @@ void TensorRT::load(const std::string& Path,
         std::abort();
     }
 
-    makeCudaGraph();
+    if (UseCudaGraph) {
+        makeCudaGraph();
+    }
 }
 
 void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
@@ -233,7 +239,22 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
                     BatchSize * NumC * sizeof(ml::FeatureBitboard),
                     cudaMemcpyHostToDevice, Stream);
 
-    cudaGraphLaunch(CudaGraphExec[BatchSize > (BatchSizeM + 1) / 2], Stream);
+    if (UseCudaGraph) {
+        cudaGraphLaunch(CudaGraphExec[BatchSize > (BatchSizeM + 1) / 2], Stream);
+    } else {
+        if constexpr (global_config::ChannelsFirst) {
+            Context->setInputShape("input", nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
+        } else {
+            Context->setInputShape("input", nvinfer1::Dims4{(int32_t)BatchSize, 9, 9, NumC});
+        }
+
+        cuda::extractBits<global_config::ChannelsFirst>(
+            reinterpret_cast<float*>(DeviceInputExtracted),
+            reinterpret_cast<uint64_t*>(DeviceInput), (int)BatchSize,
+            (int)NumC, Stream);
+
+        Context->enqueueV3(Stream);
+    }
 
     // Copy GPU output onto CPU.
     cudaMemcpyAsync(DstPolicy, DevicePolicyOutput,
@@ -286,7 +307,7 @@ void TensorRT::makeCudaGraph() {
             }
         }
 
-        cudaStreamBeginCapture(Stream, cudaStreamCaptureModeGlobal);
+        cudaStreamBeginCapture(Stream, cudaStreamCaptureModeThreadLocal);
 
         cuda::extractBits<global_config::ChannelsFirst>(
             reinterpret_cast<float*>(DeviceInputExtracted),

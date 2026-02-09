@@ -57,6 +57,8 @@ class TensorRT : public Infer {
     void resetGPU();
 
  private:
+    const bool UseCudaGraph = false;
+
     void makeCudaGraph();
 
     const uint16_t BatchSizeM;
