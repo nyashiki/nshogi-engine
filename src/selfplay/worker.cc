@@ -118,10 +118,15 @@ SelfplayPhase Worker::initialize(Frame* F) {
         F->setState(std::make_unique<core::State>(
             core::StateBuilder::getInitialState()));
     } else {
-        const core::Position& SampledPosition =
-            InitialPositions->at(MT() % InitialPositions->size());
-        F->setState(std::make_unique<core::State>(
-            core::StateBuilder::newState(SampledPosition)));
+        if (MT() % 100 == 0) {
+            F->setState(std::make_unique<core::State>(
+                core::StateBuilder::getInitialState()));
+        } else {
+            const core::Position& SampledPosition =
+                InitialPositions->at(MT() % InitialPositions->size());
+            F->setState(std::make_unique<core::State>(
+                core::StateBuilder::newState(SampledPosition)));
+        }
     }
 
     // Setup a config.
