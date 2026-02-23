@@ -124,7 +124,7 @@ void FeedWorker::feedResult(core::Color SideToMove, Node* N,
                 LegalPolicy[I] = Policy[MoveIndex];
             }
         }
-        ml::math::softmax_(LegalPolicy, NumChildren, 1.6f);
+        ml::math::softmax_(LegalPolicy, NumChildren, 1.0f);
         N->setEvaluation(LegalPolicy, WinRate, DrawRate);
         N->sort();
     }
