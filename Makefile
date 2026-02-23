@@ -1,7 +1,7 @@
 CXX := clang++
 NVCC := nvcc
 
-BUILD_DIR ?= build_temp
+BUILD_DIR ?= build
 BUILD ?= release
 EXECUTOR ?= random
 
@@ -42,6 +42,7 @@ SOURCES :=                              \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
     src/book/bookmaker.cc               \
+    src/book/node.cc                    \
 	src/mcts/checkmateworker.cc         \
 	src/mcts/checkmatequeue.cc          \
 	src/mcts/garbagecollector.cc        \
@@ -132,11 +133,11 @@ ifneq ($(filter $(EXECUTOR),zero nothing random tensorrt),$(EXECUTOR))
   $(error "invalid executor: '$(EXECUTOR)'")
 endif
 
-OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
-SELFPLAY_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SELFPLAY_SOURCES))
-CUDA_OBJECTS = $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
-TEST_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(TEST_SOURCES))
-BENCH_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(BENCH_SOURCES))
+OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
+SELFPLAY_OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(SELFPLAY_SOURCES))
+CUDA_OBJECTS := $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
+TEST_OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(TEST_SOURCES))
+BENCH_OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(BENCH_SOURCES))
 
 ARCH_FLAGS :=
 
@@ -256,5 +257,5 @@ clean:
 # BENCHMARK SCRIPTS
 .PHONY: bench-mcts-with-zero-executor
 bench-mcts-with-zero-executor: bench
-	perf record -a --call-graph lbr -F 49 -- ./build/release_clang++/nshogi-bench MCTS 10 128 1 1 0
+	perf record -a --call-graph lbr -F 49 -- ./$(BUILD_DIR)/release_clang++/nshogi-bench MCTS 10 128 1 1 0
 	perf script report flamegraph
