@@ -116,10 +116,14 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
 
     // Add dirichlet noise.
     if (!isGumbel() && NodeToEvaluate == SearchTree->getRoot()) {
-        const double EPS = 0.25;
-        for (std::size_t I = 0; I < NumChildren; ++I) {
-            LegalPolicyLogits[I] =
-                (float)((1 - EPS) * (double)LegalPolicyLogits[I] + EPS * Noise[I]);
+        // Enable dirichlet noise addition only when the full search is performed.
+        assert(getDidFullSearch().size() > 0);
+        if (getDidFullSearch().back()) {
+            const double EPS = 0.25;
+            for (std::size_t I = 0; I < NumChildren; ++I) {
+                LegalPolicyLogits[I] =
+                    (float)((1 - EPS) * (double)LegalPolicyLogits[I] + EPS * Noise[I]);
+            }
         }
     }
 
