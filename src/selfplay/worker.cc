@@ -530,30 +530,63 @@ SelfplayPhase Worker::transition(Frame* F) const {
     }
 
     if (!F->isGumbel()) { // AlphaZero style.
-        std::vector<double> VisitCounts;
-        VisitCounts.reserve(F->getSearchTree()->getRoot()->getNumChildren());
-        for (std::size_t I = 0; I < F->getSearchTree()->getRoot()->getNumChildren();
-             ++I) {
-            mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
-            mcts::Node* Child = Edge->getTarget();
+        // Choose a next move proportionally to visit counts.
+        // Currently disabled because self-play games start
+        // from various initial positions.
+        if (false) {
+            std::vector<double> VisitCounts;
+            VisitCounts.reserve(F->getSearchTree()->getRoot()->getNumChildren());
+            for (std::size_t I = 0; I < F->getSearchTree()->getRoot()->getNumChildren();
+                 ++I) {
+                mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
+                mcts::Node* Child = Edge->getTarget();
 
-            if (Child == nullptr) {
-                VisitCounts.push_back(0.0);
-            } else {
-                VisitCounts.push_back(
-                    (double)Child->getVisitsAndVirtualLoss());
+                if (Child == nullptr) {
+                    VisitCounts.push_back(0.0);
+                } else {
+                    VisitCounts.push_back(
+                        (double)Child->getVisitsAndVirtualLoss());
+                }
             }
+
+            std::discrete_distribution<std::size_t> Distribution(
+                VisitCounts.begin(), VisitCounts.end());
+            const std::size_t SelectedIndex = Distribution(MT);
+
+            mcts::Edge* SelectedEdge =
+                &F->getSearchTree()->getRoot()->getEdge()[SelectedIndex];
+            F->getState()->doMove(
+                F->getState()->getMove32FromMove16(SelectedEdge->getMove()));
+        } else {
+            // Choose the most visited move.
+            uint64_t MaxVisits = 0;
+            mcts::Edge* MaxEdge = nullptr;
+            for (std::size_t I = 0; I < F->getSearchTree()->getRoot()->getNumChildren();
+                 ++I) {
+                mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
+                mcts::Node* Child = Edge->getTarget();
+
+                if (Child == nullptr) {
+                    if (MaxEdge == nullptr) {
+                        MaxEdge = Edge;
+                    }
+                    continue;
+                }
+
+                if (Child->getVisitsAndVirtualLoss() > MaxVisits) {
+                    MaxVisits = Child->getVisitsAndVirtualLoss();
+                    MaxEdge = Edge;
+                } else if (Child->getVisitsAndVirtualLoss() == MaxVisits) {
+                    if (Edge->getProbability() > MaxEdge->getProbability()) {
+                        MaxEdge = Edge;
+                    }
+                }
+            }
+
+            assert(MaxEdge != nullptr || F->getSearchTree()->getRoot()->getNumChildren() == 1);
+            F->getState()->doMove(
+                F->getState()->getMove32FromMove16(MaxEdge->getMove()));
         }
-
-        std::discrete_distribution<std::size_t> Distribution(
-            VisitCounts.begin(), VisitCounts.end());
-        const std::size_t SelectedIndex = Distribution(MT);
-
-        mcts::Edge* SelectedEdge =
-            &F->getSearchTree()->getRoot()->getEdge()[SelectedIndex];
-        F->getState()->doMove(
-            F->getState()->getMove32FromMove16(SelectedEdge->getMove()));
-
         return SelfplayPhase::Judging;
     }
 
