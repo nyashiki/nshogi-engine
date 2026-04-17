@@ -569,6 +569,11 @@ SelfplayPhase Worker::transition(Frame* F) const {
                 if (Child == nullptr) {
                     if (MaxEdge == nullptr) {
                         MaxEdge = Edge;
+                    } else if (
+                        MaxEdge->getTarget() == nullptr &&
+                        Edge->getProbability() > MaxEdge->getProbability()
+                    ) {
+                        MaxEdge = Edge;
                     }
                     continue;
                 }
