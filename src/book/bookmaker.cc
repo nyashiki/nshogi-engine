@@ -32,7 +32,7 @@ static std::unordered_map<std::string, std::unordered_set<uint32_t>> Precedents;
 static BookMaker Restore;
 
 constexpr uint64_t SimulationMax = 500000;
-constexpr uint64_t SimulationMin = 50000;
+constexpr uint64_t SimulationMin = 200000;
 
 BookMaker::BookMaker()
     : Solver(2048) {
@@ -118,13 +118,13 @@ void BookMaker::start(const core::State& RootState, uint64_t NumSimulations) {
 
         if (Simulation % 1 == 0) {
             const NodeIndex Root = findNode(RootState);
-            outputDebugInfo(Root);
+            outputDebugInfo(&RootState, Root);
         }
 
-        if (Simulation % 500 == 0) {
+        if (Simulation % 2000 == 0) {
             {
-                const std::string IndexOutputPath = "book_ckpt/ckpt_" + std::to_string(Simulation) + ".index";
-                const std::string DataOutputPath = "book_ckpt/ckpt_" + std::to_string(Simulation) + ".data";
+                const std::string IndexOutputPath = "book_ckpt/ckpt_" + std::to_string(Nodes.size()) + ".index";
+                const std::string DataOutputPath = "book_ckpt/ckpt_" + std::to_string(Nodes.size()) + ".data";
 
                 std::ofstream IndexOfs(IndexOutputPath, std::ios::binary);
                 std::ofstream DataOfs(DataOutputPath, std::ios::binary);
@@ -188,8 +188,8 @@ void BookMaker::prepareMCTSManager() {
     MCTSManager.reset();
 
     CManager.setIsPonderingEnabled(false);
-    CManager.setMinimumThinkinTimeMilliSeconds(2 * 1000);
-    CManager.setMaximumThinkinTimeMilliSeconds(2 * 1000);
+    CManager.setMinimumThinkinTimeMilliSeconds(5 * 1000);
+    CManager.setMaximumThinkinTimeMilliSeconds(30 * 1000);
     CManager.setNumCheckmateSearchThreads(8);
     CManager.setBookEnabled(false);
     CManager.setPrintStatistics(false);
@@ -422,6 +422,7 @@ void BookMaker::evaluate(core::State* State, NodeIndex N) {
                     }
                 }
 
+                Restore.NodeIndices.erase(nshogi::io::sfen::positionToSfen(State->getPosition()));
                 std::cout << "[BookMaker] Restored evaluation." << std::endl;
                 return;
             }
@@ -491,10 +492,10 @@ void BookMaker::storeSearchResult(core::State* State, mcts::Node* N, bool IsRoot
 
     Node* Target = nullptr;
 
+    const auto Key = nshogi::io::sfen::positionToSfen(State->getPosition());
     if (IsRoot) {
         Target = &Nodes[RootNodeIndex];
     } else {
-        const auto Key = nshogi::io::sfen::positionToSfen(State->getPosition());
         if (Restore.NodeIndices.find(Key) == Restore.NodeIndices.end()) {
             NodeIndex NewNodeIndex = (NodeIndex)(Restore.Nodes.size());
             Restore.Nodes.emplace_back(NewNodeIndex);
@@ -513,13 +514,41 @@ void BookMaker::storeSearchResult(core::State* State, mcts::Node* N, bool IsRoot
 
         Target->WinRateRaw = (float)(N->getWinRateAccumulated() / (double)N->getVisitsAndVirtualLoss());
         Target->DrawRateRaw = (float)(N->getDrawRateAccumulated() / (double)N->getVisitsAndVirtualLoss());
+
         for (std::size_t I = 0; I < N->getNumChildren(); ++I) {
             Target->Moves[I] = State->getMove32FromMove16(N->getEdge()[I].getMove());
+
+            if (Key == "lr5nl/3g1kgs1/2n1p2p1/p1pps1P1p/1p3p1P1/P1PPSP2P/1PS1P4/1KG2G3/LN5RL b BPbn 1") {
+                if (Target->Moves[I] == nshogi::io::sfen::sfenToMove32(State->getPosition(), "4f4e")) {
+                    Target->PolicyRaw[I] = 1.0f;
+                } else {
+                    Target->PolicyRaw[I] = 0.0f;
+                }
+                continue;
+            }
+
             mcts::Node* Child = N->getEdge()[I].getTarget();
             if (Child != nullptr) {
                 Target->PolicyRaw[I] = (float)Child->getVisitsAndVirtualLoss() / (float)(N->getVisitsAndVirtualLoss() - 1);
             } else {
                 Target->PolicyRaw[I] = 0.0f;
+            }
+        }
+
+        if (Key != "lr5nl/3g1kgs1/2n1p2p1/p1pps1P1p/1p3p1P1/P1PPSP2P/1PS1P4/1KG2G3/LN5RL b BPbn 1") {
+            const auto PrecedentIt = Precedents.find(Key);
+            if (PrecedentIt != Precedents.end()) {
+                std::vector<float> PrecedentPolicy(Target->Moves.size(), 0.0f);
+                for (std::size_t I = 0; I < Target->Moves.size(); ++I) {
+                    if (PrecedentIt->second.contains(Target->Moves[I].value())) {
+                        PrecedentPolicy[I] = 1.0f / (float)PrecedentIt->second.size();
+                    }
+                }
+
+                const float eps = 0.5f;
+                for (std::size_t I = 0; I < Target->PolicyRaw.size(); ++I) {
+                    Target->PolicyRaw[I] = (1 - eps) * Target->PolicyRaw[I] + eps * PrecedentPolicy[I];
+                }
             }
         }
     }
@@ -540,18 +569,29 @@ void BookMaker::storeSearchResult(core::State* State, mcts::Node* N, bool IsRoot
 }
 
 std::pair<std::size_t, core::Move32> BookMaker::computeUCBMaxChild(core::State* State, NodeIndex N) {
-    // TODO: draw value.
+    if (nshogi::io::sfen::positionToSfen(State->getPosition()) ==
+        "lr5nl/3g1kgs1/2n1p2p1/p2Ps1P1p/5P1P1/P1S1S3P/1G2P4/1K3G3/LN5RL b B5Pbn2p 1") {
+        for (std::size_t I = 0; I < Nodes[N].Moves.size(); ++I) {
+            if (Nodes[N].Moves[I] == nshogi::io::sfen::sfenToMove32(State->getPosition(), "P*8f")) {
+                return { I, Nodes[N].Moves[I] };
+            }
+        }
+    }
+
+    if (nshogi::io::sfen::positionToSfen(State->getPosition()) ==
+        "lr5nl/2bg1kgs1/2n1p2p1/p2PsPP1p/1P5P1/P2NS3P/1SPpP4/1K3G3/LN5RL b B4Pg 1") {
+        for (std::size_t I = 0; I < Nodes[N].Moves.size(); ++I) {
+            if (Nodes[N].Moves[I] == nshogi::io::sfen::sfenToMove32(State->getPosition(), "B*8d")) {
+                return { I, Nodes[N].Moves[I] };
+            }
+        }
+    }
 
     const uint64_t ThisVisitCount = Nodes[N].visitCount();
-
-    const auto PrecedentIt = Precedents.find(nshogi::io::sfen::positionToSfen(State->getPosition()));
 
     std::size_t BestIndex = 0;
     core::Move32 BestMove = core::Move32::MoveNone();
     double UCBMaxValue = -1.0;
-    // std::size_t PrecedentBestIndex = 0;
-    // core::Move32 PrecedentBestMove = core::Move32::MoveNone();
-    // double PrecedentUCBMaxValue = -1.0;
 
     static constexpr int32_t CBase = 19652;
     static constexpr double CInit = 1.25;
@@ -559,21 +599,7 @@ std::pair<std::size_t, core::Move32> BookMaker::computeUCBMaxChild(core::State* 
         (std::log((double)(ThisVisitCount + CBase) / (double)CBase) + CInit) *
         std::sqrt((double)ThisVisitCount);
 
-    // const bool PrecedentOnly = State->getSideToMove() == core::Color::Black;
-
     for (std::size_t I = 0; I < Nodes[N].Moves.size(); ++I) {
-        if (Nodes[N].visitCount() > 1) {
-            if (PrecedentIt != Precedents.end()) {
-                if (Nodes[N].VisitCounts[I] == 0) {
-                    if (PrecedentIt->second.contains(Nodes[N].Moves[I].value())) {
-                        BestIndex = I;
-                        BestMove = Nodes[N].Moves[I];
-                        break;
-                    }
-                }
-            }
-        }
-
         const double WinRate = (Nodes[N].VisitCounts[I] == 0)
                                  ? 0.0
                                  : (Nodes[N].WinRateAccumulateds[I] / (double)Nodes[N].VisitCounts[I]);
@@ -617,7 +643,7 @@ std::pair<std::size_t, core::Move32> BookMaker::computeUCBMaxChild(core::State* 
     return { BestIndex, BestMove };
 }
 
-void BookMaker::outputDebugInfo(NodeIndex Root) const {
+void BookMaker::outputDebugInfo(const core::State* State, NodeIndex Root) const {
     std::cout << "====================" << std::endl;
 
     std::cout << "[Stats]" << std::endl;
@@ -645,6 +671,7 @@ void BookMaker::outputDebugInfo(NodeIndex Root) const {
     std::cout << "    - drawRate: " << DrawRate << std::endl;
     std::cout << "    - pv: ";
     const auto& [PV, Trajectory] = currentPV(Root);
+    std::cout << nshogi::io::sfen::stateToSfen(*State) << " moves ";
     for (const auto& Move : PV) {
         std::cout << nshogi::io::sfen::move32ToSfen(Move) << " ";
     }

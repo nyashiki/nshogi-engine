@@ -67,7 +67,7 @@ class BookMaker {
     void storeSearchResult(core::State*, mcts::Node* Node, bool IsRoot, NodeIndex RootNodeIndex);
 
     auto computeUCBMaxChild(core::State*, NodeIndex) -> std::pair<std::size_t, core::Move32>;
-    void outputDebugInfo(NodeIndex) const;
+    void outputDebugInfo(const core::State*, NodeIndex) const;
     auto currentPV(NodeIndex) const -> std::pair<std::vector<core::Move32>, std::vector<NodeIndex>>;
 
     std::unordered_map<std::string, NodeIndex> NodeIndices;
