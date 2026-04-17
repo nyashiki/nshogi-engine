@@ -59,8 +59,7 @@ class SearchWorker : public worker::Worker {
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
                             bool regardNotVisitedWin);
-    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
-                                 uint64_t ChildVirtualVisits);
+    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits);
     void incrementVirtualLosses(Node*);
 
     std::unique_ptr<core::State> State;

@@ -393,8 +393,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         assert(Child != nullptr);
         assert(ChildVirtualVisits > 0);
-        const double ChildWinRate =
-            computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
+        const double ChildWinRate = computeWinRateOfChild(Child, ChildVisits);
         const double UCBValue =
             ChildWinRate +
             Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
@@ -421,15 +420,14 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     return UCBMaxEdge;
 }
 
-double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
-                                           uint64_t ChildVirtualVisits) {
+double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
     const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) /
-                           (double)ChildVirtualVisits;
+                           (double)ChildVisits;
     const double DrawRate =
-        ChildDrawRateAcuumulated / (double)ChildVirtualVisits;
+        ChildDrawRateAcuumulated / (double)ChildVisits;
 
     const double DrawValue = (State->getSideToMove() == core::Black)
                                  ? Config.BlackDrawValue
