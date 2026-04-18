@@ -283,8 +283,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     Edge* UCBMaxEdge = nullptr;
     double UCBMaxValue = std::numeric_limits<double>::lowest();
     bool IsAllTargetLoss = true;
-    int16_t WinTargetPlyMin = 10000;
-    int16_t LossTargetPlyMax = 0;
+    int32_t WinTargetPlyMin = 10000;
+    int32_t LossTargetPlyMax = 0;
 
     Edge* ShortestWinEdge = nullptr;
     Edge* LongestLossEdge = nullptr;
@@ -351,7 +351,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         const uint64_t ChildVirtualVisits = ChildVisits + ChildVirtualLoss;
 
-        const int16_t PlyToTerminal = Child->getPlyToTerminalSolved();
+        const int32_t PlyToTerminal = static_cast<int32_t>(Child->getPlyToTerminalSolved());
         if (PlyToTerminal > 0) {
             // If `PlyToTerminal` of a child is larger than zero,
             // it means the child is a win state from the perspective of
@@ -369,7 +369,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         IsAllTargetLoss = false;
 
         if (PlyToTerminal < 0) {
-            const int16_t NegativePlyToTerminal = -PlyToTerminal;
+            const int32_t NegativePlyToTerminal = -PlyToTerminal;
 
             // If `PlyToTerminal` of a child is less than zero,
             // it means the child is a loss state from the perspective of
@@ -405,12 +405,12 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     }
 
     if (ShortestWinEdge != nullptr) {
-        N->setPlyToTerminalSolved(WinTargetPlyMin + 1);
+        N->setPlyToTerminalSolved(static_cast<int16_t>(WinTargetPlyMin + 1));
         return ShortestWinEdge;
     }
 
     if (IsAllTargetLoss) {
-        N->setPlyToTerminalSolved(-LossTargetPlyMax - 1);
+        N->setPlyToTerminalSolved(static_cast<int16_t>(-LossTargetPlyMax - 1));
         return LongestLossEdge;
     }
 
