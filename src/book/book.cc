@@ -30,6 +30,10 @@ auto Book::nextMoves(const core::State& State) const
     return { };
 }
 
+auto Book::size() const -> std::size_t {
+    return BookData.size();
+}
+
 } // namespace book
 } // namespace engine
 } // namespace nshogi

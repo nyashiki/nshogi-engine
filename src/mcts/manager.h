@@ -11,6 +11,7 @@
 
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/segregated_free_list.h"
+#include "../book/book.h"
 #include "../context.h"
 #include "../globalconfig.h"
 #include "../limit.h"
@@ -73,6 +74,7 @@ class Manager {
     void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
     void setupEvalCache(std::size_t EvalCacheMB);
     void setupSupervisor();
+    void setupBook();
 
     void doSupervisorWork(bool CallCackback);
 
@@ -100,6 +102,8 @@ class Manager {
     std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
     std::vector<std::unique_ptr<FeedWorker>> FeedWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
+
+    std::unique_ptr<book::Book> PBook;
 
     std::shared_ptr<logger::Logger> PLogger;
 

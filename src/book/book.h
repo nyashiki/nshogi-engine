@@ -30,6 +30,8 @@ class Book {
     // Note: returns copy in case `BookData` is updated after the call.
     auto nextMoves(const core::State&) const -> std::vector<core::Move16>;
 
+    auto size() const -> std::size_t;
+
  private:
     std::map<std::string, std::vector<core::Move16>> BookData;
 

@@ -8,6 +8,7 @@
 //
 
 #include "manager.h"
+#include "../io/book.h"
 
 #include <cmath>
 #include <functional>
@@ -41,6 +42,7 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
     setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
+    setupBook();
 
     PLogger->setIsNShogiExtensionLogEnabled(
         PContext->isNShogiExtensionLogEnabled());
@@ -280,6 +282,16 @@ void Manager::setupSupervisor() {
         }
         CVStatus.notify_all();
     });
+}
+
+void Manager::setupBook() {
+    if (PContext->isBookEnabled()) {
+        PBook = std::make_unique<book::Book>(
+            io::book::load(PContext->getBookPath(), io::book::BookFormat::YaneuraOu));
+        const std::string Message =
+                "Book loaded (size: " + std::to_string(PBook->size()) + ").";
+        PLogger->printLog(Message.c_str());
+    }
 }
 
 void Manager::doSupervisorWork(bool CallCallback) {
