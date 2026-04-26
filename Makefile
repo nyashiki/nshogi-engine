@@ -41,6 +41,7 @@ SOURCES :=                              \
 	src/context.cc                      \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
+    src/book/book.cc                    \
 	src/mcts/checkmateworker.cc         \
 	src/mcts/checkmatequeue.cc          \
 	src/mcts/garbagecollector.cc        \
@@ -64,7 +65,8 @@ SOURCES :=                              \
 	src/command/commands/getready.cc    \
 	src/command/commands/setposition.cc \
 	src/command/commands/think.cc       \
-	src/command/commands/stop.cc
+	src/command/commands/stop.cc        \
+    src/io/book.cc
 
 SELFPLAY_SOURCES :=                  \
 	src/selfplay/evaluationworker.cc \
