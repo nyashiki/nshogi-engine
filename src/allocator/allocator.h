@@ -1,3 +1,12 @@
+//
+// Copyright (c) 2025-2026 @nyashiki
+//
+// This software is licensed under the MIT license.
+// For details, see the LICENSE file in the root of this repository.
+//
+// SPDX-License-Identifier: MIT
+//
+
 #ifndef NSHOGI_ENGINE_ALLOCATOR_ALLOCATOR_H
 #define NSHOGI_ENGINE_ALLOCATOR_ALLOCATOR_H
 
