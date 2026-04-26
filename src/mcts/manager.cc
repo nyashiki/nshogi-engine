@@ -339,6 +339,24 @@ void Manager::doSupervisorWork(bool CallCallback) {
     }
     CVStatus.notify_all();
 
+    core::Move32 BookMove = core::Move32::MoveNone();
+    if (PContext->isBookEnabled()) {
+        if (PBook != nullptr) {
+            const auto RepetitionStatus = CurrentState->getRepetitionStatus();
+
+            const bool UseBook = (RepetitionStatus == core::RepetitionStatus::NoRepetition) ||
+                                 (RepetitionStatus == core::RepetitionStatus::Repetition && PContext->isRepetitionBookAllowed());
+            if (UseBook) {
+                const auto BookMoves = PBook->nextMoves(*CurrentState);
+                if (!BookMoves.empty()) {
+                    PLogger->printLog("Book move found.");
+                    BookMove = CurrentState->getMove32FromMove16(BookMoves.at(0));
+                    stopWorkers();
+                }
+            }
+        }
+    }
+
     // Await workers until the search stops.
     awaitWorkers();
     assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
@@ -367,7 +385,11 @@ void Manager::doSupervisorWork(bool CallCallback) {
         STCallback(SearchTree.get());
     }
 
-    BestMove = getBestmove(RootNode);
+    if (BookMove.isNone()) {
+        BestMove = getBestmove(RootNode);
+    } else {
+        BestMove = BookMove;
+    }
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
