@@ -16,6 +16,7 @@
 #include <mutex>
 #include <queue>
 
+#include "../lock/spinlock.h"
 #include <nshogi/core/position.h>
 
 namespace nshogi {
@@ -24,10 +25,12 @@ namespace mcts {
 
 struct CheckmateTask {
  public:
-    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth)
+    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth,
+                  uint64_t Gen)
         : TargetNode(N)
         , Position(Pos)
-        , Depth(MaxDepth) {
+        , Depth(MaxDepth)
+        , Generation(Gen) {
     }
 
     Node* node() {
@@ -42,31 +45,38 @@ struct CheckmateTask {
         return Depth;
     }
 
+    uint64_t generation() const {
+        return Generation;
+    }
+
  private:
     Node* TargetNode;
     core::Position Position;
     uint64_t Depth;
+    uint64_t Generation;
 };
 
 class CheckmateQueue {
  public:
-    CheckmateQueue(std::size_t MaxSize, std::size_t NumCheckmateWorkers);
+    CheckmateQueue();
 
-    void open();
-    void close();
     void add(Node*, const core::Position&, uint64_t Depth) noexcept;
     bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
-    auto getAll(std::size_t WorkerId) noexcept
-        -> std::queue<std::unique_ptr<CheckmateTask>>;
+    auto get() noexcept -> std::unique_ptr<CheckmateTask>;
+    auto getAll() noexcept -> std::queue<std::unique_ptr<CheckmateTask>>;
+
+    void incrementGeneration();
+
+    void lock() noexcept;
+    void unlock() noexcept;
+    uint64_t _generation();
 
  private:
     const std::size_t QueueMaxSize;
-    const std::size_t NumWorkers;
-    std::size_t RoundRobin;
-    bool IsOpen;
-    std::mutex GlobalMutex;
-    std::vector<std::mutex> Mutexes;
-    std::vector<std::queue<std::unique_ptr<CheckmateTask>>> Queues;
+    uint64_t Generation;
+
+    lock::SpinLock SpinLock;
+    std::queue<std::unique_ptr<CheckmateTask>> Queue;
 };
 
 } // namespace mcts

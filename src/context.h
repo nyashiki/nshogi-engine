@@ -20,8 +20,6 @@ class Context {
  public:
     bool isPonderingEnabled() const;
 
-    bool isThoughtLogEnabled() const;
-
     uint32_t getMinimumThinkingTimeMilliseconds() const;
 
     uint32_t getMaximumThinkingTimeMilliseconds() const;
@@ -33,6 +31,8 @@ class Context {
     std::size_t getNumEvaluationThreadsPerGPU() const;
 
     std::size_t getNumCheckmateSearchThreads() const;
+
+    std::size_t getNumFeedThreads() const;
 
     std::size_t getBatchSize() const;
 
@@ -54,19 +54,16 @@ class Context {
 
     std::size_t getNumGarbageCollectorThreads() const;
 
-    float getBlackDrawValue() const;
-
-    float getWhiteDrawValue() const;
-
     bool isRepetitionBookAllowed() const;
 
     bool isNShogiExtensionLogEnabled() const;
+
+    bool printStatistics() const;
 
     bool isNaNFallbackEnabled() const;
 
  private:
     bool IsPonderingEnabled = true;
-    bool IsThoughtLogEnabled = true;
 
     uint32_t MinimumThinkingTimeMilliSeconds = 0;
     uint32_t MaximumThinkingTimeMilliSeconds = 60 * 60 * 1000; // one hour.
@@ -75,6 +72,7 @@ class Context {
     std::size_t NumSearchThreads = 2;
     std::size_t NumEvaluationThreadsPerGPU = 2;
     std::size_t NumCheckmateSearchThreads = 2;
+    std::size_t NumFeedThreads = 4;
 
     std::size_t BatchSize = 128;
 
@@ -88,9 +86,6 @@ class Context {
 
     std::size_t EvalCacheMemoryMB = 8 * 1024;
 
-    float BlackDrawValue = 0.5f;
-    float WhiteDrawValue = 0.5f;
-
     bool IsRepetitionBookAllowed = true;
 
     std::string WeightPath = "./res/model.onnx";
@@ -99,6 +94,8 @@ class Context {
     std::string Bookpath = "";
 
     bool IsNShogiExtensionLogEnabled = true;
+
+    bool PrintStatistics = true;
 
     bool IsNaNFallbackEnabled = false;
 

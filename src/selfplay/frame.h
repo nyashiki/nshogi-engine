@@ -26,7 +26,12 @@ namespace selfplay {
 
 struct Frame {
  public:
-    Frame(mcts::GarbageCollector*, allocator::Allocator* NodeAllocator);
+    Frame(bool IsGumbel, mcts::GarbageCollector*,
+          allocator::Allocator* NodeAllocator);
+
+    bool isGumbel() const {
+        return IsGumbel_;
+    }
 
     SelfplayPhase getPhase() const;
     core::State* getState();
@@ -52,16 +57,22 @@ struct Frame {
     uint64_t getSequentialHalvingPlayouts() const;
     uint8_t getSequentialHalvingCount() const;
     uint16_t getNumSamplingMoves() const;
-    std::vector<double>& getGumbelNoise();
+    std::vector<double>& getNoise();
     std::vector<bool>& getIsTarget();
     void setNumPlayouts(uint64_t);
     void setSequentialHalvingPlayouts(uint64_t);
     void setSequentialHalvingCount(uint8_t);
     void setNumSamplingMoves(uint16_t);
 
+    void clearDidFullSearch();
+    void pushDidFullSearch(bool);
+    const std::vector<bool>& getDidFullSearch() const;
+
  private:
     void setSearchTree(std::unique_ptr<mcts::Tree>&&);
     void allocatePolicyArray();
+
+    const bool IsGumbel_;
 
     SelfplayPhase Phase;
 
@@ -84,8 +95,11 @@ struct Frame {
     uint64_t SequentialHalvingPlayouts;
     uint8_t SequentialHalvingCount;
     uint16_t NumSamplingMoves; // m in the paper.
-    std::vector<double> GumbelNoise;
     std::vector<bool> IsTarget;
+
+    std::vector<double> Noise;
+
+    std::vector<bool> DidFullSearch;
 };
 
 } // namespace selfplay

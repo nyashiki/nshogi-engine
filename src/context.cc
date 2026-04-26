@@ -16,10 +16,6 @@ bool Context::isPonderingEnabled() const {
     return IsPonderingEnabled;
 }
 
-bool Context::isThoughtLogEnabled() const {
-    return IsThoughtLogEnabled;
-}
-
 uint32_t Context::getMinimumThinkingTimeMilliseconds() const {
     return MinimumThinkingTimeMilliSeconds;
 }
@@ -42,6 +38,10 @@ std::size_t Context::getNumEvaluationThreadsPerGPU() const {
 
 std::size_t Context::getNumCheckmateSearchThreads() const {
     return NumCheckmateSearchThreads;
+}
+
+std::size_t Context::getNumFeedThreads() const {
+    return NumFeedThreads;
 }
 
 std::size_t Context::getBatchSize() const {
@@ -84,20 +84,16 @@ std::size_t Context::getNumGarbageCollectorThreads() const {
     return NumGarbageCollectorThreads;
 }
 
-float Context::getBlackDrawValue() const {
-    return BlackDrawValue;
-}
-
-float Context::getWhiteDrawValue() const {
-    return WhiteDrawValue;
-}
-
 bool Context::isRepetitionBookAllowed() const {
     return IsRepetitionBookAllowed;
 }
 
 bool Context::isNShogiExtensionLogEnabled() const {
     return IsNShogiExtensionLogEnabled;
+}
+
+bool Context::printStatistics() const {
+    return PrintStatistics;
 }
 
 bool Context::isNaNFallbackEnabled() const {

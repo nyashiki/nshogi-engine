@@ -86,7 +86,12 @@ class Engine:
             elif split[split.index("score") + 1] == "cp":
                 info["draw_rate"] = 0
                 score = int(split[split.index("score") + 2])
-                info["win_rate"] = 1 / (1 + math.exp(-score / 600))
+                if score > 10000:
+                    info["win_rate"] = 1.0
+                elif score < -10000:
+                    info["win_rate"] = -1.0
+                else:
+                    info["win_rate"] = 1 / (1 + math.exp(-score / 600))
 
         if "pv" in split:
             info["pv"] = split[split.index("pv") + 1 :]

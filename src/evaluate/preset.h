@@ -35,6 +35,7 @@ using SimpleFeatures = ml::FeatureStackComptime<
 
     ml::FeatureType::FT_MyStandPawn1, ml::FeatureType::FT_MyStandPawn2,
     ml::FeatureType::FT_MyStandPawn3, ml::FeatureType::FT_MyStandPawn4,
+    ml::FeatureType::FT_MyStandPawn5, ml::FeatureType::FT_MyStandPawn6,
     ml::FeatureType::FT_MyStandLance1, ml::FeatureType::FT_MyStandLance2,
     ml::FeatureType::FT_MyStandLance3, ml::FeatureType::FT_MyStandLance4,
     ml::FeatureType::FT_MyStandKnight1, ml::FeatureType::FT_MyStandKnight2,
@@ -48,6 +49,7 @@ using SimpleFeatures = ml::FeatureStackComptime<
 
     ml::FeatureType::FT_OpStandPawn1, ml::FeatureType::FT_OpStandPawn2,
     ml::FeatureType::FT_OpStandPawn3, ml::FeatureType::FT_OpStandPawn4,
+    ml::FeatureType::FT_OpStandPawn5, ml::FeatureType::FT_OpStandPawn6,
     ml::FeatureType::FT_OpStandLance1, ml::FeatureType::FT_OpStandLance2,
     ml::FeatureType::FT_OpStandLance3, ml::FeatureType::FT_OpStandLance4,
     ml::FeatureType::FT_OpStandKnight1, ml::FeatureType::FT_OpStandKnight2,
@@ -59,7 +61,9 @@ using SimpleFeatures = ml::FeatureStackComptime<
     ml::FeatureType::FT_OpStandBishop1, ml::FeatureType::FT_OpStandBishop2,
     ml::FeatureType::FT_OpStandRook1, ml::FeatureType::FT_OpStandRook2,
 
-    ml::FeatureType::FT_Black, ml::FeatureType::FT_White>;
+    ml::FeatureType::FT_Black, ml::FeatureType::FT_White,
+    ml::FeatureType::FT_Progress, ml::FeatureType::FT_ProgressUnit,
+    ml::FeatureType::FT_MyDrawValue, ml::FeatureType::FT_OpDrawValue>;
 
 using CustomFeaturesV1 = ml::FeatureStackComptime<
     ml::FeatureType::FT_MyPawn, ml::FeatureType::FT_MyLance,

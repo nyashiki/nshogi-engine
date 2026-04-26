@@ -33,13 +33,12 @@ void cancelVirtualLoss(Node* N) {
 SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
                            allocator::Allocator* EdgeAllocator,
                            EvaluationQueue* EQ, CheckmateQueue* CQ,
-                           MutexPool<>* MP, EvalCache* EC, Statistics* Stat)
+                           EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EQueue(EQ)
     , CQueue(CQ)
-    , MtxPool(MP)
     , ECache(EC)
     , PStat(Stat) {
 
@@ -55,14 +54,12 @@ void SearchWorker::updateRoot(const core::State& S,
     State = std::make_unique<core::State>(S.clone());
     Config = StateConfig;
     RootNode = Root;
+    RootSideToMove = State->getSideToMove();
 
     RootPly = State->getPly();
 }
 
 Node* SearchWorker::collectOneLeaf() {
-    using MtxLockType =
-        typename std::remove_reference_t<decltype(*MtxPool)>::LockType;
-
     Node* CurrentNode = RootNode;
 
     while (true) {
@@ -80,26 +77,22 @@ Node* SearchWorker::collectOneLeaf() {
         }
 
         if (Visits == 0) {
-            const uint64_t VirtualLoss =
-                VisitsAndVirtualLoss >> Node::VirtualLossShift;
+            if (VisitsAndVirtualLoss ==
+                0) { // i.e., Visit == 0 && VirtualLoss == 0.
+                const uint64_t VisitsAndVirtualLossOld =
+                    CurrentNode->incrementVirtualLoss();
 
-            if (VirtualLoss == 0) {
-                std::unique_lock<MtxLockType> Lock;
-                if (MtxPool != nullptr) {
-                    const uint64_t NodeMtxHash =
-                        reinterpret_cast<uint64_t>(CurrentNode);
-                    Lock = std::unique_lock<MtxLockType>(
-                        *MtxPool->get(NodeMtxHash));
-                }
-
-                // Re-check the number of visit and virtual loss after getting a
-                // lock. It is no longer zero if another thread has expanded
-                // this leaf.
-                if (CurrentNode->getVisitsAndVirtualLoss() != 0ULL) {
+                if (VisitsAndVirtualLossOld != 0) {
+                    // Another thread has collected this leaf node,
+                    // so there is nothing to do here.
+                    CurrentNode->decrementVirtualLoss();
                     return nullptr;
                 }
 
-                incrementVirtualLosses(CurrentNode);
+                // Increment ancestors' virtual loss.
+                if (CurrentNode->getParent() != nullptr) {
+                    incrementVirtualLosses(CurrentNode->getParent());
+                }
                 return CurrentNode;
             }
 
@@ -148,9 +141,15 @@ Node* SearchWorker::collectOneLeaf() {
         State->doMove(State->getMove32FromMove16(E->getMove()));
 
         Node* Target = E->getTarget();
+        // If `Target` is nullptr,
+        // we have not extracted the child of this node.
         if (Target == nullptr) {
-            // If `Target` is nullptr, we have not extracted the child of this
-            // node.
+            const bool IsBeingExpanded = E->markExpanding();
+
+            if (IsBeingExpanded) {
+                PStat->incrementNumConflictNodeAllocation();
+                return nullptr;
+            }
 
             // Malloc a new node first before getting the lock for speed.
             Pointer<Node> NewNode;
@@ -161,23 +160,6 @@ Node* SearchWorker::collectOneLeaf() {
                 // new node.
                 PStat->incrementNumFailedToAllocateNode();
                 return nullptr;
-            }
-
-            std::unique_lock<MtxLockType> Lock;
-            if (MtxPool != nullptr) {
-                const uint64_t EdgeMtxHash = reinterpret_cast<uint64_t>(E);
-                Lock =
-                    std::unique_lock<MtxLockType>(*MtxPool->get(EdgeMtxHash));
-
-                if (E->getTarget() != nullptr) {
-                    // This thread has reached a leaf node but another thread
-                    // also had reached this leaf node and has evaluated this
-                    // leaf node. Therefore E->getTarget() is no longer nullptr
-                    // and nothing to do is left.
-                    NewNode.destroy(NA, 1);
-                    PStat->incrementNumConflictNodeAllocation();
-                    return nullptr;
-                }
             }
 
             auto* NewNodePtr = NewNode.get();
@@ -246,7 +228,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVisitsAndVirtualLoss = N->getVisitsAndVirtualLoss();
     const uint64_t CurrentVisits =
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
-    const uint64_t CurrentVirtualLoss =
+    uint64_t CurrentVirtualLoss =
         CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift;
 
     if (CurrentVisits == 1) {
@@ -257,7 +239,6 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         // is zero.
         if (CurrentVirtualLoss < NumChildren) {
             if (CurrentVirtualLoss == 0) {
-                PStat->incrementNumPolicyGreedyEdge();
                 return &N->getEdge()[0];
             } else {
                 bool Acceptable = true;
@@ -265,7 +246,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 const double ThisPolicy =
                     (double)N->getEdge()[CurrentVirtualLoss].getProbability();
                 const double Const =
-                    1.0 / (CInit * std::sqrt((double)CurrentVirtualLoss + 1.0));
+                    1.0 / (CInit * std::sqrt((double)(CurrentVirtualLoss +
+                                                      (uint64_t)1)));
                 for (uint16_t I = 0; I < CurrentVirtualLoss - 1; ++I) {
                     const double Policy =
                         (double)N->getEdge()[I].getProbability();
@@ -278,7 +260,6 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 }
 
                 if (Acceptable) {
-                    PStat->incrementNumSpeculativeEdge();
                     return &N->getEdge()[CurrentVirtualLoss];
                 } else {
                     PStat->incrementNumSpeculativeFailedEdge();
@@ -295,15 +276,15 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVirtualVisits = CurrentVisits + CurrentVirtualLoss;
 
     const double Const =
-        std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase +
-                 CInit) *
+        (std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase) +
+         CInit) *
         std::sqrt((double)CurrentVirtualVisits);
 
     Edge* UCBMaxEdge = nullptr;
     double UCBMaxValue = std::numeric_limits<double>::lowest();
     bool IsAllTargetLoss = true;
-    int16_t WinTargetPlyMin = 10000;
-    int16_t LossTargetPlyMax = 0;
+    int32_t WinTargetPlyMin = 10000;
+    int32_t LossTargetPlyMax = 0;
 
     Edge* ShortestWinEdge = nullptr;
     Edge* LongestLossEdge = nullptr;
@@ -319,9 +300,17 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         // The child is not visited yet.
         if (Child == nullptr || ChildVisitsAndVirtualLoss == 0) {
-            const double UCBValue = regardNotVisitedWin
-                                        ? (1.0 + Const * Edge->getProbability())
-                                        : (Const * Edge->getProbability());
+            double UCBValue;
+            const bool IsExpanding = Edge->isExpanding();
+            if (IsExpanding) {
+                // To consider the virtual loss, we simply
+                // use 0.0 as the win rate of the child.
+                UCBValue = Const * Edge->getProbability();
+            } else {
+                UCBValue = regardNotVisitedWin
+                               ? (1.0 + Const * Edge->getProbability())
+                               : (Const * Edge->getProbability());
+            }
 
             // Since there is at least one unvisited child, which means
             // the child is not solved, we don't know all children are loss
@@ -339,8 +328,11 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             // The relationship can be broken if the visit count is not zero,
             // but in that case, there is no unvisited child previously in this
             // loop.
-            PStat->incrementNumFirstUnvisitedChildEdge();
-            break;
+            if (!IsExpanding) {
+                break;
+            } else {
+                continue;
+            }
         }
 
         const uint64_t ChildVisits =
@@ -359,7 +351,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         const uint64_t ChildVirtualVisits = ChildVisits + ChildVirtualLoss;
 
-        const int16_t PlyToTerminal = Child->getPlyToTerminalSolved();
+        const int32_t PlyToTerminal =
+            static_cast<int32_t>(Child->getPlyToTerminalSolved());
         if (PlyToTerminal > 0) {
             // If `PlyToTerminal` of a child is larger than zero,
             // it means the child is a win state from the perspective of
@@ -377,7 +370,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         IsAllTargetLoss = false;
 
         if (PlyToTerminal < 0) {
-            const int16_t NegativePlyToTerminal = -PlyToTerminal;
+            const int32_t NegativePlyToTerminal = -PlyToTerminal;
 
             // If `PlyToTerminal` of a child is less than zero,
             // it means the child is a loss state from the perspective of
@@ -401,8 +394,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         assert(Child != nullptr);
         assert(ChildVirtualVisits > 0);
-        const double ChildWinRate =
-            computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
+        const double ChildWinRate = computeWinRateOfChild(Child, ChildVisits);
         const double UCBValue =
             ChildWinRate +
             Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
@@ -414,12 +406,12 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     }
 
     if (ShortestWinEdge != nullptr) {
-        N->setPlyToTerminalSolved(WinTargetPlyMin + 1);
+        N->setPlyToTerminalSolved(static_cast<int16_t>(WinTargetPlyMin + 1));
         return ShortestWinEdge;
     }
 
     if (IsAllTargetLoss) {
-        N->setPlyToTerminalSolved(-LossTargetPlyMax - 1);
+        N->setPlyToTerminalSolved(static_cast<int16_t>(-LossTargetPlyMax - 1));
         return LongestLossEdge;
     }
 
@@ -429,15 +421,13 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     return UCBMaxEdge;
 }
 
-double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
-                                           uint64_t ChildVirtualVisits) {
+double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
-    const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) /
-                           (double)ChildVirtualVisits;
-    const double DrawRate =
-        ChildDrawRateAcuumulated / (double)ChildVirtualVisits;
+    const double WinRate =
+        ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVisits;
+    const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
 
     const double DrawValue = (State->getSideToMove() == core::Black)
                                  ? Config.BlackDrawValue
@@ -470,21 +460,15 @@ bool SearchWorker::doTask() {
         LeafNode->getVisitsAndVirtualLoss();
     const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
 
-    // Collected leafnode has already evaluated.
+    // The collected leaf node has been already evaluated.
     // This occurs when another thread has evaluated the leaf node,
     // the solver has solved the leaf node, or the leaf node is
-    // game's terminal node e.g., repetition.
+    // game's terminal node (e.g., repetition).
     if (NumVisits > 0) {
         immediateUpdate(LeafNode);
         PStat->incrementNumNonLeaf();
         return false;
     }
-
-#ifndef NDEBUG
-    const uint64_t VirtualLoss =
-        NumVisitsAndVirtualLoss >> Node::VirtualLossShift;
-    assert(VirtualLoss == 1);
-#endif
 
     // Check repetition.
     if (LeafNode != RootNode) {
@@ -574,9 +558,7 @@ bool SearchWorker::doTask() {
     // Evaluate the leaf node.
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
-        if (Succeeded) {
-            PStat->incrementNumSucceededToAddEvaluationQueue();
-        } else {
+        if (!Succeeded) {
             // Our MCTS implementation marks a node as "in expansion" for speed:
             //     (VisitCount == 0 && VirtualLoss == 1)
             // Because the leaf was already expanded and a virtual loss was
@@ -591,6 +573,311 @@ bool SearchWorker::doTask() {
             LeafNode->releaseEdges(EA);
             cancelVirtualLoss(LeafNode);
             PStat->incrementNumFailedToAddEvaluationQueue();
+        }
+    }
+
+    return false;
+}
+
+SearchWorkerMaster::SearchWorkerMaster(
+    const Context* C, allocator::Allocator* NodeAllocator,
+    allocator::Allocator* EdgeAllocator, EvaluationQueue* EQueue,
+    CheckmateQueue* CQueue, EvalCache* ECache, Statistics* Stat,
+    std::function<void()> SearchStopCallback, std::shared_ptr<logger::Logger> L)
+    : SearchWorker(NodeAllocator, EdgeAllocator, EQueue, CQueue, ECache, Stat)
+    , PContext(C)
+    , Callback(SearchStopCallback)
+    , Logger(std::move(L))
+    , ImmediateLogEnabled(true)
+    , Exiting(false) {
+
+    StopCallThread = std::thread([this]() {
+        while (true) {
+            std::unique_lock<std::mutex> Lock(Mutex);
+
+            StopCV.wait(Lock, [&]() { return Exiting || ToCallCallback; });
+
+            if (Exiting) {
+                break;
+            }
+
+            Callback();
+            ToCallCallback = false;
+        }
+    });
+}
+
+SearchWorkerMaster::~SearchWorkerMaster() {
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        Exiting = true;
+    }
+
+    StopCV.notify_one();
+    StopCallThread.join();
+}
+
+void SearchWorkerMaster::setLimit(const engine::Limit& L) {
+    Limit = L;
+}
+
+void SearchWorkerMaster::start() {
+    SearchStartTime = std::chrono::steady_clock::now();
+    MadeUpCheckElapsedPrevious = 0;
+    NumNodesAtStart = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+    LogOutputPrevious = 0;
+    CallbackCalled.store(false, std::memory_order_release);
+    ToCallCallback = false;
+
+    SearchWorker::start();
+}
+
+bool SearchWorkerMaster::doTask() {
+    // Dump log.
+    const auto CurrentTime = std::chrono::steady_clock::now();
+    const uint64_t Elapsed = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(CurrentTime -
+                                                              SearchStartTime)
+            .count());
+    if (Elapsed >= PContext->getLogMargin() + LogOutputPrevious) {
+        dumpPVLog(Elapsed);
+        LogOutputPrevious = Elapsed;
+    }
+
+    if (CallbackCalled.load(std::memory_order_acquire)) {
+        return false;
+    }
+
+    if (checkSearchToStop(Elapsed)) {
+        issueStop();
+        if (ImmediateLogEnabled || Elapsed > PContext->getLogMargin()) {
+            dumpPVLog(Elapsed);
+        }
+        return false;
+    }
+
+    return SearchWorker::doTask();
+}
+
+void SearchWorkerMaster::issueStop() {
+    std::lock_guard<std::mutex> Lock(Mutex);
+    if (isRunning()) {
+        ToCallCallback = true;
+        CallbackCalled.store(true, std::memory_order_release);
+        StopCV.notify_one();
+    }
+}
+
+void SearchWorkerMaster::enableImmediateLog() {
+    ImmediateLogEnabled = true;
+}
+
+void SearchWorkerMaster::disableImmediateLog() {
+    ImmediateLogEnabled = false;
+}
+
+logger::PVLog SearchWorkerMaster::getPVLog() const {
+    logger::PVLog Log;
+
+    Node* N = RootNode;
+
+    const uint64_t Visits =
+        RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+
+    Log.NumNodes = Visits;
+    Log.CurrentSideToMove = RootSideToMove;
+    Log.SolvedGameEndPly = N->getPlyToTerminalSolved();
+    if (Log.SolvedGameEndPly > 0) {
+        Log.WinRate = 1.0;
+        Log.DrawRate = 0.0;
+    } else if (Log.SolvedGameEndPly < 0) {
+        Log.WinRate = 0.0;
+        Log.DrawRate = 0.0;
+    } else {
+        if (Visits > 0) {
+            Log.WinRate = N->getWinRateAccumulated() / (double)Visits;
+            Log.DrawRate = N->getDrawRateAccumulated() / (double)Visits;
+        } else {
+            Log.WinRate = 0.0;
+            Log.DrawRate = 0.0;
+        }
+    }
+    Log.DrawValue = (State->getSideToMove() == core::Black)
+                        ? Config.BlackDrawValue
+                        : Config.WhiteDrawValue;
+
+    while (N != nullptr) {
+        Edge* E = N->mostPromisingEdge();
+
+        if (E == nullptr) {
+            break;
+        }
+
+        Log.PV.push_back(E->getMove());
+        N = E->getTarget();
+    }
+
+    return Log;
+}
+
+void SearchWorkerMaster::dumpPVLog(uint64_t Elapsed) const {
+    logger::PVLog Log = getPVLog();
+
+    Log.ElapsedMilliSeconds = (uint32_t)Elapsed;
+    if (Elapsed > 0) {
+        Log.NodesPerSecond =
+            (uint64_t)((double)(Log.NumNodes - NumNodesAtStart) * 1000ULL /
+                       (double)Elapsed);
+    }
+
+    Logger->printPVLog(Log);
+}
+
+bool SearchWorkerMaster::isRootSolved() const {
+    return RootNode->getPlyToTerminalSolved() != 0;
+}
+
+bool SearchWorkerMaster::checkNodeLimit() const {
+    if (Limit.NumNodes == 0) {
+        return false;
+    }
+
+    const uint64_t Visits =
+        RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
+    return Visits >= Limit.NumNodes;
+}
+
+bool SearchWorkerMaster::checkMemoryBudget() const {
+    const double Factor = PContext->getMemoryLimitFactor();
+
+    if (NA->getTotal() > 0 &&
+        (double)NA->getUsed() >= (double)NA->getTotal() * Factor) {
+        Logger->printLog("Memory limit (Node).");
+        return true;
+    }
+
+    if (EA->getTotal() > 0 &&
+        (double)EA->getUsed() >= (double)EA->getTotal() * Factor) {
+        Logger->printLog("Memory limit (Edge).");
+        return true;
+    }
+
+    return false;
+}
+
+bool SearchWorkerMaster::checkThinkingTimeBudget(uint64_t Elapsed) const {
+    if (Elapsed >= PContext->getMaximumThinkingTimeMilliseconds()) {
+        return true;
+    }
+
+    if (Elapsed < PContext->getMinimumThinkingTimeMilliseconds()) {
+        return false;
+    }
+
+    if (Limit.isNoLimitAboutTime()) {
+        return false;
+    }
+
+    const uint64_t Budget = Limit.TimeLimitMilliSeconds +
+                            Limit.ByoyomiMilliSeconds +
+                            Limit.IncreaseMilliSeconds;
+
+    return Elapsed + PContext->getThinkingTimeMargin() >= Budget;
+}
+
+bool SearchWorkerMaster::hasMadeUpMind(uint64_t Elapsed) {
+    if (Elapsed < MadeUpCheckElapsedPrevious + 470) {
+        return false;
+    }
+
+    const uint16_t NumChildren = RootNode->getNumChildren();
+
+    uint64_t SumVisits = 0;
+    std::vector<double> Visits(NumChildren, 0.0);
+    for (uint16_t I = 0; I < NumChildren; ++I) {
+        Edge* E = &RootNode->getEdge()[I];
+        Node* Child = E->getTarget();
+
+        if (Child != nullptr) {
+            const uint64_t V =
+                Child->getVisitsAndVirtualLoss() & Node::VisitMask;
+            SumVisits += V;
+            Visits[I] = (double)V;
+        }
+    }
+
+    if (SumVisits == 0) {
+        return false;
+    }
+
+    for (uint16_t I = 0; I < NumChildren; ++I) {
+        Visits[I] /= (double)SumVisits;
+    }
+
+    const Edge* BestEdge = RootNode->mostPromisingEdge();
+    if (BestEdge == BestEdgePrevious &&
+        Visits.size() == VisitsPrevious.size()) {
+        double KLDivergence = 0.0;
+        double KLDivergenceToPredicted = 0.0;
+
+        for (std::size_t I = 0; I < Visits.size(); ++I) {
+            if (VisitsPrevious[I] == 0.0) {
+                continue;
+            } else if (Visits[I] == 0.0) {
+                KLDivergence = std::numeric_limits<double>::max();
+                break;
+            }
+
+            const double Predicted = RootNode->getEdge()[I].getProbability();
+            const double KLD =
+                VisitsPrevious[I] * std::log(VisitsPrevious[I] / Visits[I]);
+
+            KLDivergence += KLD;
+
+            if (Predicted > 0) {
+                const double KLDToP =
+                    Predicted * std::log(Predicted / Visits[I]);
+                KLDivergenceToPredicted += KLDToP;
+            }
+        }
+
+        const double KLDThreshold =
+            (KLDivergenceToPredicted < 0.4) ? 1e-5 : 1e-6;
+
+        if (KLDivergence < KLDThreshold) {
+            return true;
+        }
+    }
+
+    // Save the variables for the next time.
+    MadeUpCheckElapsedPrevious = Elapsed;
+    BestEdgePrevious = BestEdge;
+    VisitsPrevious = std::move(Visits);
+    return false;
+}
+
+bool SearchWorkerMaster::checkSearchToStop(uint64_t Elapsed) {
+    if (isRootSolved()) {
+        return true;
+    }
+
+    if (checkNodeLimit()) {
+        return true;
+    }
+
+    if (checkMemoryBudget()) {
+        return true;
+    }
+
+    if (checkThinkingTimeBudget(Elapsed)) {
+        Logger->printLog("Time limit.");
+        return true;
+    }
+
+    if (!Limit.isNoLimitAboutTime()) {
+        if (hasMadeUpMind(Elapsed)) {
+            Logger->printLog("Made up mind.");
+            return true;
         }
     }
 

@@ -29,17 +29,13 @@ class Statistics {
     uint64_t numFailedToAllocateNode() const;
     uint64_t numFailedToAllocateEdge() const;
     uint64_t numConflictNodeAllocation() const;
-    uint64_t numPolicyGreedyEdge() const;
-    uint64_t numSpeculativeEdge() const;
     uint64_t numSpeculativeFailedEdge() const;
     uint64_t numTooManyVirtualLossEdge() const;
-    uint64_t numFirstUnvisitedChildEdge() const;
     uint64_t numBeingExtractedChildren() const;
     uint64_t numUCBSelectionFailedEdge() const;
     uint64_t numNullUCBMaxEdge() const;
     uint64_t numCanDeclare() const;
     uint64_t numOverMaxPly() const;
-    uint64_t numSucceededToAddEvaluationQueue() const;
     uint64_t numFailedToAddEvaluationQueue() const;
     uint64_t numCacheHit() const;
 
@@ -57,17 +53,13 @@ class Statistics {
     void incrementNumFailedToAllocateNode();
     void incrementNumFailedToAllocateEdge();
     void incrementNumConflictNodeAllocation();
-    void incrementNumPolicyGreedyEdge();
-    void incrementNumSpeculativeEdge();
     void incrementNumSpeculativeFailedEdge();
     void incrementNumTooManyVirtualLossEdge();
-    void incrementNumFirstUnvisitedChildEdge();
     void incrementNumBeingExtractedChildren();
     void incrementNumUCBSelectionFailedEdge();
     void incrementNumNullUCBMaxEdge();
     void incrementNumCanDeclare();
     void incrementNumOverMaxPly();
-    void incrementNumSucceededToAddEvaluationQueue();
     void incrementNumFailedToAddEvaluationQueue();
     void incrementNumCacheHit();
 
@@ -86,17 +78,13 @@ class Statistics {
     std::atomic<uint64_t> NumFailedToAllocateNode;
     std::atomic<uint64_t> NumFailedToAllocateEdge;
     std::atomic<uint64_t> NumConflictNodeAllocation;
-    std::atomic<uint64_t> NumPolicyGreedyEdge;
-    std::atomic<uint64_t> NumSpeculativeEdge;
     std::atomic<uint64_t> NumSpeculativeFailedEdge;
     std::atomic<uint64_t> NumTooManyVirtualLossEdge;
-    std::atomic<uint64_t> NumFirstUnvisitedChildEdge;
     std::atomic<uint64_t> NumBeingExtractedChildren;
     std::atomic<uint64_t> NumUCBSelectionFailedEdge;
     std::atomic<uint64_t> NumNullUCBMaxEdge;
     std::atomic<uint64_t> NumCanDeclare;
     std::atomic<uint64_t> NumOverMaxPly;
-    std::atomic<uint64_t> NumSucceededToAddEvaluationQueue;
     std::atomic<uint64_t> NumFailedToAddEvaluationQueue;
     std::atomic<uint64_t> NumCacheHit;
 

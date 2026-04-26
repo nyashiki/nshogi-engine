@@ -57,7 +57,9 @@ class TensorRT : public Infer {
     void resetGPU();
 
  private:
-    void dummyInference(std::size_t Repeat);
+    const bool UseCudaGraph = false;
+
+    void makeCudaGraph();
 
     const uint16_t BatchSizeM;
     const uint16_t NumC;
@@ -74,12 +76,14 @@ class TensorRT : public Infer {
     std::unique_ptr<nvinfer1::IRuntime> Runtime;
     cudaStream_t Stream;
 
+    cudaGraph_t CudaGraph[2];
+    cudaGraphExec_t CudaGraphExec[2];
+
     void* DeviceInput;
     void* DeviceInputExtracted;
     void* DevicePolicyOutput;
     void* DeviceValueOutput;
     void* DeviceDrawOutput;
-    bool Called = false;
     std::thread::id ThreadIDPrev;
 };
 

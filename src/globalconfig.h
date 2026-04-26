@@ -17,6 +17,7 @@ namespace engine {
 namespace global_config {
 
 using FeatureType = evaluate::preset::CustomFeaturesV1;
+constexpr bool ChannelsFirst = false;
 
 } // namespace global_config
 } // namespace engine

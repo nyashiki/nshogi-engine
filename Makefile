@@ -1,35 +1,39 @@
 CXX := clang++
 NVCC := nvcc
 
+BUILD_DIR ?= build
 BUILD ?= release
 EXECUTOR ?= random
 
 CUDA_ENABLED ?= 0
-CUDA_DIR := /opt/cuda/cuda-12.4
-TENSORRT_DIR := /opt/tensorrt/TensorRT-10.0.1.6
-NVCC_ARCH := arch=compute_86,code=sm_86
+CUDA_DIR := /opt/cuda
+TENSORRT_DIR := /opt/tensorrt/TensorRT-10.9.0.34
+NVCC_ARCH := arch=compute_120,code=sm_120
 
-OBJDIR = build/$(BUILD)_$(CXX)
+OBJDIR := $(BUILD_DIR)/$(BUILD)_$(CXX)
 TARGET := $(OBJDIR)/nshogi-engine
 SELFPLAY_TARGET := $(OBJDIR)/nshogi-selfplay
 TEST_TARGET := $(OBJDIR)/nshogi-test
 BENCH_TARGET := $(OBJDIR)/nshogi-bench
 
-INCLUDES :=
-LINK_DIRS :=
+INCLUDES := -I$(HOME)/.local/include
+LINK_DIRS := -L$(HOME)/.local/lib
 LINKS := -lnshogi -lpthread
 TEST_LINKS := -lgtest
 
 ifeq ($(BUILD), debug)
-	CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -pipe
-	NVCC_FLAGS = --generate-code $(NVCC_ARCH)
-	OPTIM = -g3
+    CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -pipe
+    NVCC_FLAGS := --generate-code $(NVCC_ARCH)
+    OPTIM := -g3
 else
-	CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
-	# CXX_FLAGS = -std=c++2a -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
-	NVCC_FLAGS = -O3 --use_fast_math --generate-code $(NVCC_ARCH)
-	OPTIM = -O3 -ffast-math
+    CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
+    # CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
+    NVCC_FLAGS := -O3 --use_fast_math --generate-code $(NVCC_ARCH) -DNDEBUG
+    OPTIM := -O3 -ffast-math
+endif
 
+ifeq ($(shell uname), Darwin)
+    CXX_FLAGS += -fexperimental-library
 endif
 
 SOURCES :=                              \
@@ -37,22 +41,18 @@ SOURCES :=                              \
 	src/context.cc                      \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
-    src/book/bookentry.cc               \
-    src/book/bookseed.cc                \
-    src/book/bookmaker.cc               \
 	src/mcts/checkmateworker.cc         \
 	src/mcts/checkmatequeue.cc          \
 	src/mcts/garbagecollector.cc        \
 	src/mcts/manager.cc                 \
 	src/mcts/evaluationqueue.cc         \
 	src/mcts/evaluationworker.cc        \
+    src/mcts/feedqueue.cc               \
+    src/mcts/feedworker.cc              \
 	src/mcts/searchworker.cc            \
     src/mcts/statistics.cc              \
 	src/mcts/tree.cc                    \
-	src/mcts/mutexpool.cc               \
 	src/mcts/evalcache.cc               \
-	src/mcts/watchdog.cc                \
-    src/io/book.cc                      \
 	src/worker/worker.cc                \
     src/evaluate/evaluator.cc           \
     src/logger/logger.cc                \
@@ -93,8 +93,8 @@ ifeq ($(CUDA_ENABLED), 1)
 	LINK_DIRS += -L$(CUDA_DIR)/lib64/
 	LINKS += -lcudart
 	SOURCES += src/infer/trt.cc
-	CUDA_SOURCES := src/cuda/extractbit.cu src/cuda/math.cu
-	TEST_SOURCES += src/test/test_extractbit.cc src/test/test_cuda_math.cc
+	CUDA_SOURCES := src/cuda/extractbit.cu
+	TEST_SOURCES += src/test/test_extractbit.cc
 endif
 
 ifeq ($(NUMA_ENABLED), 1)
@@ -130,11 +130,11 @@ ifneq ($(filter $(EXECUTOR),zero nothing random tensorrt),$(EXECUTOR))
   $(error "invalid executor: '$(EXECUTOR)'")
 endif
 
-OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
-SELFPLAY_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(SELFPLAY_SOURCES))
-CUDA_OBJECTS = $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
-TEST_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(TEST_SOURCES))
-BENCH_OBJECTS = $(patsubst %.cc,$(OBJDIR)/%.o,$(BENCH_SOURCES))
+OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(SOURCES))
+SELFPLAY_OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(SELFPLAY_SOURCES))
+CUDA_OBJECTS := $(patsubst %.cu,$(OBJDIR)/%.o,$(CUDA_SOURCES))
+TEST_OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(TEST_SOURCES))
+BENCH_OBJECTS := $(patsubst %.cc,$(OBJDIR)/%.o,$(BENCH_SOURCES))
 
 ARCH_FLAGS :=
 
@@ -249,10 +249,10 @@ fmt:
 
 .PHONY: clean
 clean:
-	-rm -r build/
+	-rm -r $(BUILD_DIR)/
 
 # BENCHMARK SCRIPTS
 .PHONY: bench-mcts-with-zero-executor
 bench-mcts-with-zero-executor: bench
-	perf record -a --call-graph lbr -F 49 -- ./build/release_clang++/nshogi-bench MCTS 10 128 1 1 0
+	perf record -a --call-graph lbr -F 49 -- ./$(BUILD_DIR)/release_clang++/nshogi-bench MCTS 10 128 1 1 0
 	perf script report flamegraph

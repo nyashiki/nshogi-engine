@@ -13,6 +13,7 @@
 #include "../worker/worker.h"
 #include "checkmatequeue.h"
 #include "statistics.h"
+
 #include <nshogi/solver/dfpn.h>
 
 namespace nshogi {
@@ -21,15 +22,17 @@ namespace mcts {
 
 class CheckmateWorker : public worker::Worker {
  public:
-    CheckmateWorker(std::size_t Id, CheckmateQueue*, Statistics*);
+    CheckmateWorker(CheckmateQueue*, Statistics*);
     ~CheckmateWorker();
 
  private:
-    const std::size_t MyId;
     bool doTask() override;
 
     solver::dfpn::Solver DfPnSolver;
     CheckmateQueue* PCheckmateQueue;
+
+    uint64_t LatestGeneration;
+
     Statistics* PStat;
 };
 

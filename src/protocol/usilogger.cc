@@ -107,16 +107,10 @@ void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
                 Statistics.numFailedToAllocateEdge());
     std::printf("%-36s %" PRIu64 "\n", "numConflictNodeAllocation():",
                 Statistics.numConflictNodeAllocation());
-    std::printf("%-36s %" PRIu64 "\n",
-                "numPolicyGreedyEdge():", Statistics.numPolicyGreedyEdge());
-    std::printf("%-36s %" PRIu64 "\n",
-                "numSpeculativeEdge():", Statistics.numSpeculativeEdge());
     std::printf("%-36s %" PRIu64 "\n", "numSpeculativeFailedEdge():",
                 Statistics.numSpeculativeFailedEdge());
     std::printf("%-36s %" PRIu64 "\n", "numTooManyVirtualLossEdge():",
                 Statistics.numTooManyVirtualLossEdge());
-    std::printf("%-36s %" PRIu64 "\n", "numFirstUnvisitedChildEdge():",
-                Statistics.numFirstUnvisitedChildEdge());
     std::printf("%-36s %" PRIu64 "\n", "numBeingExtractedChildren():",
                 Statistics.numBeingExtractedChildren());
     std::printf("%-36s %" PRIu64 "\n", "numUCBSelectionFailedEdge():",
@@ -127,8 +121,6 @@ void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
                 "numCanDeclare():", Statistics.numCanDeclare());
     std::printf("%-36s %" PRIu64 "\n",
                 "numOverMaxPly():", Statistics.numOverMaxPly());
-    std::printf("%-36s %" PRIu64 "\n", "numSucceededToAddEvaluationQueue():",
-                Statistics.numSucceededToAddEvaluationQueue());
     std::printf("%-36s %" PRIu64 "\n", "numFailedToAddEvaluationQueue():",
                 Statistics.numFailedToAddEvaluationQueue());
     std::printf("%-36s %" PRIu64 "\n",

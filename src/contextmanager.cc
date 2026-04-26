@@ -49,6 +49,10 @@ void ContextManager::setNumCheckmateSearchThreads(
     Context_->NumCheckmateSearchThreads = NumCheckmateThreads;
 }
 
+void ContextManager::setNumFeedThreads(std::size_t NumFeedThreads) {
+    Context_->NumFeedThreads = NumFeedThreads;
+}
+
 void ContextManager::setBatchSize(std::size_t Size) {
     Context_->BatchSize = Size;
 }
@@ -81,14 +85,6 @@ void ContextManager::setBookEnabled(bool Value) {
     Context_->IsBookEnabled = Value;
 }
 
-void ContextManager::setBlackDrawValue(float DrawValue) {
-    Context_->BlackDrawValue = DrawValue;
-}
-
-void ContextManager::setWhiteDrawValue(float DrawValue) {
-    Context_->WhiteDrawValue = DrawValue;
-}
-
 void ContextManager::setRepetitionBookAllowed(bool Value) {
     Context_->IsRepetitionBookAllowed = Value;
 }
@@ -99,6 +95,10 @@ void ContextManager::setBookPath(const std::string& Path) {
 
 void ContextManager::setIsNShogiExtensionLogEnabled(bool Value) {
     Context_->IsNShogiExtensionLogEnabled = Value;
+}
+
+void ContextManager::setPrintStatistics(bool Value) {
+    Context_->PrintStatistics = Value;
 }
 
 } // namespace engine

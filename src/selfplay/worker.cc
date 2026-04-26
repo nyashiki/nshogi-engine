@@ -16,6 +16,7 @@
 
 #include <nshogi/core/movegenerator.h>
 #include <nshogi/core/statebuilder.h>
+#include <nshogi/io/sfen.h>
 #include <nshogi/ml/math.h>
 #include <nshogi/solver/dfs.h>
 
@@ -27,6 +28,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
                allocator::Allocator* NodeAllocator,
                allocator::Allocator* EdgeAllocator, mcts::EvalCache* EC,
                uint64_t NumPlayouts, uint16_t NumSamplingMoves,
+               double FullSearchRatio,
                std::vector<core::Position>* InitialPositionsToPlay,
                bool UseShogi816k, SelfplayInfo* SI)
     : worker::Worker(true)
@@ -38,6 +40,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
     , EvalCache(EC)
     , MyNumPlayouts(NumPlayouts)
     , MyNumSamplingMoves(NumSamplingMoves)
+    , MyFullSearchRatio(FullSearchRatio)
     , InitialPositions(InitialPositionsToPlay)
     , USE_SHOGI816K(UseShogi816k)
     , Solver(64)
@@ -62,16 +65,16 @@ bool Worker::doTask() {
         // clang-format off
         //
         // [selfplay loop]
-        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition -- (proceed one move) --> judge -- (if the game is finished) --> save
-        //     |               |              |                |                                    |              |                                                                            |                                      |
-        //     |               |              |                |                                    |              |                                                                            |                                      |
-        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                                            |                                      |
-        //     |               |              |                                                                    |                                                                            |                                      |
-        //     |               |              --<----------- (if it reaches sequential halving threshold) -------<--                                                                            |                                      |
-        //     |               |                                                                                                                                                                |                                      |
-        //     |               --<------------------------------------------------------------------------------------------------------------------------------------------------------------<--                                      |
-        //     |                                                                                                                                                                                                                       |
-        //     --<--------------------------------------------------------------------------------------------- (start a new game) --------------------------------------------------------------------------------------------------<--
+        // intiialize --> prepareRoot --> selectLeaf --> checkTerminal --> evaluation --> backpropagate --> sequentialHalving -- (if search is done) --> transition -------> judge -- (if the game is finished) --> save
+        //     |               |              |                |                                    |              |                                  (proceed one move)       |                                      |
+        //     |               |              |                |                                    |              |                                                           |                                      |
+        //     |               |              |                -> (if the leaf node is a terminal) ->              |                                                           |                                      |
+        //     |               |              |                                                                    |                                                           |                                      |
+        //     |               |              --<----------------------------------------------------------------<--                                                           |                                      |
+        //     |               |                                                                                                                                               |                                      |
+        //     |               --<-------------------------------------------------------------------------------------------------------------------------------------------<--                                      |
+        //     |                                                                                                                                                                                                      |
+        //     --<--------------------------------------------------------------------------------------------- (start a new game) ---------------------------------------------------------------------------------<--
         //
         // clang-format on
         //
@@ -115,10 +118,15 @@ SelfplayPhase Worker::initialize(Frame* F) {
         F->setState(std::make_unique<core::State>(
             core::StateBuilder::getInitialState()));
     } else {
-        const core::Position& SampledPosition =
-            InitialPositions->at(MT() % InitialPositions->size());
-        F->setState(std::make_unique<core::State>(
-            core::StateBuilder::newState(SampledPosition)));
+        if (MT() % 100 == 0) {
+            F->setState(std::make_unique<core::State>(
+                core::StateBuilder::getInitialState()));
+        } else {
+            const core::Position& SampledPosition =
+                InitialPositions->at(MT() % InitialPositions->size());
+            F->setState(std::make_unique<core::State>(
+                core::StateBuilder::newState(SampledPosition)));
+        }
     }
 
     // Setup a config.
@@ -143,9 +151,7 @@ SelfplayPhase Worker::initialize(Frame* F) {
 
     F->setConfig(std::move(Config));
 
-    // Other settings.
-    F->setNumPlayouts(MyNumPlayouts);
-    F->setNumSamplingMoves(MyNumSamplingMoves);
+    F->clearDidFullSearch();
 
     return SelfplayPhase::RootPreparation;
 }
@@ -155,28 +161,55 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
     F->getSearchTree()->updateRoot(*F->getState(), false);
     F->setRootPly(F->getState()->getPly());
 
-    // Sample gumbel noises.
+    // Sample noises.
     // We don't care about actual the number of legal moves.
     // In stead, we prepare sufficient enough number of gumbel noises.
-    for (std::size_t I = 0; I < F->getGumbelNoise().size(); ++I) {
-        F->getGumbelNoise().at(I) = sampleGumbelNoise();
+    for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
+        F->getNoise().at(I) = sampleNoise(F);
     }
 
-    // if (F->getState()->getPly() < 30) {
-    //     F->setNumPlayouts(16);
-    //     F->setNumSamplingMove(16);
-    // } else {
-    //     F->setNumPlayouts(32);
-    //     F->setNumSamplingMove(32);
-    // }
+    if (!F->isGumbel()) {
+        const double Sum =
+            std::accumulate(F->getNoise().begin(), F->getNoise().end(), 0.0);
+        for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
+            F->getNoise().at(I) /= Sum;
+        }
+    }
 
-    const uint64_t InitialSequentialHalvingPlayouts = (uint64_t)(std::floor(
-        (double)F->getNumPlayouts() /
-        (std::log2(F->getNumSamplingMoves()) * F->getNumSamplingMoves())));
+    std::uniform_real_distribution<double> Distribution(0.0, 1.0);
+    const double R = Distribution(MT);
+    const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
+    if (Moves.size() == 1 || R > MyFullSearchRatio) {
+        if (F->isGumbel()) {
+            // NumPlayouts == NumSamplingMoves.
+            F->setNumPlayouts(MyNumSamplingMoves);
+            F->setNumSamplingMoves(MyNumSamplingMoves);
+        } else {
+            if (Moves.size() == 1) {
+                F->setNumPlayouts(1);
+            } else {
+                F->setNumPlayouts(std::max((uint64_t)1, MyNumPlayouts / 4));
+            }
+        }
+        F->pushDidFullSearch(false);
+    } else {
+        // Full search.
+        F->setNumPlayouts(MyNumPlayouts);
+        if (F->isGumbel()) {
+            F->setNumSamplingMoves(MyNumSamplingMoves);
+        }
+        F->pushDidFullSearch(true);
+    }
 
-    F->setSequentialHalvingPlayouts(
-        std::max((uint64_t)1, InitialSequentialHalvingPlayouts));
-    F->setSequentialHalvingCount(1);
+    if (F->isGumbel()) {
+        const uint64_t InitialSequentialHalvingPlayouts = (uint64_t)(std::floor(
+            (double)F->getNumPlayouts() /
+            (std::log2(F->getNumSamplingMoves()) * F->getNumSamplingMoves())));
+
+        F->setSequentialHalvingPlayouts(
+            std::max((uint64_t)1, InitialSequentialHalvingPlayouts));
+        F->setSequentialHalvingCount(1);
+    }
 
     return SelfplayPhase::LeafSelection;
 }
@@ -212,6 +245,8 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
 
         mcts::Edge* E =
             pickUpEdgeToExplore(F, F->getState()->getSideToMove(), Node, Depth);
+        assert(E != nullptr);
+
         F->getState()->doMove(F->getState()->getMove32FromMove16(E->getMove()));
 
         if (E->getTarget() == nullptr) {
@@ -234,6 +269,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // This node has been already evaluated.
     if (F->getNodeToEvaluate()->getVisitsAndVirtualLoss() > 0) {
         assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         return SelfplayPhase::Backpropagation;
     }
 
@@ -241,14 +277,17 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Repetition.
     if (RS == core::RepetitionStatus::WinRepetition) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
         F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::LossRepetition) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
         F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                                     ? F->getStateConfig()->BlackDrawValue
                                     : F->getStateConfig()->WhiteDrawValue;
@@ -260,6 +299,17 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     // Declaration.
     if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27) {
         if (F->getState()->canDeclare()) {
+#ifndef NDEBUG
+            if (F->getNodeToEvaluate() == F->getSearchTree()->getRoot()) {
+                std::cerr << "State: "
+                          << nshogi::io::sfen::stateToSfen(*F->getState())
+                          << std::endl;
+                std::cerr << "Error: The root node cannot be a declaration."
+                          << std::endl;
+                std::abort();
+            }
+#endif
+            assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
             return SelfplayPhase::Backpropagation;
         }
@@ -274,11 +324,13 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
             // Check if the last move is a checkmate by dropping a pawn.
             const auto LastMove = F->getState()->getLastMove();
             if (LastMove.drop() && LastMove.pieceType() == core::PTK_Pawn) {
+                assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
                 F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
                 return SelfplayPhase::Backpropagation;
             }
         }
 
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
         return SelfplayPhase::Backpropagation;
     }
@@ -288,6 +340,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         const float DrawValue = F->getState()->getSideToMove() == core::Black
                                     ? F->getStateConfig()->BlackDrawValue
                                     : F->getStateConfig()->WhiteDrawValue;
+        assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
         F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
         return SelfplayPhase::Backpropagation;
     }
@@ -296,14 +349,20 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
     if (F->getState()->getPly() > F->getRootPly()) {
         if (isCheckmated(F)) {
             F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
+            assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
-        } else if (!solver::dfs::solve(F->getState(), 5).isNone()) {
+        } else if (!solver::dfs::solve(F->getState(), 3).isNone()) {
             F->setEvaluation<true>(nullptr, 1.0f, 0.0f);
+            assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
         }
     }
 
-    F->getNodeToEvaluate()->expand(LegalMoves, EA);
+    const int16_t NumEdges = F->getNodeToEvaluate()->expand(LegalMoves, EA);
+    if (NumEdges < 0) {
+        std::cerr << "Error: Failed to allocate memory for edges." << std::endl;
+        std::abort();
+    }
 
     // Check evaluation cache.
     assert(EvalCache != nullptr);
@@ -331,7 +390,22 @@ SelfplayPhase Worker::backpropagate(Frame* F) const {
         F->getState()->undoMove();
     }
 
-    assert(F->getSearchTree()->getRoot()->getNumChildren() > 0);
+#ifndef NDEBUG
+    if (F->getSearchTree()->getRoot()->getNumChildren() == 0) {
+        std::cerr << "State: " << nshogi::io::sfen::stateToSfen(*F->getState())
+                  << std::endl;
+        std::cerr << "Moves: ";
+        const auto Moves =
+            core::MoveGenerator::generateLegalMoves(*F->getState());
+        for (const core::Move32 Move : Moves) {
+            std::cerr << nshogi::io::sfen::move32ToSfen(Move) << ", ";
+        }
+        std::cerr << std::endl;
+
+        std::cerr << "Error: No legal moves at the root node." << std::endl;
+        std::abort();
+    }
+#endif
     return SelfplayPhase::SequentialHalving;
 }
 
@@ -340,6 +414,16 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
     // we don't need to search further more and go to the transition phase.
     if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
         return SelfplayPhase::Transition;
+    }
+
+    if (!F->isGumbel()) {
+        if (F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() >=
+            F->getNumPlayouts()) {
+            return SelfplayPhase::Transition;
+        }
+
+        // Nothing to do in AlphaZero style.
+        return SelfplayPhase::LeafSelection;
     }
 
     // If the node is root node, extract top m moves sorted by
@@ -378,7 +462,12 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
             }
 
             const uint16_t NumValidChilds = executeSequentialHalving(F);
-            updateSequentialHalvingSchedule(F, NumValidChilds);
+            assert(NumValidChilds >= 2);
+            const bool ExtraVisitsLeft =
+                updateSequentialHalvingSchedule(F, NumValidChilds);
+            if (!ExtraVisitsLeft) {
+                return SelfplayPhase::Transition;
+            }
         }
     }
 
@@ -424,8 +513,12 @@ SelfplayPhase Worker::judge(Frame* F) const {
         return SelfplayPhase::Save;
     }
 
-    if (!Solver.solve(F->getState(), 10000, 0).isNone()) {
+    const auto CheckmateMove = Solver.solve(F->getState(), 100000, 0);
+
+    if (!CheckmateMove.isNone()) {
         F->setWinner(F->getState()->getSideToMove());
+        F->getState()->doMove(CheckmateMove);
+        F->pushDidFullSearch(true);
         return SelfplayPhase::Save;
     }
 
@@ -435,6 +528,73 @@ SelfplayPhase Worker::judge(Frame* F) const {
 SelfplayPhase Worker::transition(Frame* F) const {
     while (F->getState()->getPly() > F->getRootPly()) {
         F->getState()->undoMove();
+    }
+
+    if (!F->isGumbel()) { // AlphaZero style.
+        // Choose a next move proportionally to visit counts.
+        // Currently disabled because self-play games start
+        // from various initial positions.
+        if (false) {
+            std::vector<double> VisitCounts;
+            VisitCounts.reserve(
+                F->getSearchTree()->getRoot()->getNumChildren());
+            for (std::size_t I = 0;
+                 I < F->getSearchTree()->getRoot()->getNumChildren(); ++I) {
+                mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
+                mcts::Node* Child = Edge->getTarget();
+
+                if (Child == nullptr) {
+                    VisitCounts.push_back(0.0);
+                } else {
+                    VisitCounts.push_back(
+                        (double)Child->getVisitsAndVirtualLoss());
+                }
+            }
+
+            std::discrete_distribution<std::size_t> Distribution(
+                VisitCounts.begin(), VisitCounts.end());
+            const std::size_t SelectedIndex = Distribution(MT);
+
+            mcts::Edge* SelectedEdge =
+                &F->getSearchTree()->getRoot()->getEdge()[SelectedIndex];
+            F->getState()->doMove(
+                F->getState()->getMove32FromMove16(SelectedEdge->getMove()));
+        } else {
+            // Choose the most visited move.
+            uint64_t MaxVisits = 0;
+            mcts::Edge* MaxEdge = nullptr;
+            for (std::size_t I = 0;
+                 I < F->getSearchTree()->getRoot()->getNumChildren(); ++I) {
+                mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
+                mcts::Node* Child = Edge->getTarget();
+
+                if (Child == nullptr) {
+                    if (MaxEdge == nullptr) {
+                        MaxEdge = Edge;
+                    } else if (MaxEdge->getTarget() == nullptr &&
+                               Edge->getProbability() >
+                                   MaxEdge->getProbability()) {
+                        MaxEdge = Edge;
+                    }
+                    continue;
+                }
+
+                if (Child->getVisitsAndVirtualLoss() > MaxVisits) {
+                    MaxVisits = Child->getVisitsAndVirtualLoss();
+                    MaxEdge = Edge;
+                } else if (Child->getVisitsAndVirtualLoss() == MaxVisits) {
+                    if (Edge->getProbability() > MaxEdge->getProbability()) {
+                        MaxEdge = Edge;
+                    }
+                }
+            }
+
+            assert(MaxEdge != nullptr ||
+                   F->getSearchTree()->getRoot()->getNumChildren() == 1);
+            F->getState()->doMove(
+                F->getState()->getMove32FromMove16(MaxEdge->getMove()));
+        }
+        return SelfplayPhase::Judging;
     }
 
     if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
@@ -458,7 +618,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
         assert(Child != nullptr);
 
         const double Score =
-            F->getGumbelNoise().at(I) + Edge->getProbability() +
+            F->getNoise().at(I) + Edge->getProbability() +
             transformQ(
                 computeWinRateOfChild(F, F->getState()->getSideToMove(), Child),
                 Child->getVisitsAndVirtualLoss());
@@ -477,12 +637,20 @@ SelfplayPhase Worker::transition(Frame* F) const {
     return SelfplayPhase::Judging;
 }
 
-double Worker::sampleGumbelNoise() const {
-    std::uniform_real_distribution<double> Distribution(
-        std::numeric_limits<double>::min(), 1.0);
+double Worker::sampleNoise(Frame* F) const {
+    if (F->isGumbel()) {
+        // Gumbel noise.
+        std::uniform_real_distribution<double> Distribution(
+            std::numeric_limits<double>::min(), 1.0);
 
-    const double U = Distribution(MT);
-    return -std::log(-std::log(U));
+        const double U = Distribution(MT);
+        return -std::log(-std::log(U));
+    } else {
+        // Dirichlet noise.
+        constexpr double Alpha = 0.15;
+        std::gamma_distribution<double> Distribution(Alpha, 1.0);
+        return Distribution(MT);
+    }
 }
 
 double Worker::transformQ(double Q, uint64_t MaxN) const {
@@ -512,81 +680,29 @@ mcts::Edge* Worker::pickUpEdgeToExplore<true>(Frame* F, core::Color,
         }
     }
 
-    assert(true);
+    assert(false);
     return nullptr;
 }
 
 template <>
 mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
                                                mcts::Node* N) const {
-    const uint16_t NumChildren = N->getNumChildren();
-    assert(NumChildren > 0);
-    assert(NumChildren < 600);
-
-    const uint64_t Visits = N->getVisitsAndVirtualLoss();
-    assert(Visits > 0);
-
-    uint64_t MaxN = 0;
-    const double WinRateOfNode = computeWinRate(F, SideToMove, N);
-    double CompletedQ[600];
-    for (std::size_t I = 0; I < NumChildren; ++I) {
-        CompletedQ[I] = WinRateOfNode;
-    }
-
-    mcts::Node* Children[600] = {};
-    if (Visits > 1) {
-        float Policy[600];
-        for (std::size_t I = 0; I < NumChildren; ++I) {
-            mcts::Edge* Edge = &N->getEdge()[I];
-            Policy[I] = Edge->getProbability();
-            Children[I] = Edge->getTarget();
-        }
-        ml::math::softmax_(Policy, NumChildren, 1.0f);
-
-        double Divisor = 0.0;
-        double Factor = 0.0;
-        for (std::size_t I = 0; I < NumChildren; ++I) {
-            mcts::Node* Child = Children[I];
-            if (Child != nullptr) {
-                MaxN = std::max(MaxN, Child->getVisitsAndVirtualLoss());
-
-                const double WinRateOfChild =
-                    computeWinRateOfChild(F, SideToMove, Child);
-                Divisor += Policy[I];
-                Factor += Policy[I] * WinRateOfChild;
-                CompletedQ[I] = WinRateOfChild;
-            }
-        }
-        assert(Divisor > 0);
-        const double Offset = (double)(Visits - 1) / Divisor * Factor;
-
-        for (std::size_t I = 0; I < NumChildren; ++I) {
-            mcts::Node* Child = Children[I];
-            if (Child == nullptr) {
-                CompletedQ[I] = (WinRateOfNode + Offset) / (double)Visits;
-            }
-        }
-    }
-
-    double ImprovedPolicy[600];
-    for (std::size_t I = 0; I < NumChildren; ++I) {
-        mcts::Edge* Edge = &N->getEdge()[I];
-        ImprovedPolicy[I] =
-            Edge->getProbability() + transformQ(CompletedQ[I], MaxN);
-    }
-    ml::math::softmax_(ImprovedPolicy, NumChildren, 1.0);
-
-    mcts::Edge* EdgeToExplore = nullptr;
     double ScoreMax = std::numeric_limits<double>::lowest();
+    mcts::Edge* EdgeToExplore = nullptr;
+    const uint16_t NumChildren = N->getNumChildren();
+
+    const double C = 1.25 * std::sqrt((double)N->getVisitsAndVirtualLoss());
+
     for (std::size_t I = 0; I < NumChildren; ++I) {
         mcts::Edge* Edge = &N->getEdge()[I];
-        mcts::Node* Child = Children[I];
+        mcts::Node* Child = Edge->getTarget();
 
         const double Score =
-            (Visits == 1 || Child == nullptr)
-                ? ImprovedPolicy[I]
-                : (ImprovedPolicy[I] -
-                   (double)Child->getVisitsAndVirtualLoss() / (double)Visits);
+            (Child == nullptr)
+                ? (C * Edge->getProbability())
+                : (C * Edge->getProbability() /
+                       ((double)(1 + Child->getVisitsAndVirtualLoss())) +
+                   computeWinRateOfChild(F, SideToMove, Child));
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -600,8 +716,12 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
 
 mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove,
                                         mcts::Node* N, uint8_t Depth) const {
-    return (Depth == 0) ? pickUpEdgeToExplore<true>(F, SideToMove, N)
-                        : pickUpEdgeToExplore<false>(F, SideToMove, N);
+    if (F->isGumbel()) {
+        return (Depth == 0) ? pickUpEdgeToExplore<true>(F, SideToMove, N)
+                            : pickUpEdgeToExplore<false>(F, SideToMove, N);
+    } else {
+        return pickUpEdgeToExplore<false>(F, SideToMove, N);
+    }
 }
 
 double Worker::computeWinRate(Frame* F, core::Color SideToMove,
@@ -662,6 +782,8 @@ bool Worker::isCheckmated(Frame* F) const {
 }
 
 void Worker::sampleTopMMoves(Frame* F) const {
+    assert(F->isGumbel());
+
     F->getIsTarget().clear();
     F->getIsTarget().resize(F->getSearchTree()->getRoot()->getNumChildren());
 
@@ -677,8 +799,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
 
-        ScoreWithIndex[I].first =
-            F->getGumbelNoise().at(I) + Edge->getProbability();
+        ScoreWithIndex[I].first = F->getNoise().at(I) + Edge->getProbability();
         ScoreWithIndex[I].second = I;
     }
 
@@ -698,6 +819,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
 }
 
 uint16_t Worker::executeSequentialHalving(Frame* F) const {
+    assert(F->isGumbel());
     assert(F->getSearchTree()->getRoot()->getNumChildren() ==
            F->getIsTarget().size());
     assert(F->getState()->getPly() >= F->getRootPly());
@@ -714,7 +836,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
 
         assert(Child != nullptr);
         ScoreWithIndex[I].first =
-            F->getGumbelNoise().at(I) + Edge->getProbability() +
+            F->getNoise().at(I) + Edge->getProbability() +
             transformQ(
                 computeWinRateOfChild(F, F->getState()->getSideToMove(), Child),
                 Child->getVisitsAndVirtualLoss());
@@ -745,8 +867,10 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     return (uint16_t)NumSort;
 }
 
-void Worker::updateSequentialHalvingSchedule(Frame* F,
+bool Worker::updateSequentialHalvingSchedule(Frame* F,
                                              uint16_t NumValidChilds) const {
+    assert(NumValidChilds >= 2);
+
     const uint16_t MD =
         std::max((uint16_t)1, (uint16_t)(F->getNumSamplingMoves() >>
                                          F->getSequentialHalvingCount()));
@@ -754,7 +878,13 @@ void Worker::updateSequentialHalvingSchedule(Frame* F,
     const uint64_t ExtraVisits =
         (uint64_t)(std::floor((double)F->getNumPlayouts() / D));
 
-    if (ExtraVisits == 0 || NumValidChilds <= 2) {
+    if (ExtraVisits == 0) {
+        return false;
+    }
+
+    if (NumValidChilds <= 2) {
+        assert(NumValidChilds == 2);
+
         // Use all left simulation budgets to identify the best move.
         assert(F->getSearchTree()->getRoot()->getVisitsAndVirtualLoss() > 0);
         assert(F->getNumPlayouts() + 1 >
@@ -770,6 +900,8 @@ void Worker::updateSequentialHalvingSchedule(Frame* F,
                                         ExtraVisits);
         F->setSequentialHalvingCount(F->getSequentialHalvingCount() + 1);
     }
+
+    return true;
 }
 
 } // namespace selfplay

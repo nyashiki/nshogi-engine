@@ -16,12 +16,11 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateWorker::CheckmateWorker(std::size_t Id, CheckmateQueue* CQueue,
-                                 Statistics* Stat)
+CheckmateWorker::CheckmateWorker(CheckmateQueue* CQueue, Statistics* Stat)
     : worker::Worker(true)
-    , MyId(Id)
     , DfPnSolver(64)
     , PCheckmateQueue(CQueue)
+    , LatestGeneration(0)
     , PStat(Stat) {
 
     spawnThread();
@@ -31,44 +30,47 @@ CheckmateWorker::~CheckmateWorker() {
 }
 
 bool CheckmateWorker::doTask() {
-    std::queue<std::unique_ptr<CheckmateTask>> Tasks =
-        PCheckmateQueue->getAll(MyId);
+    std::unique_ptr<CheckmateTask> Task = PCheckmateQueue->get();
 
-    if (Tasks.empty()) {
+    if (Task == nullptr) {
         return false;
     }
 
-    while (!Tasks.empty()) {
-        std::unique_ptr<CheckmateTask> Task = std::move(Tasks.front());
-        Tasks.pop();
-
-        if (!isRunning()) {
-            // This solver has been told to stop.
-            break;
+    if (Task->generation() != LatestGeneration) {
+        PCheckmateQueue->lock();
+        LatestGeneration = PCheckmateQueue->_generation();
+        PCheckmateQueue->unlock();
+        if (Task->generation() != LatestGeneration) {
+            return false;
         }
+    }
 
-        // This node has been tried to be solved by the solvers.
-        if (!Task->node()->getSolverResult().isNone()) {
-            continue;
-        }
+    // This node has been tried to be solved by the solvers.
+    if (!Task->node()->getSolverResult().isNone()) {
+        return false;
+    }
 
-        // Now, trying to solve the position.
-        const auto StartTime = std::chrono::steady_clock::now();
-        auto State = core::StateBuilder::newState(Task->position());
-        const auto CheckmateMove =
-            DfPnSolver.solve(&State, 10000, Task->depth());
-        const auto EndTime = std::chrono::steady_clock::now();
-        const uint64_t Elapsed =
-            (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-                EndTime - StartTime)
-                .count();
+    // Now, trying to solve the position.
+    const auto StartTime = std::chrono::steady_clock::now();
+    auto State = core::StateBuilder::newState(Task->position());
+    const auto CheckmateSequence =
+        DfPnSolver.solveWithPV(&State, 1000, Task->depth());
+    const auto EndTime = std::chrono::steady_clock::now();
+    const uint64_t Elapsed =
+        (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+            EndTime - StartTime)
+            .count();
 
-        PStat->incrementNumSolverWorked();
-        PStat->updateSolverElapsed(Elapsed);
+    PStat->incrementNumSolverWorked();
+    PStat->updateSolverElapsed(Elapsed);
 
-        if (!CheckmateMove.isNone()) {
-            Task->node()->setSolverResult(core::Move16(CheckmateMove));
-            Task->node()->setPlyToTerminalSolved((int16_t)2048);
+    PCheckmateQueue->lock();
+    LatestGeneration = PCheckmateQueue->_generation();
+    if (Task->generation() == LatestGeneration) {
+        if (!CheckmateSequence.empty()) {
+            Task->node()->setSolverResult(core::Move16(CheckmateSequence[0]));
+            Task->node()->setPlyToTerminalSolved(
+                (int16_t)CheckmateSequence.size());
         } else {
             // No solver moves has been found, and mark the node
             // tried-to-solve by MoveInvalid(), which is different
@@ -76,8 +78,9 @@ bool CheckmateWorker::doTask() {
             Task->node()->setSolverResult(core::Move16::MoveInvalid());
         }
     }
+    PCheckmateQueue->unlock();
 
-    return true;
+    return false;
 }
 
 } // namespace mcts

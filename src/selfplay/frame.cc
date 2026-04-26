@@ -8,6 +8,7 @@
 //
 
 #include "frame.h"
+#include "../globalconfig.h"
 
 #include <nshogi/ml/common.h>
 #include <nshogi/ml/math.h>
@@ -16,11 +17,13 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Frame::Frame(mcts::GarbageCollector* GC, allocator::Allocator* NodeAllocator)
-    : Phase(SelfplayPhase::Initialization) {
+Frame::Frame(bool IsGumbel, mcts::GarbageCollector* GC,
+             allocator::Allocator* NodeAllocator)
+    : IsGumbel_(IsGumbel)
+    , Phase(SelfplayPhase::Initialization) {
     setSearchTree(std::make_unique<mcts::Tree>(GC, NodeAllocator, nullptr));
     allocatePolicyArray();
-    GumbelNoise.resize(600);
+    Noise.resize(600);
 }
 
 SelfplayPhase Frame::getPhase() const {
@@ -96,8 +99,10 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         if constexpr (Aggregated) {
             LegalPolicyLogits[I] = Policy[I];
         } else {
-            const std::size_t MoveIndex = ml::getMoveIndex(
-                State->getSideToMove(), NodeToEvaluate->getEdge()[I].getMove());
+            const std::size_t MoveIndex =
+                ml::getMoveIndex<global_config::ChannelsFirst>(
+                    State->getSideToMove(),
+                    NodeToEvaluate->getEdge()[I].getMove());
             LegalPolicyLogits[I] = Policy[MoveIndex];
         }
     }
@@ -106,6 +111,25 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         assert(EvalCache != nullptr);
         EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(),
                          WinRate, DrawRate);
+    }
+
+    if (!isGumbel() || NodeToEvaluate != SearchTree->getRoot()) {
+        ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+    }
+
+    // Add dirichlet noise.
+    if (!isGumbel() && NodeToEvaluate == SearchTree->getRoot()) {
+        // Enable dirichlet noise addition only when the full search is
+        // performed.
+        assert(getDidFullSearch().size() > 0);
+        if (getDidFullSearch().back()) {
+            const double EPS = 0.25;
+            for (std::size_t I = 0; I < NumChildren; ++I) {
+                LegalPolicyLogits[I] =
+                    (float)((1 - EPS) * (double)LegalPolicyLogits[I] +
+                            EPS * Noise[I]);
+            }
+        }
     }
 
     NodeToEvaluate->setEvaluation(LegalPolicyLogits.get(), WinRate, DrawRate);
@@ -127,8 +151,8 @@ uint16_t Frame::getNumSamplingMoves() const {
     return NumSamplingMoves;
 }
 
-std::vector<double>& Frame::getGumbelNoise() {
-    return GumbelNoise;
+std::vector<double>& Frame::getNoise() {
+    return Noise;
 }
 
 std::vector<bool>& Frame::getIsTarget() {
@@ -149,6 +173,18 @@ void Frame::setSequentialHalvingCount(uint8_t C) {
 
 void Frame::setNumSamplingMoves(uint16_t M) {
     NumSamplingMoves = M;
+}
+
+void Frame::clearDidFullSearch() {
+    DidFullSearch.clear();
+}
+
+void Frame::pushDidFullSearch(bool V) {
+    DidFullSearch.emplace_back(V);
+}
+
+const std::vector<bool>& Frame::getDidFullSearch() const {
+    return DidFullSearch;
 }
 
 template void Frame::setEvaluation<false>(const float* Policy, float WinRate,

@@ -9,6 +9,7 @@
 
 #include "saveworker.h"
 
+#include <cassert>
 #include <cstdio>
 
 #include <nshogi/core/movegenerator.h>
@@ -30,6 +31,15 @@ SaveWorker::SaveWorker(SelfplayInfo* SI, FrameQueue* SVQ, FrameQueue* SCQ,
     , SaveQueue(SVQ)
     , SearchQueue(SCQ)
     , IgnoreDrawGames(IgnoreDraw) {
+
+    // If SavePath is already exists, throw an exception.
+    if (std::string(SavePath) != "/dev/null") {
+        std::ifstream Ifs(SavePath, std::ios::binary);
+        if (Ifs) {
+            throw std::runtime_error(std::string(SavePath) +
+                                     " already exists.");
+        }
+    }
 
     Ofs.open(SavePath, std::ios::binary);
     if (!Ofs) {
@@ -158,9 +168,14 @@ void SaveWorker::save(Frame* F) {
     while (Replay.getPly(false) < F->getState()->getPly(false)) {
         const auto NextMove =
             F->getState()->getHistoryMove(Replay.getPly(false));
-        STeacher.setState(Replay);
-        STeacher.setNextMove(core::Move16(NextMove));
-        io::file::simple_teacher::save(Ofs, STeacher);
+
+        // Only save teachers where full search was conducted.
+        assert(F->getDidFullSearch().size() > Replay.getPly(false));
+        if (F->getDidFullSearch().at(Replay.getPly(false))) {
+            STeacher.setState(Replay);
+            STeacher.setNextMove(core::Move16(NextMove));
+            io::file::simple_teacher::save(Ofs, STeacher);
+        }
 
         Replay.doMove(F->getState()->getHistoryMove(Replay.getPly(false)));
     }

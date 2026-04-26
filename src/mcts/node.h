@@ -79,9 +79,9 @@ struct Node {
         return Edges;
     }
 
-    inline void incrementVirtualLoss() {
+    inline uint64_t incrementVirtualLoss() {
         constexpr uint64_t Value = 1ULL << VirtualLossShift;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
+        return VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
     inline void incrementVisits() {
@@ -170,21 +170,33 @@ struct Node {
     template <bool DecrementVirtualLoss = true>
     inline void updateAncestors(float WinRate, float DrawRate) {
         const float FlipWinRate = 1.0f - WinRate;
-        bool Flip = false;
-
         Node* N = this;
 
         do {
-            N->addWinRate(Flip ? FlipWinRate : WinRate);
+            N->addWinRate(WinRate);
             N->addDrawRate(DrawRate);
-
             if constexpr (DecrementVirtualLoss) {
                 N->incrementVisitsAndDecrementVirtualLoss();
             } else {
                 N->incrementVisits();
             }
 
-            Flip = !Flip;
+            N = N->getParent();
+            if (N == nullptr) {
+                break;
+            }
+
+            // Flip.
+            // Manually write flip version instead of
+            // using `Flip` variable to unroll the loop.
+            N->addWinRate(FlipWinRate);
+            N->addDrawRate(DrawRate);
+            if constexpr (DecrementVirtualLoss) {
+                N->incrementVisitsAndDecrementVirtualLoss();
+            } else {
+                N->incrementVisits();
+            }
+
             N = N->getParent();
         } while (N != nullptr);
     }

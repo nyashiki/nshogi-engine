@@ -37,6 +37,8 @@ class ContextManager {
 
     void setNumCheckmateSearchThreads(std::size_t NumCheckmateThreads);
 
+    void setNumFeedThreads(std::size_t NumFeedThreads);
+
     void setBatchSize(std::size_t Size);
 
     void setThinkingTimeMargin(uint32_t Margin);
@@ -53,15 +55,13 @@ class ContextManager {
 
     void setBookEnabled(bool Value);
 
-    void setBlackDrawValue(float DrawValue);
-
-    void setWhiteDrawValue(float DrawValue);
-
     void setRepetitionBookAllowed(bool Value);
 
     void setBookPath(const std::string& Path);
 
     void setIsNShogiExtensionLogEnabled(bool Value);
+
+    void setPrintStatistics(bool Value);
 
  private:
     const std::unique_ptr<Context> Context_;
