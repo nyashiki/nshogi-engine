@@ -41,8 +41,6 @@ SOURCES :=                              \
 	src/context.cc                      \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
-    src/book/bookmaker.cc               \
-    src/book/node.cc                    \
 	src/mcts/checkmateworker.cc         \
 	src/mcts/checkmatequeue.cc          \
 	src/mcts/garbagecollector.cc        \
@@ -55,7 +53,6 @@ SOURCES :=                              \
     src/mcts/statistics.cc              \
 	src/mcts/tree.cc                    \
 	src/mcts/evalcache.cc               \
-    src/io/book.cc                      \
 	src/worker/worker.cc                \
     src/evaluate/evaluator.cc           \
     src/logger/logger.cc                \
