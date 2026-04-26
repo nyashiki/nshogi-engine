@@ -14,9 +14,7 @@ namespace engine {
 namespace command {
 namespace commands {
 
-Think::Think(
-    Limit Limits[2],
-    std::function<void(core::Move32)> Callback) {
+Think::Think(Limit Limits[2], std::function<void(core::Move32)> Callback) {
     L[0] = Limits[0];
     L[1] = Limits[1];
 

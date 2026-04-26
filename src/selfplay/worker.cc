@@ -169,8 +169,8 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
     }
 
     if (!F->isGumbel()) {
-        const double Sum = std::accumulate(F->getNoise().begin(),
-                                     F->getNoise().end(), 0.0);
+        const double Sum =
+            std::accumulate(F->getNoise().begin(), F->getNoise().end(), 0.0);
         for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
             F->getNoise().at(I) /= Sum;
         }
@@ -463,7 +463,8 @@ SelfplayPhase Worker::sequentialHalving(Frame* F) const {
 
             const uint16_t NumValidChilds = executeSequentialHalving(F);
             assert(NumValidChilds >= 2);
-            const bool ExtraVisitsLeft = updateSequentialHalvingSchedule(F, NumValidChilds);
+            const bool ExtraVisitsLeft =
+                updateSequentialHalvingSchedule(F, NumValidChilds);
             if (!ExtraVisitsLeft) {
                 return SelfplayPhase::Transition;
             }
@@ -535,9 +536,10 @@ SelfplayPhase Worker::transition(Frame* F) const {
         // from various initial positions.
         if (false) {
             std::vector<double> VisitCounts;
-            VisitCounts.reserve(F->getSearchTree()->getRoot()->getNumChildren());
-            for (std::size_t I = 0; I < F->getSearchTree()->getRoot()->getNumChildren();
-                 ++I) {
+            VisitCounts.reserve(
+                F->getSearchTree()->getRoot()->getNumChildren());
+            for (std::size_t I = 0;
+                 I < F->getSearchTree()->getRoot()->getNumChildren(); ++I) {
                 mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
                 mcts::Node* Child = Edge->getTarget();
 
@@ -561,18 +563,17 @@ SelfplayPhase Worker::transition(Frame* F) const {
             // Choose the most visited move.
             uint64_t MaxVisits = 0;
             mcts::Edge* MaxEdge = nullptr;
-            for (std::size_t I = 0; I < F->getSearchTree()->getRoot()->getNumChildren();
-                 ++I) {
+            for (std::size_t I = 0;
+                 I < F->getSearchTree()->getRoot()->getNumChildren(); ++I) {
                 mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
                 mcts::Node* Child = Edge->getTarget();
 
                 if (Child == nullptr) {
                     if (MaxEdge == nullptr) {
                         MaxEdge = Edge;
-                    } else if (
-                        MaxEdge->getTarget() == nullptr &&
-                        Edge->getProbability() > MaxEdge->getProbability()
-                    ) {
+                    } else if (MaxEdge->getTarget() == nullptr &&
+                               Edge->getProbability() >
+                                   MaxEdge->getProbability()) {
                         MaxEdge = Edge;
                     }
                     continue;
@@ -588,7 +589,8 @@ SelfplayPhase Worker::transition(Frame* F) const {
                 }
             }
 
-            assert(MaxEdge != nullptr || F->getSearchTree()->getRoot()->getNumChildren() == 1);
+            assert(MaxEdge != nullptr ||
+                   F->getSearchTree()->getRoot()->getNumChildren() == 1);
             F->getState()->doMove(
                 F->getState()->getMove32FromMove16(MaxEdge->getMove()));
         }
@@ -695,10 +697,12 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
         mcts::Edge* Edge = &N->getEdge()[I];
         mcts::Node* Child = Edge->getTarget();
 
-        const double Score = (Child == nullptr)
-            ? (C * Edge->getProbability())
-            : (C * Edge->getProbability() / ((double)(1 + Child->getVisitsAndVirtualLoss()))
-                    + computeWinRateOfChild(F, SideToMove, Child));
+        const double Score =
+            (Child == nullptr)
+                ? (C * Edge->getProbability())
+                : (C * Edge->getProbability() /
+                       ((double)(1 + Child->getVisitsAndVirtualLoss())) +
+                   computeWinRateOfChild(F, SideToMove, Child));
 
         if (Score > ScoreMax) {
             ScoreMax = Score;
@@ -795,8 +799,7 @@ void Worker::sampleTopMMoves(Frame* F) const {
     for (std::size_t I = 0; I < F->getIsTarget().size(); ++I) {
         mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[I];
 
-        ScoreWithIndex[I].first =
-            F->getNoise().at(I) + Edge->getProbability();
+        ScoreWithIndex[I].first = F->getNoise().at(I) + Edge->getProbability();
         ScoreWithIndex[I].second = I;
     }
 

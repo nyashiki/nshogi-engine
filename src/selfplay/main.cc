@@ -53,8 +53,7 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("ignore-draw", "Ignore draw games.");
     Parser.addOption("full-search-ratio", "0.25",
                      "The ratio of full searches.");
-    Parser.addOption("gumbel",
-                      "Gumbel AlphaZero style self-play.");
+    Parser.addOption("gumbel", "Gumbel AlphaZero style self-play.");
 
     Parser.parse(Argc, Argv);
 
@@ -102,7 +101,8 @@ int main(int Argc, char* Argv[]) {
     const std::size_t NUM_FRAME_POOL =
         (std::size_t)std::stoull(Parser.getOption("frame-pool-size"));
     for (std::size_t I = 0; I < NUM_FRAME_POOL; ++I) {
-        auto F = std::make_unique<Frame>(IsGumbel, GC.get(), NodeAllocator.get());
+        auto F =
+            std::make_unique<Frame>(IsGumbel, GC.get(), NodeAllocator.get());
         F->setEvaluationCache(EvalCache.get());
         SearchQueue->add(std::move(F));
     }
@@ -175,8 +175,7 @@ int main(int Argc, char* Argv[]) {
             SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(),
             NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(),
             NumPlayouts, NumSamplingMoves, FullSearchRatio,
-            InitialPositions.get(),
-            USE_SHOGI816K, SInfo.get()));
+            InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU = (std::size_t)std::stoull(

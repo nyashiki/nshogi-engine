@@ -48,10 +48,10 @@ class Manager {
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
     ~Manager();
 
-    void thinkNextMove(
-        const core::State&, const core::StateConfig&, engine::Limit,
-        std::function<void(core::Move32)> Callback,
-        std::function<void(Tree*)> SearchTreeCallback = nullptr);
+    void thinkNextMove(const core::State&, const core::StateConfig&,
+                       engine::Limit,
+                       std::function<void(core::Move32)> Callback,
+                       std::function<void(Tree*)> SearchTreeCallback = nullptr);
     void interrupt();
 
     void resetSearchTree();

@@ -17,7 +17,8 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-Frame::Frame(bool IsGumbel, mcts::GarbageCollector* GC, allocator::Allocator* NodeAllocator)
+Frame::Frame(bool IsGumbel, mcts::GarbageCollector* GC,
+             allocator::Allocator* NodeAllocator)
     : IsGumbel_(IsGumbel)
     , Phase(SelfplayPhase::Initialization) {
     setSearchTree(std::make_unique<mcts::Tree>(GC, NodeAllocator, nullptr));
@@ -98,8 +99,10 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         if constexpr (Aggregated) {
             LegalPolicyLogits[I] = Policy[I];
         } else {
-            const std::size_t MoveIndex = ml::getMoveIndex<global_config::ChannelsFirst>(
-                State->getSideToMove(), NodeToEvaluate->getEdge()[I].getMove());
+            const std::size_t MoveIndex =
+                ml::getMoveIndex<global_config::ChannelsFirst>(
+                    State->getSideToMove(),
+                    NodeToEvaluate->getEdge()[I].getMove());
             LegalPolicyLogits[I] = Policy[MoveIndex];
         }
     }
@@ -116,13 +119,15 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
 
     // Add dirichlet noise.
     if (!isGumbel() && NodeToEvaluate == SearchTree->getRoot()) {
-        // Enable dirichlet noise addition only when the full search is performed.
+        // Enable dirichlet noise addition only when the full search is
+        // performed.
         assert(getDidFullSearch().size() > 0);
         if (getDidFullSearch().back()) {
             const double EPS = 0.25;
             for (std::size_t I = 0; I < NumChildren; ++I) {
                 LegalPolicyLogits[I] =
-                    (float)((1 - EPS) * (double)LegalPolicyLogits[I] + EPS * Noise[I]);
+                    (float)((1 - EPS) * (double)LegalPolicyLogits[I] +
+                            EPS * Noise[I]);
             }
         }
     }

@@ -53,7 +53,8 @@ bool CheckmateWorker::doTask() {
     // Now, trying to solve the position.
     const auto StartTime = std::chrono::steady_clock::now();
     auto State = core::StateBuilder::newState(Task->position());
-    const auto CheckmateSequence = DfPnSolver.solveWithPV(&State, 1000, Task->depth());
+    const auto CheckmateSequence =
+        DfPnSolver.solveWithPV(&State, 1000, Task->depth());
     const auto EndTime = std::chrono::steady_clock::now();
     const uint64_t Elapsed =
         (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -68,7 +69,8 @@ bool CheckmateWorker::doTask() {
     if (Task->generation() == LatestGeneration) {
         if (!CheckmateSequence.empty()) {
             Task->node()->setSolverResult(core::Move16(CheckmateSequence[0]));
-            Task->node()->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+            Task->node()->setPlyToTerminalSolved(
+                (int16_t)CheckmateSequence.size());
         } else {
             // No solver moves has been found, and mark the node
             // tried-to-solve by MoveInvalid(), which is different

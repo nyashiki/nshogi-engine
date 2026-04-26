@@ -114,8 +114,9 @@ void TensorRT::load(const std::string& Path,
 
     if (!UseSerializedFileIfAvailable || !SerializedIfs.is_open()) {
         Builder.reset(nvinfer1::createInferBuilder(Logger));
-        Network.reset(Builder->createNetworkV2(1U <<
-                    static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kSTRONGLY_TYPED)));
+        Network.reset(Builder->createNetworkV2(
+            1U << static_cast<uint32_t>(
+                nvinfer1::NetworkDefinitionCreationFlag::kSTRONGLY_TYPED)));
         // Network.reset(Builder->createNetworkV2(0));
 
         Parser.reset(nvonnxparser::createParser(*Network, Logger));
@@ -215,15 +216,18 @@ void TensorRT::load(const std::string& Path,
 
     Context->setInputTensorAddress("input", DeviceInputExtracted);
     if (!Context->setTensorAddress("policy", DevicePolicyOutput)) {
-        std::cerr << "[load()] Context->setTensorAddress() for policy failed." << std::endl;
+        std::cerr << "[load()] Context->setTensorAddress() for policy failed."
+                  << std::endl;
         std::abort();
     }
     if (!Context->setTensorAddress("value", DeviceValueOutput)) {
-        std::cerr << "[load()] Context->setTensorAddress() for value failed." << std::endl;
+        std::cerr << "[load()] Context->setTensorAddress() for value failed."
+                  << std::endl;
         std::abort();
     }
     if (!Context->setTensorAddress("draw", DeviceDrawOutput)) {
-        std::cerr << "[load()] Context->setTensorAddress() for draw failed." << std::endl;
+        std::cerr << "[load()] Context->setTensorAddress() for draw failed."
+                  << std::endl;
         std::abort();
     }
 
@@ -243,18 +247,21 @@ void TensorRT::computeNonBlocking(const ml::FeatureBitboard* Features,
                     cudaMemcpyHostToDevice, Stream);
 
     if (UseCudaGraph) {
-        cudaGraphLaunch(CudaGraphExec[BatchSize > (BatchSizeM + 1) / 2], Stream);
+        cudaGraphLaunch(CudaGraphExec[BatchSize > (BatchSizeM + 1) / 2],
+                        Stream);
     } else {
         if constexpr (global_config::ChannelsFirst) {
-            Context->setInputShape("input", nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
+            Context->setInputShape(
+                "input", nvinfer1::Dims4{(int32_t)BatchSize, NumC, 9, 9});
         } else {
-            Context->setInputShape("input", nvinfer1::Dims4{(int32_t)BatchSize, 9, 9, NumC});
+            Context->setInputShape(
+                "input", nvinfer1::Dims4{(int32_t)BatchSize, 9, 9, NumC});
         }
 
         cuda::extractBits<global_config::ChannelsFirst>(
             reinterpret_cast<float*>(DeviceInputExtracted),
-            reinterpret_cast<uint64_t*>(DeviceInput), (int)BatchSize,
-            (int)NumC, Stream);
+            reinterpret_cast<uint64_t*>(DeviceInput), (int)BatchSize, (int)NumC,
+            Stream);
 
         Context->enqueueV3(Stream);
     }

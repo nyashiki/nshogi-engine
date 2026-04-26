@@ -26,7 +26,8 @@ namespace selfplay {
 
 struct Frame {
  public:
-    Frame(bool IsGumbel, mcts::GarbageCollector*, allocator::Allocator* NodeAllocator);
+    Frame(bool IsGumbel, mcts::GarbageCollector*,
+          allocator::Allocator* NodeAllocator);
 
     bool isGumbel() const {
         return IsGumbel_;

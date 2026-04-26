@@ -277,7 +277,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
     const double Const =
         (std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase) +
-                 CInit) *
+         CInit) *
         std::sqrt((double)CurrentVirtualVisits);
 
     Edge* UCBMaxEdge = nullptr;
@@ -308,8 +308,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 UCBValue = Const * Edge->getProbability();
             } else {
                 UCBValue = regardNotVisitedWin
-                    ? (1.0 + Const * Edge->getProbability())
-                    : (Const * Edge->getProbability());
+                               ? (1.0 + Const * Edge->getProbability())
+                               : (Const * Edge->getProbability());
             }
 
             // Since there is at least one unvisited child, which means
@@ -351,7 +351,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         const uint64_t ChildVirtualVisits = ChildVisits + ChildVirtualLoss;
 
-        const int32_t PlyToTerminal = static_cast<int32_t>(Child->getPlyToTerminalSolved());
+        const int32_t PlyToTerminal =
+            static_cast<int32_t>(Child->getPlyToTerminalSolved());
         if (PlyToTerminal > 0) {
             // If `PlyToTerminal` of a child is larger than zero,
             // it means the child is a win state from the perspective of
@@ -424,10 +425,9 @@ double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
-    const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) /
-                           (double)ChildVisits;
-    const double DrawRate =
-        ChildDrawRateAcuumulated / (double)ChildVisits;
+    const double WinRate =
+        ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVisits;
+    const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
 
     const double DrawValue = (State->getSideToMove() == core::Black)
                                  ? Config.BlackDrawValue

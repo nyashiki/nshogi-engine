@@ -83,11 +83,10 @@ Manager::~Manager() {
     SearchTree.reset(nullptr);
 }
 
-void Manager::thinkNextMove(
-    const core::State& State, const core::StateConfig& Config,
-    engine::Limit Lim,
-    std::function<void(core::Move32)> Callback,
-    std::function<void(Tree*)> SearchTreeCallback) {
+void Manager::thinkNextMove(const core::State& State,
+                            const core::StateConfig& Config, engine::Limit Lim,
+                            std::function<void(core::Move32)> Callback,
+                            std::function<void(Tree*)> SearchTreeCallback) {
 
     interruptInternal(true);
 
