@@ -44,6 +44,11 @@ enum class ManagerStatus {
     Busy,
 };
 
+enum class BookStrategyType {
+    Top,
+    Random,
+};
+
 class Manager {
  public:
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
@@ -124,6 +129,8 @@ class Manager {
     Statistics Stat;
 
     bool IsExiting;
+
+    const BookStrategyType BookStrategy = BookStrategyType::Top;
 };
 
 } // namespace mcts

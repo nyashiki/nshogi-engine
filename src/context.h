@@ -46,6 +46,8 @@ class Context {
 
     const std::string& getBookPath() const;
 
+    uint64_t getMaxBookPly() const;
+
     std::size_t getAvailableMemoryMB() const;
 
     std::size_t getEvalCacheMemoryMB() const;
@@ -92,6 +94,7 @@ class Context {
 
     bool IsBookEnabled = false;
     std::string Bookpath = "";
+    uint64_t MaxBookPly = 0;
 
     bool IsNShogiExtensionLogEnabled = true;
 

@@ -68,6 +68,10 @@ const std::string& Context::getBookPath() const {
     return Bookpath;
 }
 
+uint64_t Context::getMaxBookPly() const {
+    return MaxBookPly;
+}
+
 std::size_t Context::getAvailableMemoryMB() const {
     return AvailableMemoryMB;
 }

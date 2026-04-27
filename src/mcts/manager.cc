@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <functional>
+#include <random>
 
 namespace nshogi {
 namespace engine {
@@ -341,17 +342,27 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     core::Move32 BookMove = core::Move32::MoveNone();
     if (PContext->isBookEnabled()) {
-        if (PBook != nullptr) {
-            const auto RepetitionStatus = CurrentState->getRepetitionStatus();
+        if (PContext->getMaxBookPly() == 0 || CurrentState->getPly() < PContext->getMaxBookPly()) {
+            if (PBook != nullptr) {
+                const auto RepetitionStatus = CurrentState->getRepetitionStatus();
 
-            const bool UseBook = (RepetitionStatus == core::RepetitionStatus::NoRepetition) ||
-                                 (RepetitionStatus == core::RepetitionStatus::Repetition && PContext->isRepetitionBookAllowed());
-            if (UseBook) {
-                const auto BookMoves = PBook->nextMoves(*CurrentState);
-                if (!BookMoves.empty()) {
-                    PLogger->printLog("Book move found.");
-                    BookMove = CurrentState->getMove32FromMove16(BookMoves.at(0));
-                    stopWorkers();
+                const bool UseBook = (RepetitionStatus == core::RepetitionStatus::NoRepetition) ||
+                                     (RepetitionStatus == core::RepetitionStatus::Repetition && PContext->isRepetitionBookAllowed());
+                if (UseBook) {
+                    const auto BookMoves = PBook->nextMoves(*CurrentState);
+                    if (!BookMoves.empty()) {
+                        PLogger->printLog("Book move found.");
+
+                        if (BookStrategy == BookStrategyType::Top) {
+                            BookMove = CurrentState->getMove32FromMove16(BookMoves.at(0));
+                        } else if (BookStrategy == BookStrategyType::Random) {
+                            static std::mt19937_64 RandomEngine(std::random_device{}());
+                            const auto SampledMove = BookMoves.at(RandomEngine() % BookMoves.size());
+                            BookMove = CurrentState->getMove32FromMove16(SampledMove);
+                        }
+
+                        stopWorkers();
+                    }
                 }
             }
         }
