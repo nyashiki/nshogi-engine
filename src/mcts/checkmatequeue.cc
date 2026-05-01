@@ -13,8 +13,9 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-CheckmateQueue::CheckmateQueue()
-    : QueueMaxSize(1UL * 1024UL * 1024 * 1024 / sizeof(CheckmateTask)) // 1 GB.
+CheckmateQueue::CheckmateQueue(GarbageCollector* GC_)
+    : GC(GC_)
+    , QueueMaxSize(1UL * 1024UL * 1024 * 1024 / sizeof(CheckmateTask)) // 1 GB.
     , Generation(0) {
 }
 
@@ -69,8 +70,16 @@ auto CheckmateQueue::getAll() noexcept
 }
 
 void CheckmateQueue::incrementGeneration() {
-    std::lock_guard<lock::SpinLock> Lock(SpinLock);
-    ++Generation;
+    std::queue<std::unique_ptr<CheckmateTask>> Empty;
+    {
+        std::lock_guard<lock::SpinLock> Lock(SpinLock);
+        ++Generation;
+
+        // Clear the queue.
+        Queue.swap(Empty);
+    }
+
+    GC->addCheckmateGarbage(std::move(Empty));
 }
 
 void CheckmateQueue::lock() noexcept {

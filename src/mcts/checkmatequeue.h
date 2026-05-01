@@ -10,7 +10,9 @@
 #ifndef NSHOGI_ENGINE_MCTS_CHECKMATEQUEUE_H
 #define NSHOGI_ENGINE_MCTS_CHECKMATEQUEUE_H
 
+#include "checkmatetask.h"
 #include "node.h"
+#include "garbagecollector.h"
 
 #include <memory>
 #include <mutex>
@@ -23,42 +25,9 @@ namespace nshogi {
 namespace engine {
 namespace mcts {
 
-struct CheckmateTask {
- public:
-    CheckmateTask(Node* N, const core::Position& Pos, uint64_t MaxDepth,
-                  uint64_t Gen)
-        : TargetNode(N)
-        , Position(Pos)
-        , Depth(MaxDepth)
-        , Generation(Gen) {
-    }
-
-    Node* node() {
-        return TargetNode;
-    }
-
-    core::Position& position() {
-        return Position;
-    }
-
-    uint64_t depth() const {
-        return Depth;
-    }
-
-    uint64_t generation() const {
-        return Generation;
-    }
-
- private:
-    Node* TargetNode;
-    core::Position Position;
-    uint64_t Depth;
-    uint64_t Generation;
-};
-
 class CheckmateQueue {
  public:
-    CheckmateQueue();
+    CheckmateQueue(GarbageCollector*);
 
     void add(Node*, const core::Position&, uint64_t Depth) noexcept;
     bool tryAdd(Node*, const core::Position&, uint64_t Depth) noexcept;
@@ -72,6 +41,8 @@ class CheckmateQueue {
     uint64_t _generation();
 
  private:
+    GarbageCollector* GC;
+
     const std::size_t QueueMaxSize;
     uint64_t Generation;
 

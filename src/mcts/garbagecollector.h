@@ -10,6 +10,7 @@
 #ifndef NSHOGI_ENGINE_MCTS_GARBAGECOLLECTOR_H
 #define NSHOGI_ENGINE_MCTS_GARBAGECOLLECTOR_H
 
+#include "checkmatetask.h"
 #include "node.h"
 #include "pointer.h"
 
@@ -33,6 +34,7 @@ class GarbageCollector {
 
     void addGarbage(Pointer<Node>&& Node);
     void addGarbages(std::vector<Pointer<Node>>&& Nodes);
+    void addCheckmateGarbage(std::queue<std::unique_ptr<CheckmateTask>>&& Tasks);
 
  private:
     std::mutex Mtx;
@@ -43,6 +45,7 @@ class GarbageCollector {
 
     std::vector<std::thread> Workers;
     std::queue<Pointer<Node>> Garbages;
+    std::queue<std::queue<std::unique_ptr<CheckmateTask>>> CheckmateGarbages;
 
     allocator::Allocator* NA;
     allocator::Allocator* EA;

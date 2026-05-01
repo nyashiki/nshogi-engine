@@ -66,19 +66,33 @@ void GarbageCollector::addGarbages(std::vector<Pointer<Node>>&& Nodes) {
     Cv.notify_all();
 }
 
+void GarbageCollector::addCheckmateGarbage(std::queue<std::unique_ptr<CheckmateTask>>&& Tasks) {
+    {
+        std::lock_guard<std::mutex> Lock(Mtx);
+        CheckmateGarbages.push(std::move(Tasks));
+    }
+    Cv.notify_one();
+}
+
 void GarbageCollector::mainLoop() {
     while (true) {
         std::queue<Pointer<Node>> NodesToProcess;
+        std::queue<std::queue<std::unique_ptr<CheckmateTask>>> CheckmateTasksToProcess;
+
         {
             std::unique_lock<std::mutex> Lock(Mtx);
 
             Cv.wait(Lock, [&] { return !Garbages.empty() || ToExit; });
 
-            if (Garbages.empty() && ToExit) {
+            if (Garbages.empty() && CheckmateGarbages.empty() && ToExit) {
                 break;
             }
 
             Garbages.swap(NodesToProcess);
+
+            // Since checkmate tasks do not have post-process,
+            // just destroy them without processing.
+            CheckmateGarbages.swap(CheckmateTasksToProcess);
         }
 
         while (!NodesToProcess.empty()) {

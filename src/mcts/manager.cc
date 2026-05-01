@@ -232,7 +232,7 @@ void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
     // CheckmateQueue must be initialized before SearchWorker is.
     assert(SearchWorkers.size() == 0);
     if (NumCheckmateWorkers > 0) {
-        CQueue = std::make_unique<CheckmateQueue>();
+        CQueue = std::make_unique<CheckmateQueue>(GC.get());
     }
 }
 
