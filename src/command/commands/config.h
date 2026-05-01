@@ -39,7 +39,6 @@ enum class Configurable {
     NumGPUs,
     NumSearchThreadsPerGPU,
     NumEvaluationThreadsPerGPU,
-    NumCheckmateSearchThreads,
     NumFeedThreads,
     BatchSize,
     HashMemoryMB,

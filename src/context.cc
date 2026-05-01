@@ -36,10 +36,6 @@ std::size_t Context::getNumEvaluationThreadsPerGPU() const {
     return NumEvaluationThreadsPerGPU;
 }
 
-std::size_t Context::getNumCheckmateSearchThreads() const {
-    return NumCheckmateSearchThreads;
-}
-
 std::size_t Context::getNumFeedThreads() const {
     return NumFeedThreads;
 }

@@ -30,8 +30,6 @@ class Context {
 
     std::size_t getNumEvaluationThreadsPerGPU() const;
 
-    std::size_t getNumCheckmateSearchThreads() const;
-
     std::size_t getNumFeedThreads() const;
 
     std::size_t getBatchSize() const;
@@ -73,7 +71,6 @@ class Context {
     std::size_t NumGPUs = 1;
     std::size_t NumSearchThreads = 2;
     std::size_t NumEvaluationThreadsPerGPU = 2;
-    std::size_t NumCheckmateSearchThreads = 2;
     std::size_t NumFeedThreads = 4;
 
     std::size_t BatchSize = 128;
