@@ -116,8 +116,14 @@ void Executor::executeCommand(const commands::GetReady*) {
 }
 
 void Executor::executeCommand(const commands::SetPosition* Command) {
-    State = std::make_unique<core::State>(
-        nshogi::io::sfen::StateBuilder::newState(Command->sfen()));
+    try {
+        State = std::make_unique<core::State>(
+            nshogi::io::sfen::StateBuilder::newState(Command->sfen()));
+    } catch (const std::exception& E) {
+        PLogger->printLog(
+            (std::string("ERROR: Failed to set position: ") + E.what())
+                .c_str());
+    }
 }
 
 void Executor::executeCommand(const commands::Think* Command) {
