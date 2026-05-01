@@ -84,19 +84,22 @@ struct Node {
         return VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
-    inline void incrementVisits() {
-        VisitsAndVirtualLoss.fetch_add(1, std::memory_order_release);
+    inline uint64_t incrementVisits() {
+        return VisitsAndVirtualLoss.fetch_add(1, std::memory_order_release);
     }
 
-    inline void incrementVisitsAndDecrementVirtualLoss() {
-        constexpr uint64_t Value =
-            (0xffffffffffffffffULL << VirtualLossShift) | 0b1ULL;
+    inline void incrementVisitsAndDecrementVirtualLoss(uint64_t DecrementVirtualLossCount) {
+        assert(DecrementVirtualLossCount > 0);
+        assert(
+            (VisitsAndVirtualLoss.load(std::memory_order_acquire) >> VirtualLossShift)
+            >= DecrementVirtualLossCount);
+        uint64_t Value =
+            (((uint64_t)(0) - DecrementVirtualLossCount) << VirtualLossShift) | 0b1ULL;
         VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
     }
 
-    inline void decrementVirtualLoss() {
-        constexpr uint64_t Value = 0xffffffffffffffffULL << VirtualLossShift;
-        VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
+    inline void decrementVirtualLoss(uint64_t DecrementVirtualLossCount) {
+        VisitsAndVirtualLoss.fetch_sub(DecrementVirtualLossCount << VirtualLossShift, std::memory_order_release);
     }
 
     inline uint64_t getVisitsAndVirtualLoss() const {
@@ -172,11 +175,20 @@ struct Node {
         const float FlipWinRate = 1.0f - WinRate;
         Node* N = this;
 
+        uint64_t CancelVirtualLossCount = 0;
+
         do {
             N->addWinRate(WinRate);
             N->addDrawRate(DrawRate);
             if constexpr (DecrementVirtualLoss) {
-                N->incrementVisitsAndDecrementVirtualLoss();
+                if (CancelVirtualLossCount == 0) {
+                    const uint64_t OldValue = N->incrementVisits();
+                    CancelVirtualLossCount = OldValue >> VirtualLossShift;
+                    assert(CancelVirtualLossCount > 0);
+                    N->decrementVirtualLoss(CancelVirtualLossCount);
+                } else {
+                    N->incrementVisitsAndDecrementVirtualLoss(CancelVirtualLossCount);
+                }
             } else {
                 N->incrementVisits();
             }
@@ -192,7 +204,7 @@ struct Node {
             N->addWinRate(FlipWinRate);
             N->addDrawRate(DrawRate);
             if constexpr (DecrementVirtualLoss) {
-                N->incrementVisitsAndDecrementVirtualLoss();
+                N->incrementVisitsAndDecrementVirtualLoss(CancelVirtualLossCount);
             } else {
                 N->incrementVisits();
             }

@@ -23,7 +23,7 @@ namespace {
 
 void cancelVirtualLoss(Node* N) {
     do {
-        N->decrementVirtualLoss();
+        N->decrementVirtualLoss(1);
         N = N->getParent();
     } while (N != nullptr);
 }
@@ -63,9 +63,11 @@ Node* SearchWorker::collectOneLeaf() {
     Node* CurrentNode = RootNode;
 
     while (true) {
-        const uint64_t VisitsAndVirtualLoss =
-            CurrentNode->getVisitsAndVirtualLoss();
-        const uint64_t Visits = VisitsAndVirtualLoss & Node::VisitMask;
+        // const uint64_t VisitsAndVirtualLoss =
+        //     CurrentNode->getVisitsAndVirtualLoss();
+        const uint64_t VisitsAndVirtualLossOld =
+            CurrentNode->incrementVirtualLoss();
+        const uint64_t Visits = VisitsAndVirtualLossOld & Node::VisitMask;
 
         if (CQueue != nullptr) {
             // If checkmate searcher is enabled and the node has not been
@@ -77,26 +79,13 @@ Node* SearchWorker::collectOneLeaf() {
         }
 
         if (Visits == 0) {
-            if (VisitsAndVirtualLoss ==
-                0) { // i.e., Visit == 0 && VirtualLoss == 0.
-                const uint64_t VisitsAndVirtualLossOld =
-                    CurrentNode->incrementVirtualLoss();
-
-                if (VisitsAndVirtualLossOld != 0) {
-                    // Another thread has collected this leaf node,
-                    // so there is nothing to do here.
-                    CurrentNode->decrementVirtualLoss();
-                    return nullptr;
-                }
-
-                // Increment ancestors' virtual loss.
-                if (CurrentNode->getParent() != nullptr) {
-                    incrementVirtualLosses(CurrentNode->getParent());
-                }
+            if (VisitsAndVirtualLossOld == 0) {
                 return CurrentNode;
+            } else {
+                // Another thread has collected this leaf node,
+                // so there is nothing to do here.
+                return nullptr;
             }
-
-            return nullptr;
         }
 
         const uint16_t NumChildren = CurrentNode->getNumChildren();
@@ -135,6 +124,7 @@ Node* SearchWorker::collectOneLeaf() {
         // same leaf node.
         if (E == nullptr) {
             PStat->incrementNumNullUCBMaxEdge();
+            cancelVirtualLoss(CurrentNode);
             return nullptr;
         }
 
@@ -159,11 +149,12 @@ Node* SearchWorker::collectOneLeaf() {
                 // If there is no available memory, it has failed to allocate a
                 // new node.
                 PStat->incrementNumFailedToAllocateNode();
+                cancelVirtualLoss(CurrentNode);
                 return nullptr;
             }
 
             auto* NewNodePtr = NewNode.get();
-            incrementVirtualLosses(NewNodePtr);
+            NewNodePtr->incrementVirtualLoss();
             E->setTarget(std::move(NewNode));
             return NewNodePtr;
         }
@@ -171,7 +162,6 @@ Node* SearchWorker::collectOneLeaf() {
         CurrentNode = E->getTarget();
     }
 
-    incrementVirtualLosses(CurrentNode);
     return CurrentNode;
 }
 
@@ -436,13 +426,6 @@ double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
 }
 
-void SearchWorker::incrementVirtualLosses(Node* N) {
-    do {
-        N->incrementVirtualLoss();
-        N = N->getParent();
-    } while (N != nullptr);
-}
-
 bool SearchWorker::doTask() {
     // Go back to the root state.
     while (State->getPly() != RootPly) {
@@ -456,8 +439,7 @@ bool SearchWorker::doTask() {
         return false;
     }
 
-    const uint64_t NumVisitsAndVirtualLoss =
-        LeafNode->getVisitsAndVirtualLoss();
+    const uint64_t NumVisitsAndVirtualLoss = LeafNode->getVisitsAndVirtualLoss();
     const uint64_t NumVisits = NumVisitsAndVirtualLoss & Node::VisitMask;
 
     // The collected leaf node has been already evaluated.
@@ -514,7 +496,6 @@ bool SearchWorker::doTask() {
     // This occurs when there is no available memory for edges.
     if (NumMoves == -1) {
         assert(LeafNode->getEdge() == nullptr);
-        cancelVirtualLoss(LeafNode);
         PStat->incrementNumFailedToAllocateEdge();
         return false;
     }
@@ -553,6 +534,8 @@ bool SearchWorker::doTask() {
                 CacheFound = false;
             }
         }
+
+        // TODO このときのvirtual lossの処理が適切か確認．
     }
 
     // Evaluate the leaf node.
@@ -570,7 +553,7 @@ bool SearchWorker::doTask() {
             //     VisitCount == 0 && VirtualLoss == 0
             // while its edges were still present. Another thread could then
             // reach this leaf node and re-expand it, causing a data race.
-            LeafNode->releaseEdges(EA);
+            LeafNode->releaseEdges(EA); // Note: LeafNode itself is not released.
             cancelVirtualLoss(LeafNode);
             PStat->incrementNumFailedToAddEvaluationQueue();
         }
