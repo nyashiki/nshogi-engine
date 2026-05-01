@@ -218,7 +218,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVisits =
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
     uint64_t CurrentVirtualLoss =
-        CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift;
+        (CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift) - 1; // Subtract 1 that is added in collectOneLeaf().
 
     if (CurrentVisits == 1) {
         // If the number of visit is equal to one, it means all children
