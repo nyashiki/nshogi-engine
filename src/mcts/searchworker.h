@@ -34,7 +34,8 @@ namespace mcts {
 
 class SearchWorker : public worker::Worker {
  public:
-    SearchWorker(allocator::Allocator* NodeAllocator,
+    SearchWorker(bool CheckmateSearchEnabled,
+                 allocator::Allocator* NodeAllocator,
                  allocator::Allocator* EdgeAllocator, EvaluationQueue*,
                  EvalCache*, Statistics* Stat);
     ~SearchWorker();
@@ -69,6 +70,8 @@ class SearchWorker : public worker::Worker {
     ) const;
     void incrementVirtualLosses(Node*);
 
+    const bool MyCheckmateSearchEnabled;
+
     std::unique_ptr<core::State> State;
     core::StateConfig Config;
     Node* RootNode;
@@ -87,7 +90,9 @@ class SearchWorker : public worker::Worker {
 
 class SearchWorkerMaster : public SearchWorker {
  public:
-    SearchWorkerMaster(const Context*, allocator::Allocator* NodeAllocator,
+    SearchWorkerMaster(const Context*,
+                       bool CheckmateSearchEnabled,
+                       allocator::Allocator* NodeAllocator,
                        allocator::Allocator* EdgeAllocator, EvaluationQueue*,
                        EvalCache*, Statistics*,
                        std::function<void()> SearchStopCallback,

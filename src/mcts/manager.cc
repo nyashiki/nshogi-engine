@@ -181,8 +181,12 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 1; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker>(
-            &NodeAllocator, &EdgeAllocator, EQueue.get(),
-            ECache.get(), &Stat));
+            (I - 1) < PContext->getNumCheckmateSearchThreads(),
+            &NodeAllocator,
+            &EdgeAllocator,
+            EQueue.get(),
+            ECache.get(),
+            &Stat));
     }
     // IMPORTANT: add SearchWorkerMaster last in SearchWorkers because
     // the master controls when to stop all workers to search, stopWorkers(),
@@ -193,8 +197,14 @@ void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     //     for (auto& Worker : SearchWorkers) Worker->start()
     // naturally guarantees the master starts after the others start.
     SWorkerMaster = new SearchWorkerMaster(
-        PContext, &NodeAllocator, &EdgeAllocator, EQueue.get(),
-        ECache.get(), &Stat, std::bind(&Manager::searchStopCallback, this),
+        PContext,
+        PContext->getNumCheckmateSearchThreads() >= NumSearchWorkers,
+        &NodeAllocator,
+        &EdgeAllocator,
+        EQueue.get(),
+        ECache.get(),
+        &Stat,
+        std::bind(&Manager::searchStopCallback, this),
         PLogger);
     SearchWorkers.emplace_back(SWorkerMaster);
 }

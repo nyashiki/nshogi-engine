@@ -30,16 +30,18 @@ void cancelVirtualLoss(Node* N) {
 
 } // namespace
 
-SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
+SearchWorker::SearchWorker(bool CheckmateSearchEnabled,
+                           allocator::Allocator* NodeAllocator,
                            allocator::Allocator* EdgeAllocator,
                            EvaluationQueue* EQ,
                            EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
+    , MyCheckmateSearchEnabled(CheckmateSearchEnabled)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EQueue(EQ)
     , ECache(EC)
-    , DfPnSolver(64)
+    , DfPnSolver(CheckmateSearchEnabled ? 64 : 0)
     , PStat(Stat) {
 
     spawnThread();
@@ -211,6 +213,32 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
     uint64_t CurrentVirtualLoss =
         (CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift) - 1; // Subtract 1 that is added in collectOneLeaf().
+
+    // Checkmate search.
+    if (MyCheckmateSearchEnabled) {
+        if (N->getSolverResult().isNone()) {
+            const auto StartTime = std::chrono::steady_clock::now();
+            const auto CheckmateSequence =
+                DfPnSolver.solveWithPV(
+                        State.get(),
+                        1000,
+                        (uint64_t)std::min(64, Config.MaxPly - State->getPly())
+                        );
+            const auto EndTime = std::chrono::steady_clock::now();
+            const uint64_t Elapsed =
+                (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                        EndTime - StartTime)
+                .count();
+            PStat->incrementNumSolverWorked();
+            PStat->updateSolverElapsed(Elapsed);
+            if (!CheckmateSequence.empty()) {
+                N->setSolverResult(core::Move16(CheckmateSequence[0]));
+                N->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+            } else {
+                N->setSolverResult(core::Move16::MoveInvalid());
+            }
+        }
+    }
 
     if (CurrentVisits == 1) {
         // If the number of visit is equal to one, it means all children
@@ -539,19 +567,28 @@ bool SearchWorker::doTask() {
 
         if (Succeeded) {
             // Checkmate search.
-            if (LeafNode->getSolverResult().isNone()) {
-                const auto CheckmateSequence =
-                    DfPnSolver.solveWithPV(
-                        State.get(),
-                        1000,
-                        (uint64_t)std::min(64, Config.MaxPly - State->getPly())
-                    );
-                PStat->incrementNumSolverWorked();
-                if (!CheckmateSequence.empty()) {
-                    LeafNode->setSolverResult(core::Move16(CheckmateSequence[0]));
-                    LeafNode->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
-                } else {
-                    LeafNode->setSolverResult(core::Move16::MoveInvalid());
+            if (MyCheckmateSearchEnabled) {
+                if (LeafNode->getSolverResult().isNone()) {
+                    const auto StartTime = std::chrono::steady_clock::now();
+                    const auto CheckmateSequence =
+                        DfPnSolver.solveWithPV(
+                                State.get(),
+                                1000,
+                                (uint64_t)std::min(64, Config.MaxPly - State->getPly())
+                                );
+                    const auto EndTime = std::chrono::steady_clock::now();
+                    const uint64_t Elapsed =
+                        (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                                EndTime - StartTime)
+                        .count();
+                    PStat->incrementNumSolverWorked();
+                    PStat->updateSolverElapsed(Elapsed);
+                    if (!CheckmateSequence.empty()) {
+                        LeafNode->setSolverResult(core::Move16(CheckmateSequence[0]));
+                        LeafNode->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+                    } else {
+                        LeafNode->setSolverResult(core::Move16::MoveInvalid());
+                    }
                 }
             }
         } else {
@@ -576,11 +613,15 @@ bool SearchWorker::doTask() {
 }
 
 SearchWorkerMaster::SearchWorkerMaster(
-    const Context* C, allocator::Allocator* NodeAllocator,
-    allocator::Allocator* EdgeAllocator, EvaluationQueue* EQueue,
-    EvalCache* ECache, Statistics* Stat,
+    const Context* C,
+    bool CheckmateSearchEnabled,
+    allocator::Allocator* NodeAllocator,
+    allocator::Allocator* EdgeAllocator,
+    EvaluationQueue* EQueue,
+    EvalCache* ECache,
+    Statistics* Stat,
     std::function<void()> SearchStopCallback, std::shared_ptr<logger::Logger> L)
-    : SearchWorker(NodeAllocator, EdgeAllocator, EQueue, ECache, Stat)
+    : SearchWorker(CheckmateSearchEnabled, NodeAllocator, EdgeAllocator, EQueue, ECache, Stat)
     , PContext(C)
     , Callback(SearchStopCallback)
     , Logger(std::move(L))
