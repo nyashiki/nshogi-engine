@@ -536,7 +536,25 @@ bool SearchWorker::doTask() {
     // Evaluate the leaf node.
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
-        if (!Succeeded) {
+
+        if (Succeeded) {
+            // Checkmate search.
+            if (LeafNode->getSolverResult().isNone()) {
+                const auto CheckmateSequence =
+                    DfPnSolver.solveWithPV(
+                        State.get(),
+                        1000,
+                        (uint64_t)std::min(64, Config.MaxPly - State->getPly())
+                    );
+                PStat->incrementNumSolverWorked();
+                if (!CheckmateSequence.empty()) {
+                    LeafNode->setSolverResult(core::Move16(CheckmateSequence[0]));
+                    LeafNode->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+                } else {
+                    LeafNode->setSolverResult(core::Move16::MoveInvalid());
+                }
+            }
+        } else {
             // Our MCTS implementation marks a node as "in expansion" for speed:
             //     (VisitCount == 0 && VirtualLoss == 1)
             // Because the leaf was already expanded and a virtual loss was
@@ -551,19 +569,6 @@ bool SearchWorker::doTask() {
             LeafNode->releaseEdges(EA);
             cancelVirtualLoss(LeafNode);
             PStat->incrementNumFailedToAddEvaluationQueue();
-        }
-
-        // Checkmate search.
-        if (LeafNode->getSolverResult().isNone()) {
-            const auto CheckmateSequence =
-                DfPnSolver.solveWithPV(State.get(), 3000, Config.MaxPly - State->getPly());
-            PStat->incrementNumSolverWorked();
-            if (!CheckmateSequence.empty()) {
-                LeafNode->setSolverResult(core::Move16(CheckmateSequence[0]));
-                LeafNode->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
-            } else {
-                LeafNode->setSolverResult(core::Move16::MoveInvalid());
-            }
         }
     }
 
