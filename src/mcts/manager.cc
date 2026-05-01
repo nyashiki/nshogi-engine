@@ -232,7 +232,7 @@ void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
     // CheckmateQueue must be initialized before SearchWorker is.
     assert(SearchWorkers.size() == 0);
     if (NumCheckmateWorkers > 0) {
-        CQueue = std::make_unique<CheckmateQueue>(GC.get());
+        CQueue = std::make_unique<CheckmateQueue>();
     }
 }
 
@@ -306,6 +306,9 @@ void Manager::doSupervisorWork(bool CallCallback) {
     // Setup the state to think.
     if (CQueue != nullptr) {
         CQueue->incrementGeneration();
+        for (const auto& CheckmateWorker : CheckmateWorkers) {
+            CheckmateWorker->setGeneration(CQueue->_generation());
+        }
     }
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 

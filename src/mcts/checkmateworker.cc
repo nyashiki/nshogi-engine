@@ -36,13 +36,8 @@ bool CheckmateWorker::doTask() {
         return false;
     }
 
-    if (Task->generation() != LatestGeneration) {
-        PCheckmateQueue->lock();
-        LatestGeneration = PCheckmateQueue->_generation();
-        PCheckmateQueue->unlock();
-        if (Task->generation() != LatestGeneration) {
-            return false;
-        }
+    if (Task->generation() != LatestGeneration.load(std::memory_order_acquire)) {
+        return false;
     }
 
     // This node has been tried to be solved by the solvers.
@@ -81,6 +76,10 @@ bool CheckmateWorker::doTask() {
     PCheckmateQueue->unlock();
 
     return false;
+}
+
+void CheckmateWorker::setGeneration(uint64_t Gen) noexcept {
+    LatestGeneration.store(Gen, std::memory_order_release);
 }
 
 } // namespace mcts

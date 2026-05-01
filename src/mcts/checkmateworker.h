@@ -14,6 +14,7 @@
 #include "checkmatequeue.h"
 #include "statistics.h"
 
+#include <atomic>
 #include <nshogi/solver/dfpn.h>
 
 namespace nshogi {
@@ -25,13 +26,15 @@ class CheckmateWorker : public worker::Worker {
     CheckmateWorker(CheckmateQueue*, Statistics*);
     ~CheckmateWorker();
 
+    void setGeneration(uint64_t) noexcept;
+
  private:
     bool doTask() override;
 
     solver::dfpn::Solver DfPnSolver;
     CheckmateQueue* PCheckmateQueue;
 
-    uint64_t LatestGeneration;
+    std::atomic<uint64_t> LatestGeneration;
 
     Statistics* PStat;
 };
