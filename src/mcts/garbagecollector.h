@@ -10,7 +10,6 @@
 #ifndef NSHOGI_ENGINE_MCTS_GARBAGECOLLECTOR_H
 #define NSHOGI_ENGINE_MCTS_GARBAGECOLLECTOR_H
 
-#include "checkmatetask.h"
 #include "node.h"
 #include "pointer.h"
 

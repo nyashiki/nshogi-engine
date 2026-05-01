@@ -42,8 +42,6 @@ SOURCES :=                              \
 	src/contextmanager.cc               \
 	src/allocator/default.cc            \
     src/book/book.cc                    \
-	src/mcts/checkmateworker.cc         \
-	src/mcts/checkmatequeue.cc          \
 	src/mcts/garbagecollector.cc        \
 	src/mcts/manager.cc                 \
 	src/mcts/evaluationqueue.cc         \

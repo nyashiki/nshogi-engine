@@ -32,14 +32,14 @@ void cancelVirtualLoss(Node* N) {
 
 SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
                            allocator::Allocator* EdgeAllocator,
-                           EvaluationQueue* EQ, CheckmateQueue* CQ,
+                           EvaluationQueue* EQ,
                            EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EQueue(EQ)
-    , CQueue(CQ)
     , ECache(EC)
+    , DfPnSolver(64)
     , PStat(Stat) {
 
     spawnThread();
@@ -65,15 +65,6 @@ Node* SearchWorker::collectOneLeaf() {
     while (true) {
         const uint64_t VisitsAndVirtualLossOld = CurrentNode->incrementVirtualLoss();
         const uint64_t Visits = VisitsAndVirtualLossOld & Node::VisitMask;
-
-        if (CQueue != nullptr) {
-            // If checkmate searcher is enabled and the node has not been
-            // tried to solve, feed the node into the checkmate searcher.
-            if (CurrentNode->getSolverResult().isNone()) {
-                CQueue->tryAdd(CurrentNode, State->getPosition(),
-                               Config.MaxPly - State->getPly());
-            }
-        }
 
         if (Visits == 0) {
             if (VisitsAndVirtualLossOld == 0) {
@@ -155,6 +146,7 @@ Node* SearchWorker::collectOneLeaf() {
             auto* NewNodePtr = NewNode.get();
             NewNodePtr->incrementVirtualLoss();
             E->setTarget(std::move(NewNode));
+
             return NewNodePtr;
         }
 
@@ -560,6 +552,19 @@ bool SearchWorker::doTask() {
             cancelVirtualLoss(LeafNode);
             PStat->incrementNumFailedToAddEvaluationQueue();
         }
+
+        // Checkmate search.
+        if (LeafNode->getSolverResult().isNone()) {
+            const auto CheckmateSequence =
+                DfPnSolver.solveWithPV(State.get(), 3000, Config.MaxPly - State->getPly());
+            PStat->incrementNumSolverWorked();
+            if (!CheckmateSequence.empty()) {
+                LeafNode->setSolverResult(core::Move16(CheckmateSequence[0]));
+                LeafNode->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+            } else {
+                LeafNode->setSolverResult(core::Move16::MoveInvalid());
+            }
+        }
     }
 
     return false;
@@ -568,9 +573,9 @@ bool SearchWorker::doTask() {
 SearchWorkerMaster::SearchWorkerMaster(
     const Context* C, allocator::Allocator* NodeAllocator,
     allocator::Allocator* EdgeAllocator, EvaluationQueue* EQueue,
-    CheckmateQueue* CQueue, EvalCache* ECache, Statistics* Stat,
+    EvalCache* ECache, Statistics* Stat,
     std::function<void()> SearchStopCallback, std::shared_ptr<logger::Logger> L)
-    : SearchWorker(NodeAllocator, EdgeAllocator, EQueue, CQueue, ECache, Stat)
+    : SearchWorker(NodeAllocator, EdgeAllocator, EQueue, ECache, Stat)
     , PContext(C)
     , Callback(SearchStopCallback)
     , Logger(std::move(L))
