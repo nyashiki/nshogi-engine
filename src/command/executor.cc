@@ -117,7 +117,7 @@ void Executor::executeCommand(const commands::GetReady*) {
 
 void Executor::executeCommand(const commands::SetPosition* Command) {
     State = std::make_unique<core::State>(
-        io::sfen::StateBuilder::newState(Command->sfen()));
+        nshogi::io::sfen::StateBuilder::newState(Command->sfen()));
 }
 
 void Executor::executeCommand(const commands::Think* Command) {

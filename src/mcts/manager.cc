@@ -8,9 +8,11 @@
 //
 
 #include "manager.h"
+#include "../io/book.h"
 
 #include <cmath>
 #include <functional>
+#include <random>
 
 namespace nshogi {
 namespace engine {
@@ -41,6 +43,7 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
     setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
+    setupBook();
 
     PLogger->setIsNShogiExtensionLogEnabled(
         PContext->isNShogiExtensionLogEnabled());
@@ -282,6 +285,16 @@ void Manager::setupSupervisor() {
     });
 }
 
+void Manager::setupBook() {
+    if (PContext->isBookEnabled()) {
+        PBook = std::make_unique<book::Book>(io::book::load(
+            PContext->getBookPath(), io::book::BookFormat::YaneuraOu));
+        const std::string Message =
+            "Book loaded (size: " + std::to_string(PBook->size()) + ").";
+        PLogger->printLog(Message.c_str());
+    }
+}
+
 void Manager::doSupervisorWork(bool CallCallback) {
     // Wait for all workers if previous search is running.
     awaitWorkers();
@@ -327,6 +340,43 @@ void Manager::doSupervisorWork(bool CallCallback) {
     }
     CVStatus.notify_all();
 
+    core::Move32 BookMove = core::Move32::MoveNone();
+    if (PContext->isBookEnabled()) {
+        if (PContext->getMaxBookPly() == 0 ||
+            CurrentState->getPly() < PContext->getMaxBookPly()) {
+            if (PBook != nullptr) {
+                const auto RepetitionStatus =
+                    CurrentState->getRepetitionStatus();
+
+                const bool UseBook =
+                    (RepetitionStatus ==
+                     core::RepetitionStatus::NoRepetition) ||
+                    (RepetitionStatus == core::RepetitionStatus::Repetition &&
+                     PContext->isRepetitionBookAllowed());
+                if (UseBook) {
+                    const auto BookMoves = PBook->nextMoves(*CurrentState);
+                    if (!BookMoves.empty()) {
+                        PLogger->printLog("Book move found.");
+
+                        if (BookStrategy == BookStrategyType::Top) {
+                            BookMove = CurrentState->getMove32FromMove16(
+                                BookMoves.at(0));
+                        } else if (BookStrategy == BookStrategyType::Random) {
+                            static std::mt19937_64 RandomEngine(
+                                std::random_device{}());
+                            const auto SampledMove =
+                                BookMoves.at(RandomEngine() % BookMoves.size());
+                            BookMove =
+                                CurrentState->getMove32FromMove16(SampledMove);
+                        }
+
+                        stopWorkers();
+                    }
+                }
+            }
+        }
+    }
+
     // Await workers until the search stops.
     awaitWorkers();
     assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
@@ -355,7 +405,11 @@ void Manager::doSupervisorWork(bool CallCallback) {
         STCallback(SearchTree.get());
     }
 
-    BestMove = getBestmove(RootNode);
+    if (BookMove.isNone()) {
+        BestMove = getBestmove(RootNode);
+    } else {
+        BestMove = BookMove;
+    }
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.

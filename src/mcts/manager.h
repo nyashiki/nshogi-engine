@@ -11,6 +11,7 @@
 
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/segregated_free_list.h"
+#include "../book/book.h"
 #include "../context.h"
 #include "../globalconfig.h"
 #include "../limit.h"
@@ -43,6 +44,11 @@ enum class ManagerStatus {
     Busy,
 };
 
+enum class BookStrategyType {
+    Top,
+    Random,
+};
+
 class Manager {
  public:
     Manager(const Context*, std::shared_ptr<logger::Logger> Logger);
@@ -73,6 +79,7 @@ class Manager {
     void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
     void setupEvalCache(std::size_t EvalCacheMB);
     void setupSupervisor();
+    void setupBook();
 
     void doSupervisorWork(bool CallCackback);
 
@@ -101,6 +108,8 @@ class Manager {
     std::vector<std::unique_ptr<FeedWorker>> FeedWorkers;
     std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
+    std::unique_ptr<book::Book> PBook;
+
     std::shared_ptr<logger::Logger> PLogger;
 
     bool WakeUpSupervisor;
@@ -120,6 +129,8 @@ class Manager {
     Statistics Stat;
 
     bool IsExiting;
+
+    const BookStrategyType BookStrategy = BookStrategyType::Top;
 };
 
 } // namespace mcts
