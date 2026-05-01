@@ -63,9 +63,8 @@ Node* SearchWorker::collectOneLeaf() {
     Node* CurrentNode = RootNode;
 
     while (true) {
-        const uint64_t VisitsAndVirtualLoss =
-            CurrentNode->getVisitsAndVirtualLoss();
-        const uint64_t Visits = VisitsAndVirtualLoss & Node::VisitMask;
+        const uint64_t VisitsAndVirtualLossOld = CurrentNode->incrementVirtualLoss();
+        const uint64_t Visits = VisitsAndVirtualLossOld & Node::VisitMask;
 
         if (CQueue != nullptr) {
             // If checkmate searcher is enabled and the node has not been
@@ -77,26 +76,14 @@ Node* SearchWorker::collectOneLeaf() {
         }
 
         if (Visits == 0) {
-            if (VisitsAndVirtualLoss ==
-                0) { // i.e., Visit == 0 && VirtualLoss == 0.
-                const uint64_t VisitsAndVirtualLossOld =
-                    CurrentNode->incrementVirtualLoss();
-
-                if (VisitsAndVirtualLossOld != 0) {
-                    // Another thread has collected this leaf node,
-                    // so there is nothing to do here.
-                    CurrentNode->decrementVirtualLoss();
-                    return nullptr;
-                }
-
-                // Increment ancestors' virtual loss.
-                if (CurrentNode->getParent() != nullptr) {
-                    incrementVirtualLosses(CurrentNode->getParent());
-                }
+            if (VisitsAndVirtualLossOld == 0) {
                 return CurrentNode;
+            } else {
+                // Another thread has collected this leaf node,
+                // so there is nothing to do here.
+                cancelVirtualLoss(CurrentNode);
+                return nullptr;
             }
-
-            return nullptr;
         }
 
         const uint16_t NumChildren = CurrentNode->getNumChildren();
@@ -135,6 +122,7 @@ Node* SearchWorker::collectOneLeaf() {
         // same leaf node.
         if (E == nullptr) {
             PStat->incrementNumNullUCBMaxEdge();
+            cancelVirtualLoss(CurrentNode);
             return nullptr;
         }
 
@@ -148,6 +136,7 @@ Node* SearchWorker::collectOneLeaf() {
 
             if (IsBeingExpanded) {
                 PStat->incrementNumConflictNodeAllocation();
+                cancelVirtualLoss(CurrentNode);
                 return nullptr;
             }
 
@@ -159,11 +148,12 @@ Node* SearchWorker::collectOneLeaf() {
                 // If there is no available memory, it has failed to allocate a
                 // new node.
                 PStat->incrementNumFailedToAllocateNode();
+                cancelVirtualLoss(CurrentNode);
                 return nullptr;
             }
 
             auto* NewNodePtr = NewNode.get();
-            incrementVirtualLosses(NewNodePtr);
+            NewNodePtr->incrementVirtualLoss();
             E->setTarget(std::move(NewNode));
             return NewNodePtr;
         }
@@ -171,7 +161,6 @@ Node* SearchWorker::collectOneLeaf() {
         CurrentNode = E->getTarget();
     }
 
-    incrementVirtualLosses(CurrentNode);
     return CurrentNode;
 }
 
@@ -434,13 +423,6 @@ double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
                                  : Config.WhiteDrawValue;
 
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
-}
-
-void SearchWorker::incrementVirtualLosses(Node* N) {
-    do {
-        N->incrementVirtualLoss();
-        N = N->getParent();
-    } while (N != nullptr);
 }
 
 bool SearchWorker::doTask() {
