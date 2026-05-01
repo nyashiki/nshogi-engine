@@ -35,6 +35,8 @@ class ContextManager {
 
     void setNumEvaluationThreadsPerGPU(std::size_t NumThreads);
 
+    void setNumCheckmateSearchThreads(std::size_t NumCheckmateThreads);
+
     void setNumFeedThreads(std::size_t NumFeedThreads);
 
     void setBatchSize(std::size_t Size);

@@ -177,6 +177,9 @@ void Executor::setConfig(const commands::IntegerConfig* Config) {
                commands::Configurable::NumEvaluationThreadsPerGPU) {
         CManager.setNumEvaluationThreadsPerGPU((std::size_t)Config->value());
     } else if (Config->configurable() ==
+               commands::Configurable::NumCheckmateSearchThreads) {
+        CManager.setNumCheckmateSearchThreads((std::size_t)Config->value());
+    } else if (Config->configurable() ==
                commands::Configurable::NumFeedThreads) {
         CManager.setNumFeedThreads((std::size_t)Config->value());
     } else if (Config->configurable() == commands::Configurable::BatchSize) {

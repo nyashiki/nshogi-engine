@@ -44,6 +44,11 @@ void ContextManager::setNumEvaluationThreadsPerGPU(std::size_t NumThreads) {
     Context_->NumEvaluationThreadsPerGPU = NumThreads;
 }
 
+void ContextManager::setNumCheckmateSearchThreads(
+    std::size_t NumCheckmateThreads) {
+    Context_->NumCheckmateSearchThreads = NumCheckmateThreads;
+}
+
 void ContextManager::setNumFeedThreads(std::size_t NumFeedThreads) {
     Context_->NumFeedThreads = NumFeedThreads;
 }
