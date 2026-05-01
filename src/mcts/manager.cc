@@ -287,10 +287,10 @@ void Manager::setupSupervisor() {
 
 void Manager::setupBook() {
     if (PContext->isBookEnabled()) {
-        PBook = std::make_unique<book::Book>(
-            io::book::load(PContext->getBookPath(), io::book::BookFormat::YaneuraOu));
+        PBook = std::make_unique<book::Book>(io::book::load(
+            PContext->getBookPath(), io::book::BookFormat::YaneuraOu));
         const std::string Message =
-                "Book loaded (size: " + std::to_string(PBook->size()) + ").";
+            "Book loaded (size: " + std::to_string(PBook->size()) + ").";
         PLogger->printLog(Message.c_str());
     }
 }
@@ -342,23 +342,32 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     core::Move32 BookMove = core::Move32::MoveNone();
     if (PContext->isBookEnabled()) {
-        if (PContext->getMaxBookPly() == 0 || CurrentState->getPly() < PContext->getMaxBookPly()) {
+        if (PContext->getMaxBookPly() == 0 ||
+            CurrentState->getPly() < PContext->getMaxBookPly()) {
             if (PBook != nullptr) {
-                const auto RepetitionStatus = CurrentState->getRepetitionStatus();
+                const auto RepetitionStatus =
+                    CurrentState->getRepetitionStatus();
 
-                const bool UseBook = (RepetitionStatus == core::RepetitionStatus::NoRepetition) ||
-                                     (RepetitionStatus == core::RepetitionStatus::Repetition && PContext->isRepetitionBookAllowed());
+                const bool UseBook =
+                    (RepetitionStatus ==
+                     core::RepetitionStatus::NoRepetition) ||
+                    (RepetitionStatus == core::RepetitionStatus::Repetition &&
+                     PContext->isRepetitionBookAllowed());
                 if (UseBook) {
                     const auto BookMoves = PBook->nextMoves(*CurrentState);
                     if (!BookMoves.empty()) {
                         PLogger->printLog("Book move found.");
 
                         if (BookStrategy == BookStrategyType::Top) {
-                            BookMove = CurrentState->getMove32FromMove16(BookMoves.at(0));
+                            BookMove = CurrentState->getMove32FromMove16(
+                                BookMoves.at(0));
                         } else if (BookStrategy == BookStrategyType::Random) {
-                            static std::mt19937_64 RandomEngine(std::random_device{}());
-                            const auto SampledMove = BookMoves.at(RandomEngine() % BookMoves.size());
-                            BookMove = CurrentState->getMove32FromMove16(SampledMove);
+                            static std::mt19937_64 RandomEngine(
+                                std::random_device{}());
+                            const auto SampledMove =
+                                BookMoves.at(RandomEngine() % BookMoves.size());
+                            BookMove =
+                                CurrentState->getMove32FromMove16(SampledMove);
                         }
 
                         stopWorkers();

@@ -35,8 +35,9 @@ class Book {
  private:
     std::map<std::string, std::vector<core::Move16>> BookData;
 
- friend auto io::book::load(const std::string& Path, io::book::BookFormat Format)
-    -> engine::book::Book;
+    friend auto
+    io::book::load(const std::string& Path,
+                   io::book::BookFormat Format) -> engine::book::Book;
 };
 
 } // namespace book

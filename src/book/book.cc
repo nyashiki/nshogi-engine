@@ -20,14 +20,15 @@ Book::Book() {
 
 auto Book::nextMoves(const core::State& State) const
     -> std::vector<core::Move16> {
-    const std::string Key = nshogi::io::sfen::positionToSfen(State.getPosition());
+    const std::string Key =
+        nshogi::io::sfen::positionToSfen(State.getPosition());
     const auto It = BookData.find(Key);
 
     if (It != BookData.end()) {
         return It->second;
     }
 
-    return { };
+    return {};
 }
 
 auto Book::size() const -> std::size_t {

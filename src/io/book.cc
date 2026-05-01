@@ -24,7 +24,8 @@ namespace book {
 
 auto load(const std::string& Path, BookFormat Format) -> engine::book::Book {
     if (Format != BookFormat::YaneuraOu) {
-        throw std::runtime_error("Unsupported book format: " + std::to_string((int)Format));
+        throw std::runtime_error("Unsupported book format: " +
+                                 std::to_string((int)Format));
     }
 
     std::ifstream Ifs(Path);
@@ -52,12 +53,14 @@ auto load(const std::string& Path, BookFormat Format) -> engine::book::Book {
             if (State != nullptr) {
                 if (Moves.empty()) {
                     throw std::runtime_error(
-                        "Invalid book file format: " + Path + " (line: " +
-                        std::to_string(LineCount) + ")");
+                        "Invalid book file format: " + Path +
+                        " (line: " + std::to_string(LineCount) + ")");
                 }
 
-                // Note: if the same position appears multiple times, the last one is used.
-                B.BookData[nshogi::io::sfen::positionToSfen(State->getPosition())] = Moves;
+                // Note: if the same position appears multiple times, the last
+                // one is used.
+                B.BookData[nshogi::io::sfen::positionToSfen(
+                    State->getPosition())] = Moves;
             }
 
             State = std::make_unique<core::State>(
@@ -66,25 +69,27 @@ auto load(const std::string& Path, BookFormat Format) -> engine::book::Book {
         } else {
             if (State == nullptr) {
                 throw std::runtime_error(
-                    "Invalid book file format: " + Path + " (line: " +
-                    std::to_string(LineCount) + ")");
+                    "Invalid book file format: " + Path +
+                    " (line: " + std::to_string(LineCount) + ")");
             }
             std::istringstream Iss(Line);
             std::string MoveStr;
             Iss >> MoveStr;
 
-            const auto Move = nshogi::io::sfen::sfenToMove32(State->getPosition(), MoveStr);
+            const auto Move =
+                nshogi::io::sfen::sfenToMove32(State->getPosition(), MoveStr);
             Moves.push_back(core::Move16(Move));
         }
     }
 
     if (State != nullptr) {
         if (Moves.empty()) {
-            throw std::runtime_error(
-                    "Invalid book file format: " + Path + " (line: " +
-                    std::to_string(LineCount) + ")");
+            throw std::runtime_error("Invalid book file format: " + Path +
+                                     " (line: " + std::to_string(LineCount) +
+                                     ")");
         }
-        B.BookData[nshogi::io::sfen::positionToSfen(State->getPosition())] = Moves;
+        B.BookData[nshogi::io::sfen::positionToSfen(State->getPosition())] =
+            Moves;
     }
 
     return B;
