@@ -58,16 +58,10 @@ class SearchWorker : public worker::Worker {
     void immediateUpdateByDraw(Node*, float DrawValue);
     void immediateUpdate(Node*);
 
-    Edge* computeUCBMaxEdge(
-        Node*,
-        uint16_t NumChildren,
-        bool regardNotVisitedWin
-    );
-    double computeWinRateOfChild(
-        Node* Child,
-        uint64_t ChildVisits,
-        uint64_t ChildVirtualVisits
-    ) const;
+    Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
+                            bool regardNotVisitedWin);
+    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
+                                 uint64_t ChildVirtualVisits) const;
     void incrementVirtualLosses(Node*);
 
     const bool MyCheckmateSearchEnabled;
@@ -90,8 +84,7 @@ class SearchWorker : public worker::Worker {
 
 class SearchWorkerMaster : public SearchWorker {
  public:
-    SearchWorkerMaster(const Context*,
-                       bool CheckmateSearchEnabled,
+    SearchWorkerMaster(const Context*, bool CheckmateSearchEnabled,
                        allocator::Allocator* NodeAllocator,
                        allocator::Allocator* EdgeAllocator, EvaluationQueue*,
                        EvalCache*, Statistics*,

@@ -33,8 +33,7 @@ void cancelVirtualLoss(Node* N) {
 SearchWorker::SearchWorker(bool CheckmateSearchEnabled,
                            allocator::Allocator* NodeAllocator,
                            allocator::Allocator* EdgeAllocator,
-                           EvaluationQueue* EQ,
-                           EvalCache* EC, Statistics* Stat)
+                           EvaluationQueue* EQ, EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
     , MyCheckmateSearchEnabled(CheckmateSearchEnabled)
     , NA(NodeAllocator)
@@ -65,7 +64,8 @@ Node* SearchWorker::collectOneLeaf() {
     Node* CurrentNode = RootNode;
 
     while (true) {
-        const uint64_t VisitsAndVirtualLossOld = CurrentNode->incrementVirtualLoss();
+        const uint64_t VisitsAndVirtualLossOld =
+            CurrentNode->incrementVirtualLoss();
         const uint64_t Visits = VisitsAndVirtualLossOld & Node::VisitMask;
 
         if (Visits == 0) {
@@ -212,23 +212,21 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVisits =
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
     uint64_t CurrentVirtualLoss =
-        (CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift) - 1; // Subtract 1 that is added in collectOneLeaf().
+        (CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift) -
+        1; // Subtract 1 that is added in collectOneLeaf().
 
     // Checkmate search.
     if (MyCheckmateSearchEnabled) {
         if (N->getSolverResult().isNone()) {
             const auto StartTime = std::chrono::steady_clock::now();
-            const auto CheckmateSequence =
-                DfPnSolver.solveWithPV(
-                        State.get(),
-                        1000,
-                        (uint64_t)std::min(64, Config.MaxPly - State->getPly())
-                        );
+            const auto CheckmateSequence = DfPnSolver.solveWithPV(
+                State.get(), 1000,
+                (uint64_t)std::min(64, Config.MaxPly - State->getPly()));
             const auto EndTime = std::chrono::steady_clock::now();
             const uint64_t Elapsed =
                 (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-                        EndTime - StartTime)
-                .count();
+                    EndTime - StartTime)
+                    .count();
             PStat->incrementNumSolverWorked();
             PStat->updateSolverElapsed(Elapsed);
             if (!CheckmateSequence.empty()) {
@@ -403,7 +401,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         assert(Child != nullptr);
         assert(ChildVirtualVisits > 0);
-        const double ChildWinRate = computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
+        const double ChildWinRate =
+            computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
         const double UCBValue =
             ChildWinRate +
             Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
@@ -430,16 +429,13 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     return UCBMaxEdge;
 }
 
-double SearchWorker::computeWinRateOfChild(
-    Node* Child,
-    uint64_t ChildVisits,
-    uint64_t ChildVirtualVisits
-) const {
+double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
+                                           uint64_t ChildVirtualVisits) const {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
-    const double WinRate =
-        ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVirtualVisits;
+    const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) /
+                           (double)ChildVirtualVisits;
     const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
 
     const double DrawValue = (State->getSideToMove() == core::Black)
@@ -570,22 +566,22 @@ bool SearchWorker::doTask() {
             if (MyCheckmateSearchEnabled) {
                 if (LeafNode->getSolverResult().isNone()) {
                     const auto StartTime = std::chrono::steady_clock::now();
-                    const auto CheckmateSequence =
-                        DfPnSolver.solveWithPV(
-                                State.get(),
-                                1000,
-                                (uint64_t)std::min(64, Config.MaxPly - State->getPly())
-                                );
+                    const auto CheckmateSequence = DfPnSolver.solveWithPV(
+                        State.get(), 1000,
+                        (uint64_t)std::min(64,
+                                           Config.MaxPly - State->getPly()));
                     const auto EndTime = std::chrono::steady_clock::now();
                     const uint64_t Elapsed =
-                        (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-                                EndTime - StartTime)
-                        .count();
+                        (uint64_t)std::chrono::duration_cast<
+                            std::chrono::milliseconds>(EndTime - StartTime)
+                            .count();
                     PStat->incrementNumSolverWorked();
                     PStat->updateSolverElapsed(Elapsed);
                     if (!CheckmateSequence.empty()) {
-                        LeafNode->setSolverResult(core::Move16(CheckmateSequence[0]));
-                        LeafNode->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+                        LeafNode->setSolverResult(
+                            core::Move16(CheckmateSequence[0]));
+                        LeafNode->setPlyToTerminalSolved(
+                            (int16_t)CheckmateSequence.size());
                     } else {
                         LeafNode->setSolverResult(core::Move16::MoveInvalid());
                     }
@@ -613,15 +609,12 @@ bool SearchWorker::doTask() {
 }
 
 SearchWorkerMaster::SearchWorkerMaster(
-    const Context* C,
-    bool CheckmateSearchEnabled,
-    allocator::Allocator* NodeAllocator,
-    allocator::Allocator* EdgeAllocator,
-    EvaluationQueue* EQueue,
-    EvalCache* ECache,
-    Statistics* Stat,
+    const Context* C, bool CheckmateSearchEnabled,
+    allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator,
+    EvaluationQueue* EQueue, EvalCache* ECache, Statistics* Stat,
     std::function<void()> SearchStopCallback, std::shared_ptr<logger::Logger> L)
-    : SearchWorker(CheckmateSearchEnabled, NodeAllocator, EdgeAllocator, EQueue, ECache, Stat)
+    : SearchWorker(CheckmateSearchEnabled, NodeAllocator, EdgeAllocator, EQueue,
+                   ECache, Stat)
     , PContext(C)
     , Callback(SearchStopCallback)
     , Logger(std::move(L))
