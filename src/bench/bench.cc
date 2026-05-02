@@ -78,8 +78,7 @@ int main() {
         } else if (Split[0] == "quit" || Split[0] == "exit") {
             break;
         } else {
-            std::cout << "Unknown command `" << Split[0] << "`."
-                      << std::endl;
+            std::cout << "Unknown command `" << Split[0] << "`." << std::endl;
         }
     }
 

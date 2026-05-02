@@ -40,11 +40,8 @@ void benchBatchSize([[maybe_unused]] const char* WeightPath,
             infer::TensorRT(0, BatchSize, global_config::FeatureType::size());
         TRTInfer.load(WeightPath, false);
         evaluate::Evaluator Evaluator(
-            0,  // Thread ID (not used in this benchmark)
-            global_config::FeatureType::size(),
-            BatchSize,
-            &TRTInfer
-        );
+            0, // Thread ID (not used in this benchmark)
+            global_config::FeatureType::size(), BatchSize, &TRTInfer);
 
         // Prepare states.
         const auto State = nshogi::core::StateBuilder::getInitialState();
@@ -54,13 +51,11 @@ void benchBatchSize([[maybe_unused]] const char* WeightPath,
 
         for (std::size_t I = 1; I < BatchSize; ++I) {
             std::memcpy(
-                static_cast<void*>(
-                    Evaluator.getFeatureBitboards()
-                    + I * global_config::FeatureType::size()
-                ),
+                static_cast<void*>(Evaluator.getFeatureBitboards() +
+                                   I * global_config::FeatureType::size()),
                 FeatureStack.data(),
-                global_config::FeatureType::size() * sizeof(ml::FeatureBitboard)
-            );
+                global_config::FeatureType::size() *
+                    sizeof(ml::FeatureBitboard));
         }
 
         for (std::size_t WarmUp = 0; WarmUp < 4; ++WarmUp) {
