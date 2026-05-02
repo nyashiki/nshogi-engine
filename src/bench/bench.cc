@@ -11,13 +11,29 @@
 #include "mcts.h"
 
 #include <nshogi/core/initializer.h>
-#include <nshogi/core/utils.h>
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
-int main(int Argc, char* Argv[]) {
+namespace {
+
+std::vector<std::string> split(const std::string& S) {
+    std::vector<std::string> Result;
+    std::stringstream SS(S);
+    std::string Part;
+
+    while (std::getline(SS, Part, ' ')) {
+        Result.push_back(Part);
+    }
+
+    return Result;
+}
+
+} // namespace
+
+int main() {
     using namespace nshogi::engine;
     using namespace nshogi::engine::bench;
 
@@ -26,53 +42,44 @@ int main(int Argc, char* Argv[]) {
     std::cout << "Entering bench mode." << std::endl;
 
     std::string Line;
-    while (Argc >= 2 || std::getline(std::cin, Line)) {
-        if (Argc == 1 && Line.size() == 0) {
-            continue;
-        }
+    while (std::getline(std::cin, Line)) {
+        // Split the input line into command and arguments.
+        const auto Split = split(Line);
 
-        const auto Splitted =
-            (Argc >= 2) ? std::vector<std::string>(Argv + 1, Argv + Argc)
-                        : nshogi::core::utils::split(Line, ' ');
-
-        if (Splitted[0] == "BatchSize") {
+        if (Split[0] == "BatchSize") {
             std::string WeightPath = "./res/model.onnx";
-            std::size_t Repeat = 1000;
+            std::size_t Repeat = 3000;
 
-            if (Splitted.size() >= 2) {
-                WeightPath = Splitted[1];
+            if (Split.size() >= 2) {
+                WeightPath = Split[1];
             }
 
-            if (Splitted.size() >= 3) {
-                Repeat = std::stoul(Splitted[2]);
+            if (Split.size() >= 3) {
+                Repeat = std::stoul(Split[2]);
             }
 
             benchBatchSize(WeightPath.c_str(), Repeat);
-        } else if (Splitted[0] == "MCTS") {
+        } else if (Split[0] == "MCTS") {
             const uint64_t DurationSeconds =
-                (Splitted.size() >= 2) ? std::stoull(Splitted[1]) : 10;
+                (Split.size() >= 2) ? std::stoull(Split[1]) : 10;
             const std::size_t BatchSize =
-                (Splitted.size() >= 3) ? std::stoul(Splitted[2]) : 128;
+                (Split.size() >= 3) ? std::stoul(Split[2]) : 128;
             const std::size_t NumGPUs =
-                (Splitted.size() >= 4) ? std::stoul(Splitted[3]) : 1;
+                (Split.size() >= 4) ? std::stoul(Split[3]) : 1;
             const std::size_t NumThreadsPerGPU =
-                (Splitted.size() >= 5) ? std::stoul(Splitted[4]) : 1;
+                (Split.size() >= 5) ? std::stoul(Split[4]) : 1;
             const std::size_t NumCheckmateSearchers =
-                (Splitted.size() >= 6) ? std::stoul(Splitted[5]) : 0;
+                (Split.size() >= 6) ? std::stoul(Split[5]) : 0;
             const std::size_t EvalCacheMB =
-                (Splitted.size() >= 7) ? std::stoul(Splitted[6]) : 0;
+                (Split.size() >= 7) ? std::stoul(Split[6]) : 0;
 
             benchMCTS(DurationSeconds, BatchSize, NumGPUs, NumThreadsPerGPU,
                       NumCheckmateSearchers, EvalCacheMB);
-        } else if (Splitted[0] == "quit" || Splitted[0] == "exit") {
+        } else if (Split[0] == "quit" || Split[0] == "exit") {
             break;
         } else {
-            std::cout << "Unknown command `" << Splitted[0] << "`."
+            std::cout << "Unknown command `" << Split[0] << "`."
                       << std::endl;
-        }
-
-        if (Argc >= 2) {
-            break;
         }
     }
 
