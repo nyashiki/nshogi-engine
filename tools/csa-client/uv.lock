@@ -55,7 +55,7 @@ dependencies = [
 requires-dist = [
     { name = "flask", specifier = ">=3.1.3" },
     { name = "flask-socketio", specifier = ">=5.6.1" },
-    { name = "nshogi", specifier = ">=0.3.0" },
+    { name = "nshogi", specifier = ">=0.3.1" },
 ]
 
 [[package]]
@@ -187,12 +187,12 @@ wheels = [
 
 [[package]]
 name = "nshogi"
-version = "0.3.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/eb/4f/81d3e69548b14f4dd93d859f6ac3fd47a22a86f87a401c37ef932651a060/nshogi-0.3.0.tar.gz", hash = "sha256:33936815ebd9fe3e306751838fff969fc613da401d0a15bae26a680362c907b2", size = 4657, upload-time = "2026-05-02T07:07:21.424Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/9c/d4f7abe2b94628ed2899bbd2ebefbe512e463a130b8f79987b64ead367b8/nshogi-0.3.1.tar.gz", hash = "sha256:107292bd3d28e10ae468c634732b29f1ce6c2901cfa3e3bd9d80a7bf27d3fa3b", size = 4656, upload-time = "2026-05-02T10:08:56.852Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/07/8934f7f7c36ec9c36694963d8a2c9b7db3893fdc5ad709ec6929a426db74/nshogi-0.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:89dfab944cd430489da6b932a6c726b1fb50493120a4151a136ef9be9832df9d", size = 481802, upload-time = "2026-05-02T07:07:18.922Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/b6/e9efa3d3b9db142592ef0b0387e5e936eb9310d1853dc47cfb01e3e6bc2a/nshogi-0.3.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:079655ad07973fb9fa50ec5873d95549e4a2258258d2804014c996fe264a57e8", size = 481853, upload-time = "2026-05-02T07:07:20.146Z" },
+    { url = "https://files.pythonhosted.org/packages/74/4d/d8893369e9ddc2c1cc1894dc644c314a1c1a7bc71d094d38761a1b20374b/nshogi-0.3.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0b34b28576fd1257e327e668cf6e5b2985d8d5ec6f70532f4882ac7881d9c191", size = 481944, upload-time = "2026-05-02T10:08:54.673Z" },
+    { url = "https://files.pythonhosted.org/packages/83/d3/7e030eef7637c40d30b21f7b922f795a658ff3987a07346aa285867d70a6/nshogi-0.3.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:dcac7ec03552d13de5b549b749bbba8f87b988a0064903649af8e8203e3246ff", size = 482012, upload-time = "2026-05-02T10:08:55.696Z" },
 ]
 
 [[package]]
