@@ -117,7 +117,6 @@ void TensorRT::load(const std::string& Path,
         Network.reset(Builder->createNetworkV2(
             1U << static_cast<uint32_t>(
                 nvinfer1::NetworkDefinitionCreationFlag::kSTRONGLY_TYPED)));
-        // Network.reset(Builder->createNetworkV2(0));
 
         Parser.reset(nvonnxparser::createParser(*Network, Logger));
 
@@ -154,16 +153,8 @@ void TensorRT::load(const std::string& Path,
                                    nvinfer1::Dims4{BatchSizeM, 9, 9, NumC});
         }
         BuilderConfig->addOptimizationProfile(Profile);
-
-        // BuilderConfig->setFlag(nvinfer1::BuilderFlag::kSPARSE_WEIGHTS);
-
-        // if (Builder->platformHasFastFp16()) {
-        //     BuilderConfig->setFlag(nvinfer1::BuilderFlag::kFP16);
-        //     // BuilderConfig->setFlag(nvinfer1::BuilderFlag::kBF16);
-        // }
-        //  BuilderConfig->setFlag(nvinfer1::BuilderFlag::kTF32);
-
-        // BuilderConfig->clearFlag(nvinfer1::BuilderFlag::kTF32);
+        BuilderConfig->setFlag(nvinfer1::BuilderFlag::kSPARSE_WEIGHTS);
+        BuilderConfig->setFlag(nvinfer1::BuilderFlag::kTF32);
 
         Plan.reset(Builder->buildSerializedNetwork(*Network, *BuilderConfig));
 
