@@ -16,8 +16,8 @@ namespace nshogi {
 namespace engine {
 namespace global_config {
 
-using FeatureType = evaluate::preset::CustomFeaturesV1;
-constexpr bool ChannelsFirst = false;
+using FeatureType = evaluate::preset::SimpleFeatures;
+constexpr bool ChannelsFirst = true;
 
 } // namespace global_config
 } // namespace engine

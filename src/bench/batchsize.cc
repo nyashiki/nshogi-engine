@@ -15,7 +15,6 @@
 
 #endif
 
-#include "../evaluate/batch.h"
 #include "../evaluate/evaluator.h"
 #include "../globalconfig.h"
 
@@ -38,27 +37,35 @@ void benchBatchSize([[maybe_unused]] const char* WeightPath,
     for (uint16_t BatchSize = 60; BatchSize < 160; ++BatchSize) {
         // Setup an evaluator.
         auto TRTInfer =
-            infer::TensorRT(0, BatchSize, GlobalConfig::FeatureType::size());
+            infer::TensorRT(0, BatchSize, global_config::FeatureType::size());
         TRTInfer.load(WeightPath, false);
-        evaluate::Evaluator Evaluator(BatchSize, &TRTInfer);
-        evaluate::Batch<GlobalConfig::FeatureType> Batch(BatchSize, &Evaluator);
+        evaluate::Evaluator Evaluator(
+            0, // Thread ID (not used in this benchmark)
+            global_config::FeatureType::size(), BatchSize, &TRTInfer);
 
         // Prepare states.
         const auto State = nshogi::core::StateBuilder::getInitialState();
         const core::StateConfig Config;
 
-        for (std::size_t I = 0; I < BatchSize; ++I) {
-            Batch.add(State, Config);
+        global_config::FeatureType FeatureStack(State, Config);
+
+        for (std::size_t I = 1; I < BatchSize; ++I) {
+            std::memcpy(
+                static_cast<void*>(Evaluator.getFeatureBitboards() +
+                                   I * global_config::FeatureType::size()),
+                FeatureStack.data(),
+                global_config::FeatureType::size() *
+                    sizeof(ml::FeatureBitboard));
         }
 
         for (std::size_t WarmUp = 0; WarmUp < 4; ++WarmUp) {
-            Batch.doInference();
+            Evaluator.computeBlocking(BatchSize);
         }
 
         const auto StartTime = std::chrono::steady_clock::now();
 
         for (std::size_t I = 0; I < Repeat; ++I) {
-            Batch.doInference();
+            Evaluator.computeBlocking(BatchSize);
         }
 
         const auto EndTime = std::chrono::steady_clock::now();

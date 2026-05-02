@@ -7,8 +7,9 @@ EXECUTOR ?= random
 
 CUDA_ENABLED ?= 0
 CUDA_DIR := /opt/cuda
-TENSORRT_DIR := /opt/tensorrt/TensorRT-10.9.0.34
-NVCC_ARCH := arch=compute_120,code=sm_120
+TENSORRT_DIR := /opt/tensorrt/TensorRT-10.15.1.29
+NVCC_ARCH := arch=compute_89,code=sm_89 # 4080
+# NVCC_ARCH := arch=compute_120,code=sm_120 # 5090
 
 OBJDIR := $(BUILD_DIR)/$(BUILD)_$(CXX)
 TARGET := $(OBJDIR)/nshogi-engine
@@ -26,8 +27,7 @@ ifeq ($(BUILD), debug)
     NVCC_FLAGS := --generate-code $(NVCC_ARCH)
     OPTIM := -g3
 else
-    CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fomit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
-    # CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -fno-omit-frame-pointer -flto -pipe
+    CXX_FLAGS := -std=c++20 -Wall -Wextra -Wconversion -Wpedantic -Wshadow -DNDEBUG -fno-omit-frame-pointer -fno-stack-protector -fno-rtti -flto -pipe
     NVCC_FLAGS := -O3 --use_fast_math --generate-code $(NVCC_ARCH) -DNDEBUG
     OPTIM := -O3 -ffast-math
 endif
