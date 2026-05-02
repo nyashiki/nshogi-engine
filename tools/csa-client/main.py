@@ -7,9 +7,6 @@ import math
 import sys
 import os
 
-import flask
-import flask_socketio
-
 import nshogi
 
 from engine import Engine
@@ -54,6 +51,9 @@ class CSAClient:
         self.socketio = None
 
         if config["viewer"]["enabled"]:
+            import flask
+            import flask_socketio
+
             self.viewer = flask.Flask(__name__, template_folder="viewer")
             self.viewer.static_folder = self.viewer.root_path + "/viewer/static"
             self.socketio = flask_socketio.SocketIO(self.viewer)
