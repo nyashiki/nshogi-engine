@@ -15,7 +15,6 @@
 #include "../lock/spinlock.h"
 #include "../logger/logger.h"
 #include "../worker/worker.h"
-#include "checkmatequeue.h"
 #include "edge.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
@@ -24,6 +23,7 @@
 
 #include <nshogi/core/state.h>
 #include <nshogi/core/stateconfig.h>
+#include <nshogi/solver/dfpn.h>
 
 #include <functional>
 #include <vector>
@@ -34,9 +34,10 @@ namespace mcts {
 
 class SearchWorker : public worker::Worker {
  public:
-    SearchWorker(allocator::Allocator* NodeAllocator,
+    SearchWorker(bool CheckmateSearchEnabled,
+                 allocator::Allocator* NodeAllocator,
                  allocator::Allocator* EdgeAllocator, EvaluationQueue*,
-                 CheckmateQueue*, EvalCache*, Statistics* Stat);
+                 EvalCache*, Statistics* Stat);
     ~SearchWorker();
 
     void updateRoot(const core::State&, const core::StateConfig&, Node*);
@@ -59,8 +60,11 @@ class SearchWorker : public worker::Worker {
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
                             bool regardNotVisitedWin);
-    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits);
+    double computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
+                                 uint64_t ChildVirtualVisits) const;
     void incrementVirtualLosses(Node*);
+
+    const bool MyCheckmateSearchEnabled;
 
     std::unique_ptr<core::State> State;
     core::StateConfig Config;
@@ -71,8 +75,8 @@ class SearchWorker : public worker::Worker {
     allocator::Allocator* NA;
     allocator::Allocator* EA;
     EvaluationQueue* EQueue;
-    CheckmateQueue* CQueue;
     EvalCache* ECache;
+    solver::dfpn::Solver DfPnSolver;
     Statistics* PStat;
 
     EvalCache::EvalInfo CacheEvalInfo;
@@ -80,9 +84,10 @@ class SearchWorker : public worker::Worker {
 
 class SearchWorkerMaster : public SearchWorker {
  public:
-    SearchWorkerMaster(const Context*, allocator::Allocator* NodeAllocator,
+    SearchWorkerMaster(const Context*, bool CheckmateSearchEnabled,
+                       allocator::Allocator* NodeAllocator,
                        allocator::Allocator* EdgeAllocator, EvaluationQueue*,
-                       CheckmateQueue*, EvalCache*, Statistics*,
+                       EvalCache*, Statistics*,
                        std::function<void()> SearchStopCallback,
                        std::shared_ptr<logger::Logger>);
     ~SearchWorkerMaster() override;

@@ -31,7 +31,6 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     GarbageCollectorPrepareThread.join();
 
     setupSearchTree();
-    setupCheckmateQueue(PContext->getNumCheckmateSearchThreads());
     setupFeedQueue();
     setupEvalCache(PContext->getEvalCacheMemoryMB());
 
@@ -40,7 +39,6 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
     setupEvaluationWorkers(PContext->getBatchSize(), PContext->getNumGPUs(),
                            PContext->getNumEvaluationThreadsPerGPU());
     setupFeedWorkers(PContext->getNumFeedThreads());
-    setupCheckmateWorkers(PContext->getNumCheckmateSearchThreads());
     setupSearchWorkers(PContext->getNumSearchThreads());
     setupSupervisor();
     setupBook();
@@ -51,10 +49,6 @@ Manager::Manager(const Context* C, std::shared_ptr<logger::Logger> Logger)
 
 Manager::~Manager() {
     interruptInternal(true);
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->stop();
-    }
-
     {
         std::lock_guard<std::mutex> LockS(MutexSupervisor);
         IsExiting = true;
@@ -63,13 +57,6 @@ Manager::~Manager() {
 
     Supervisor->join();
 
-    for (const auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker->await();
-    }
-
-    for (auto& CheckmateWorker : CheckmateWorkers) {
-        CheckmateWorker.reset(nullptr);
-    }
     for (auto& EvaluationWorker : EvaluationWorkers) {
         EvaluationWorker.reset(nullptr);
     }
@@ -92,12 +79,6 @@ void Manager::thinkNextMove(const core::State& State,
                             std::function<void(Tree*)> SearchTreeCallback) {
 
     interruptInternal(true);
-
-    for (auto& CheckmateWorker : CheckmateWorkers) {
-        if (!CheckmateWorker->isRunning()) {
-            CheckmateWorker->start();
-        }
-    }
 
     {
         std::lock_guard<std::mutex> Lock(MutexStatus);
@@ -132,16 +113,6 @@ void Manager::interruptInternal(bool Internal) {
     if (Status != ManagerStatus::Idle && Status != ManagerStatus::Stopping) {
         Status = ManagerStatus::Stopping;
         SWorkerMaster->issueStop();
-        if (CQueue != nullptr) {
-            CQueue->incrementGeneration();
-        }
-
-        if (!Internal) {
-            for (auto& CheckmateWorker : CheckmateWorkers) {
-                CheckmateWorker->stop();
-                CheckmateWorker->await();
-            }
-        }
     }
 }
 
@@ -210,8 +181,8 @@ void Manager::setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
 void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     for (std::size_t I = 1; I < NumSearchWorkers; ++I) {
         SearchWorkers.emplace_back(std::make_unique<SearchWorker>(
-            &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
-            ECache.get(), &Stat));
+            (I - 1) < PContext->getNumCheckmateSearchThreads(), &NodeAllocator,
+            &EdgeAllocator, EQueue.get(), ECache.get(), &Stat));
     }
     // IMPORTANT: add SearchWorkerMaster last in SearchWorkers because
     // the master controls when to stop all workers to search, stopWorkers(),
@@ -222,26 +193,10 @@ void Manager::setupSearchWorkers(std::size_t NumSearchWorkers) {
     //     for (auto& Worker : SearchWorkers) Worker->start()
     // naturally guarantees the master starts after the others start.
     SWorkerMaster = new SearchWorkerMaster(
-        PContext, &NodeAllocator, &EdgeAllocator, EQueue.get(), CQueue.get(),
-        ECache.get(), &Stat, std::bind(&Manager::searchStopCallback, this),
-        PLogger);
+        PContext, PContext->getNumCheckmateSearchThreads() >= NumSearchWorkers,
+        &NodeAllocator, &EdgeAllocator, EQueue.get(), ECache.get(), &Stat,
+        std::bind(&Manager::searchStopCallback, this), PLogger);
     SearchWorkers.emplace_back(SWorkerMaster);
-}
-
-void Manager::setupCheckmateQueue(std::size_t NumCheckmateWorkers) {
-    // CheckmateQueue must be initialized before SearchWorker is.
-    assert(SearchWorkers.size() == 0);
-    if (NumCheckmateWorkers > 0) {
-        CQueue = std::make_unique<CheckmateQueue>();
-    }
-}
-
-void Manager::setupCheckmateWorkers(std::size_t NumCheckmateWorkers) {
-    assert(NumCheckmateWorkers == 0 || CQueue != nullptr);
-    for (std::size_t I = 0; I < NumCheckmateWorkers; ++I) {
-        CheckmateWorkers.emplace_back(
-            std::make_unique<CheckmateWorker>(CQueue.get(), &Stat));
-    }
 }
 
 void Manager::setupEvalCache(std::size_t EvalCacheMB) {
@@ -304,9 +259,6 @@ void Manager::doSupervisorWork(bool CallCallback) {
     Stat.reset();
 
     // Setup the state to think.
-    if (CQueue != nullptr) {
-        CQueue->incrementGeneration();
-    }
     Node* RootNode = SearchTree->updateRoot(*CurrentState);
 
     core::Move32 BestMove = core::Move32::MoveNone();
@@ -413,9 +365,6 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
-    if (CQueue != nullptr) {
-        CQueue->incrementGeneration();
-    }
     CurrentState->doMove(BestMove);
     SearchTree->updateRoot(*CurrentState);
 

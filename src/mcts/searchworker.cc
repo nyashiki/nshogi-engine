@@ -30,16 +30,17 @@ void cancelVirtualLoss(Node* N) {
 
 } // namespace
 
-SearchWorker::SearchWorker(allocator::Allocator* NodeAllocator,
+SearchWorker::SearchWorker(bool CheckmateSearchEnabled,
+                           allocator::Allocator* NodeAllocator,
                            allocator::Allocator* EdgeAllocator,
-                           EvaluationQueue* EQ, CheckmateQueue* CQ,
-                           EvalCache* EC, Statistics* Stat)
+                           EvaluationQueue* EQ, EvalCache* EC, Statistics* Stat)
     : worker::Worker(true)
+    , MyCheckmateSearchEnabled(CheckmateSearchEnabled)
     , NA(NodeAllocator)
     , EA(EdgeAllocator)
     , EQueue(EQ)
-    , CQueue(CQ)
     , ECache(EC)
+    , DfPnSolver(CheckmateSearchEnabled ? 64 : 0)
     , PStat(Stat) {
 
     spawnThread();
@@ -63,40 +64,19 @@ Node* SearchWorker::collectOneLeaf() {
     Node* CurrentNode = RootNode;
 
     while (true) {
-        const uint64_t VisitsAndVirtualLoss =
-            CurrentNode->getVisitsAndVirtualLoss();
-        const uint64_t Visits = VisitsAndVirtualLoss & Node::VisitMask;
-
-        if (CQueue != nullptr) {
-            // If checkmate searcher is enabled and the node has not been
-            // tried to solve, feed the node into the checkmate searcher.
-            if (CurrentNode->getSolverResult().isNone()) {
-                CQueue->tryAdd(CurrentNode, State->getPosition(),
-                               Config.MaxPly - State->getPly());
-            }
-        }
+        const uint64_t VisitsAndVirtualLossOld =
+            CurrentNode->incrementVirtualLoss();
+        const uint64_t Visits = VisitsAndVirtualLossOld & Node::VisitMask;
 
         if (Visits == 0) {
-            if (VisitsAndVirtualLoss ==
-                0) { // i.e., Visit == 0 && VirtualLoss == 0.
-                const uint64_t VisitsAndVirtualLossOld =
-                    CurrentNode->incrementVirtualLoss();
-
-                if (VisitsAndVirtualLossOld != 0) {
-                    // Another thread has collected this leaf node,
-                    // so there is nothing to do here.
-                    CurrentNode->decrementVirtualLoss();
-                    return nullptr;
-                }
-
-                // Increment ancestors' virtual loss.
-                if (CurrentNode->getParent() != nullptr) {
-                    incrementVirtualLosses(CurrentNode->getParent());
-                }
+            if (VisitsAndVirtualLossOld == 0) {
                 return CurrentNode;
+            } else {
+                // Another thread has collected this leaf node,
+                // so there is nothing to do here.
+                cancelVirtualLoss(CurrentNode);
+                return nullptr;
             }
-
-            return nullptr;
         }
 
         const uint16_t NumChildren = CurrentNode->getNumChildren();
@@ -135,6 +115,7 @@ Node* SearchWorker::collectOneLeaf() {
         // same leaf node.
         if (E == nullptr) {
             PStat->incrementNumNullUCBMaxEdge();
+            cancelVirtualLoss(CurrentNode);
             return nullptr;
         }
 
@@ -148,6 +129,7 @@ Node* SearchWorker::collectOneLeaf() {
 
             if (IsBeingExpanded) {
                 PStat->incrementNumConflictNodeAllocation();
+                cancelVirtualLoss(CurrentNode);
                 return nullptr;
             }
 
@@ -159,19 +141,20 @@ Node* SearchWorker::collectOneLeaf() {
                 // If there is no available memory, it has failed to allocate a
                 // new node.
                 PStat->incrementNumFailedToAllocateNode();
+                cancelVirtualLoss(CurrentNode);
                 return nullptr;
             }
 
             auto* NewNodePtr = NewNode.get();
-            incrementVirtualLosses(NewNodePtr);
+            NewNodePtr->incrementVirtualLoss();
             E->setTarget(std::move(NewNode));
+
             return NewNodePtr;
         }
 
         CurrentNode = E->getTarget();
     }
 
-    incrementVirtualLosses(CurrentNode);
     return CurrentNode;
 }
 
@@ -229,7 +212,31 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     const uint64_t CurrentVisits =
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
     uint64_t CurrentVirtualLoss =
-        CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift;
+        (CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift) -
+        1; // Subtract 1 that is added in collectOneLeaf().
+
+    // Checkmate search.
+    if (MyCheckmateSearchEnabled) {
+        if (N->getSolverResult().isNone()) {
+            const auto StartTime = std::chrono::steady_clock::now();
+            const auto CheckmateSequence = DfPnSolver.solveWithPV(
+                State.get(), 1000,
+                (uint64_t)std::min(64, Config.MaxPly - State->getPly()));
+            const auto EndTime = std::chrono::steady_clock::now();
+            const uint64_t Elapsed =
+                (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                    EndTime - StartTime)
+                    .count();
+            PStat->incrementNumSolverWorked();
+            PStat->updateSolverElapsed(Elapsed);
+            if (!CheckmateSequence.empty()) {
+                N->setSolverResult(core::Move16(CheckmateSequence[0]));
+                N->setPlyToTerminalSolved((int16_t)CheckmateSequence.size());
+            } else {
+                N->setSolverResult(core::Move16::MoveInvalid());
+            }
+        }
+    }
 
     if (CurrentVisits == 1) {
         // If the number of visit is equal to one, it means all children
@@ -394,7 +401,8 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
         assert(Child != nullptr);
         assert(ChildVirtualVisits > 0);
-        const double ChildWinRate = computeWinRateOfChild(Child, ChildVisits);
+        const double ChildWinRate =
+            computeWinRateOfChild(Child, ChildVisits, ChildVirtualVisits);
         const double UCBValue =
             ChildWinRate +
             Const * Edge->getProbability() / ((double)(1 + ChildVirtualVisits));
@@ -421,12 +429,13 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
     return UCBMaxEdge;
 }
 
-double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
+double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
+                                           uint64_t ChildVirtualVisits) const {
     const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
     const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
 
-    const double WinRate =
-        ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVisits;
+    const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) /
+                           (double)ChildVirtualVisits;
     const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
 
     const double DrawValue = (State->getSideToMove() == core::Black)
@@ -434,13 +443,6 @@ double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits) {
                                  : Config.WhiteDrawValue;
 
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
-}
-
-void SearchWorker::incrementVirtualLosses(Node* N) {
-    do {
-        N->incrementVirtualLoss();
-        N = N->getParent();
-    } while (N != nullptr);
 }
 
 bool SearchWorker::doTask() {
@@ -558,7 +560,34 @@ bool SearchWorker::doTask() {
     // Evaluate the leaf node.
     if (!CacheFound) {
         const bool Succeeded = EQueue->add(*State, Config, LeafNode);
-        if (!Succeeded) {
+
+        if (Succeeded) {
+            // Checkmate search.
+            if (MyCheckmateSearchEnabled) {
+                if (LeafNode->getSolverResult().isNone()) {
+                    const auto StartTime = std::chrono::steady_clock::now();
+                    const auto CheckmateSequence = DfPnSolver.solveWithPV(
+                        State.get(), 1000,
+                        (uint64_t)std::min(64,
+                                           Config.MaxPly - State->getPly()));
+                    const auto EndTime = std::chrono::steady_clock::now();
+                    const uint64_t Elapsed =
+                        (uint64_t)std::chrono::duration_cast<
+                            std::chrono::milliseconds>(EndTime - StartTime)
+                            .count();
+                    PStat->incrementNumSolverWorked();
+                    PStat->updateSolverElapsed(Elapsed);
+                    if (!CheckmateSequence.empty()) {
+                        LeafNode->setSolverResult(
+                            core::Move16(CheckmateSequence[0]));
+                        LeafNode->setPlyToTerminalSolved(
+                            (int16_t)CheckmateSequence.size());
+                    } else {
+                        LeafNode->setSolverResult(core::Move16::MoveInvalid());
+                    }
+                }
+            }
+        } else {
             // Our MCTS implementation marks a node as "in expansion" for speed:
             //     (VisitCount == 0 && VirtualLoss == 1)
             // Because the leaf was already expanded and a virtual loss was
@@ -580,11 +609,12 @@ bool SearchWorker::doTask() {
 }
 
 SearchWorkerMaster::SearchWorkerMaster(
-    const Context* C, allocator::Allocator* NodeAllocator,
-    allocator::Allocator* EdgeAllocator, EvaluationQueue* EQueue,
-    CheckmateQueue* CQueue, EvalCache* ECache, Statistics* Stat,
+    const Context* C, bool CheckmateSearchEnabled,
+    allocator::Allocator* NodeAllocator, allocator::Allocator* EdgeAllocator,
+    EvaluationQueue* EQueue, EvalCache* ECache, Statistics* Stat,
     std::function<void()> SearchStopCallback, std::shared_ptr<logger::Logger> L)
-    : SearchWorker(NodeAllocator, EdgeAllocator, EQueue, CQueue, ECache, Stat)
+    : SearchWorker(CheckmateSearchEnabled, NodeAllocator, EdgeAllocator, EQueue,
+                   ECache, Stat)
     , PContext(C)
     , Callback(SearchStopCallback)
     , Logger(std::move(L))

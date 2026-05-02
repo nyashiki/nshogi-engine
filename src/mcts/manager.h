@@ -15,8 +15,6 @@
 #include "../context.h"
 #include "../globalconfig.h"
 #include "../limit.h"
-#include "checkmatequeue.h"
-#include "checkmateworker.h"
 #include "evalcache.h"
 #include "evaluationqueue.h"
 #include "evaluationworker.h"
@@ -75,8 +73,6 @@ class Manager {
     void setupEvaluationWorkers(std::size_t BatchSize, std::size_t NumGPUs,
                                 std::size_t NumEvaluationWorkersPerGPU);
     void setupSearchWorkers(std::size_t NumSearchWorkers);
-    void setupCheckmateQueue(std::size_t NumCheckmateWorkers);
-    void setupCheckmateWorkers(std::size_t NumCheckmateWorkers);
     void setupEvalCache(std::size_t EvalCacheMB);
     void setupSupervisor();
     void setupBook();
@@ -99,14 +95,12 @@ class Manager {
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;
     std::unique_ptr<EvaluationQueue> EQueue;
-    std::unique_ptr<CheckmateQueue> CQueue;
     std::unique_ptr<FeedQueue> FQueue;
     std::unique_ptr<EvalCache> ECache;
     std::vector<std::unique_ptr<SearchWorker>> SearchWorkers;
     SearchWorkerMaster* SWorkerMaster;
     std::vector<std::unique_ptr<EvaluationWorker>> EvaluationWorkers;
     std::vector<std::unique_ptr<FeedWorker>> FeedWorkers;
-    std::vector<std::unique_ptr<CheckmateWorker>> CheckmateWorkers;
 
     std::unique_ptr<book::Book> PBook;
 

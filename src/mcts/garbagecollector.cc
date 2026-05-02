@@ -69,6 +69,7 @@ void GarbageCollector::addGarbages(std::vector<Pointer<Node>>&& Nodes) {
 void GarbageCollector::mainLoop() {
     while (true) {
         std::queue<Pointer<Node>> NodesToProcess;
+
         {
             std::unique_lock<std::mutex> Lock(Mtx);
 
