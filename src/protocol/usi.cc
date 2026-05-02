@@ -9,6 +9,9 @@
 
 #include "usi.h"
 
+#include "../mcts/node.h"
+#include "../mcts/edge.h"
+
 #include "../command/executor.h"
 #include "usilogger.h"
 #include "usioption.h"
@@ -307,6 +310,9 @@ void quit() {
 void debug() {
     const Context* C = Executor->getContext();
     std::cout << "===== ENGINE CONFIG =====" << std::endl;
+
+    std::cout << "sizeof(Node): " << sizeof(mcts::Node) << std::endl;
+    std::cout << "sizeof(Edge): " << sizeof(mcts::Edge) << std::endl;
 
     std::cout << "MinimumThinkingTimeMilliSeconds: "
               << C->getMinimumThinkingTimeMilliseconds() << std::endl;
