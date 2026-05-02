@@ -9,8 +9,8 @@
 
 #include "usi.h"
 
-#include "../mcts/node.h"
 #include "../mcts/edge.h"
+#include "../mcts/node.h"
 
 #include "../command/executor.h"
 #include "usilogger.h"
