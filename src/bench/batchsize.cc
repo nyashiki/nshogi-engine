@@ -49,7 +49,7 @@ void benchBatchSize([[maybe_unused]] const char* WeightPath,
 
         global_config::FeatureType FeatureStack(State, Config);
 
-        for (std::size_t I = 1; I < BatchSize; ++I) {
+        for (std::size_t I = 0; I < BatchSize; ++I) {
             std::memcpy(
                 static_cast<void*>(Evaluator.getFeatureBitboards() +
                                    I * global_config::FeatureType::size()),
