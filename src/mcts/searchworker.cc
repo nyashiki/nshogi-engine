@@ -110,7 +110,10 @@ Node* SearchWorker::collectOneLeaf() {
             break;
         }
 
-        Edge* E = computeUCBMaxEdge(CurrentNode, NumChildren, false);
+        const uint64_t MyVirtualLoss =
+            VisitsAndVirtualLossOld >> Node::VirtualLossShift;
+        Edge* E =
+            computeUCBMaxEdge(CurrentNode, NumChildren, MyVirtualLoss, false);
         // computeUCBMaxEdge() can return nullptr if many threads reaches on the
         // same leaf node.
         if (E == nullptr) {
@@ -206,14 +209,12 @@ void SearchWorker::immediateUpdate(Node* LeafNode) {
 }
 
 Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
+                                      uint64_t MyVirtualLoss,
                                       bool regardNotVisitedWin) {
     assert(NumChildren > 0);
     const uint64_t CurrentVisitsAndVirtualLoss = N->getVisitsAndVirtualLoss();
     const uint64_t CurrentVisits =
         CurrentVisitsAndVirtualLoss & Node::VisitMask;
-    uint64_t CurrentVirtualLoss =
-        (CurrentVisitsAndVirtualLoss >> Node::VirtualLossShift) -
-        1; // Subtract 1 that is added in collectOneLeaf().
 
     // Checkmate search.
     if (MyCheckmateSearchEnabled) {
@@ -244,30 +245,29 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         // is the edge with the highest prior. Since we have sorted the children
         // along their prior, we can simply select 0-th edge if the virtual loss
         // is zero.
-        if (CurrentVirtualLoss < NumChildren) {
-            if (CurrentVirtualLoss == 0) {
+        if (MyVirtualLoss < NumChildren) {
+            if (MyVirtualLoss == 0) {
                 return &N->getEdge()[0];
             } else {
                 bool Acceptable = true;
 
                 const double ThisPolicy =
-                    (double)N->getEdge()[CurrentVirtualLoss].getProbability();
+                    (double)N->getEdge()[MyVirtualLoss].getProbability();
                 const double Const =
-                    1.0 / (CInit * std::sqrt((double)(CurrentVirtualLoss +
-                                                      (uint64_t)1)));
-                for (uint16_t I = 0; I < CurrentVirtualLoss - 1; ++I) {
+                    1.0 /
+                    (CInit * std::sqrt((double)(MyVirtualLoss + (uint64_t)1)));
+                for (uint16_t I = 0; I < MyVirtualLoss - 1; ++I) {
                     const double Policy =
                         (double)N->getEdge()[I].getProbability();
 
-                    if (Const + Policy / (double)CurrentVirtualLoss >=
-                        ThisPolicy) {
+                    if (Const + Policy / (double)MyVirtualLoss >= ThisPolicy) {
                         Acceptable = false;
                         break;
                     }
                 }
 
                 if (Acceptable) {
-                    return &N->getEdge()[CurrentVirtualLoss];
+                    return &N->getEdge()[MyVirtualLoss];
                 } else {
                     PStat->incrementNumSpeculativeFailedEdge();
                     return nullptr;
@@ -280,7 +280,7 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
         }
     }
 
-    const uint64_t CurrentVirtualVisits = CurrentVisits + CurrentVirtualLoss;
+    const uint64_t CurrentVirtualVisits = CurrentVisits + MyVirtualLoss;
 
     const double Const =
         (std::log((double)(CurrentVirtualVisits + CBase) / (double)CBase) +
