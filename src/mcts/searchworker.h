@@ -58,8 +58,12 @@ class SearchWorker : public worker::Worker {
     void immediateUpdateByDraw(Node*, float DrawValue);
     void immediateUpdate(Node*);
 
-    Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren,
-                            bool regardNotVisitedWin);
+    Edge* computeUCBMaxEdge(
+        Node*,
+        uint16_t NumChildren,
+        uint64_t MyVirtualLoss,
+        bool regardNotVisitedWin
+    );
     double computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
                                  uint64_t ChildVirtualVisits) const;
     void incrementVirtualLosses(Node*);
