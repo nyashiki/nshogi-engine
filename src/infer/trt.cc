@@ -31,6 +31,10 @@ uint64_t computeFileHash(const std::string& Path) {
 
     std::ifstream Ifs(Path, std::ios::binary);
 
+    if (!Ifs.is_open()) {
+        throw std::runtime_error("Could not open the file: " + Path);
+    }
+
     uint64_t HashValue = FNVOffsetBasis;
 
     while (!Ifs.eof()) {
