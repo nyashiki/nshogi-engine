@@ -139,10 +139,10 @@ void isready() {
     using namespace command::commands;
 
     Executor->pushCommand(std::make_shared<BoolConfig>(
-        Configurable::PonderEnabled, Option.getIntOption(USI_OPTION_PONDER)));
+        Configurable::PonderEnabled, Option.getBoolOption(USI_OPTION_PONDER)));
     Executor->pushCommand(std::make_shared<BoolConfig>(
         Configurable::BookEnabled,
-        Option.getIntOption(USI_OPTION_BOOK_ENABLED)));
+        Option.getBoolOption(USI_OPTION_BOOK_ENABLED)));
     Executor->pushCommand(std::make_shared<BoolConfig>(
         Configurable::RepetitionBookAllowed,
         Option.getBoolOption(USI_OPTION_REPETITION_BOOK_ALLOWED)));
