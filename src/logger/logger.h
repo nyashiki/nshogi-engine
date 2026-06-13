@@ -46,7 +46,7 @@ class Logger {
     void setIsNShogiExtensionLogEnabled(bool Value);
 
  protected:
-    bool IsNShogiExtensionEnabled;
+    bool IsNShogiExtensionEnabled = false;
 };
 
 } // namespace logger
