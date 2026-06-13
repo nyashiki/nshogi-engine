@@ -16,6 +16,7 @@
 #include "selfplayinfo.h"
 #include "worker.h"
 
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -167,6 +168,9 @@ int main(int Argc, char* Argv[]) {
         (uint64_t)std::stoull(Parser.getOption("num-playouts"));
     const uint64_t NumSamplingMoves =
         (uint16_t)std::stoul(Parser.getOption("num-sampling-moves"));
+    // In gumbel mode, NumSamplingMoves == 1 causes a division by
+    // log2(1) == 0 when computing the sequential halving schedule.
+    assert(!IsGumbel || NumSamplingMoves >= 2);
     const double FullSearchRatio =
         std::stod(Parser.getOption("full-search-ratio"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
