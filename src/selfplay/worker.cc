@@ -167,14 +167,10 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
     for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
         F->getNoise().at(I) = sampleNoise(F);
     }
-
-    if (!F->isGumbel()) {
-        const double Sum =
-            std::accumulate(F->getNoise().begin(), F->getNoise().end(), 0.0);
-        for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
-            F->getNoise().at(I) /= Sum;
-        }
-    }
+    // Note: in the non-gumbel (Dirichlet) case, the gamma samples are
+    // normalized over the actual number of legal moves when they are
+    // consumed in Frame::setEvaluation(), not here, because the number
+    // of legal moves at the root is unknown at this point.
 
     std::uniform_real_distribution<double> Distribution(0.0, 1.0);
     const double R = Distribution(MT);

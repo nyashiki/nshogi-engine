@@ -124,10 +124,18 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         assert(getDidFullSearch().size() > 0);
         if (getDidFullSearch().back()) {
             const double EPS = 0.25;
+            // The noise values are raw gamma samples. Normalizing them
+            // over the legal moves turns them into a Dirichlet sample.
+            double NoiseSum = 0.0;
             for (std::size_t I = 0; I < NumChildren; ++I) {
-                LegalPolicyLogits[I] =
-                    (float)((1 - EPS) * (double)LegalPolicyLogits[I] +
-                            EPS * Noise[I]);
+                NoiseSum += Noise[I];
+            }
+            if (NoiseSum > 0.0) {
+                for (std::size_t I = 0; I < NumChildren; ++I) {
+                    LegalPolicyLogits[I] =
+                        (float)((1 - EPS) * (double)LegalPolicyLogits[I] +
+                                EPS * (Noise[I] / NoiseSum));
+                }
             }
         }
     }
