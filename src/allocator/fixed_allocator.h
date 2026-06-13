@@ -18,7 +18,6 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <mutex>
 
 #ifdef __linux__
@@ -73,8 +72,6 @@ class FixedAllocator : public Allocator {
         Memory = std::malloc(Size);
 #endif
 
-        std::memset(Memory, 0, Size);
-
         AlignedMemory = reinterpret_cast<void*>(
             (reinterpret_cast<std::size_t>(Memory) + AlignmentMask) &
             ~AlignmentMask);
@@ -83,7 +80,7 @@ class FixedAllocator : public Allocator {
         Header* Previous = nullptr;
 
         for (void* Mem = AlignedMemory;
-             (reinterpret_cast<char*>(Mem) + BlockSize) <
+             (reinterpret_cast<char*>(Mem) + BlockSize) <=
              reinterpret_cast<char*>(Memory) + Size;
              Mem = reinterpret_cast<char*>(Mem) + BlockSize) {
             Header* H = reinterpret_cast<Header*>(Mem);
@@ -110,10 +107,6 @@ class FixedAllocator : public Allocator {
         }
 
         Used.fetch_add(BlockSize, std::memory_order_relaxed);
-
-        if (FreeList == nullptr) {
-            return nullptr;
-        }
 
         Header* Head = FreeList;
         FreeList = FreeList->Next;
