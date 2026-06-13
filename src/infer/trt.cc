@@ -37,11 +37,13 @@ uint64_t computeFileHash(const std::string& Path) {
 
     uint64_t HashValue = FNVOffsetBasis;
 
-    while (!Ifs.eof()) {
-        char C;
-        Ifs.read(&C, sizeof(char));
-
-        HashValue = (FNVPrime * HashValue) ^ (uint64_t)C;
+    char Buffer[65536];
+    while (Ifs.read(Buffer, sizeof(Buffer)) || Ifs.gcount() > 0) {
+        const std::streamsize Count = Ifs.gcount();
+        for (std::streamsize I = 0; I < Count; ++I) {
+            HashValue =
+                (FNVPrime * HashValue) ^ (uint64_t)(unsigned char)Buffer[I];
+        }
     }
 
     return HashValue;
