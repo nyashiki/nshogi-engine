@@ -619,7 +619,9 @@ SearchWorkerMaster::SearchWorkerMaster(
     , Callback(SearchStopCallback)
     , Logger(std::move(L))
     , ImmediateLogEnabled(true)
-    , Exiting(false) {
+    , Exiting(false)
+    , MadeUpCheckElapsedPrevious(0)
+    , BestEdgePrevious(nullptr) {
 
     StopCallThread = std::thread([this]() {
         while (true) {
@@ -654,6 +656,8 @@ void SearchWorkerMaster::setLimit(const engine::Limit& L) {
 void SearchWorkerMaster::start() {
     SearchStartTime = std::chrono::steady_clock::now();
     MadeUpCheckElapsedPrevious = 0;
+    BestEdgePrevious = nullptr;
+    VisitsPrevious.clear();
     NumNodesAtStart = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
     LogOutputPrevious = 0;
     CallbackCalled.store(false, std::memory_order_release);
