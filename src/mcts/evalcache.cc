@@ -9,13 +9,16 @@
 
 #include "evalcache.h"
 
+#include <algorithm>
+
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
 EvalCache::EvalCache(std::size_t MemorySize)
-    : NumBundle(MemorySize * 1024LL * 1024LL /
-                (sizeof(CacheData) * CACHE_BUNDLE_SIZE))
+    : NumBundle(std::max<std::size_t>(
+          1, MemorySize * 1024LL * 1024LL /
+                 (sizeof(CacheData) * CACHE_BUNDLE_SIZE)))
     , Memory(std::make_unique<CacheData[]>(NumBundle * CACHE_BUNDLE_SIZE)) {
 
     CacheStorage = std::make_unique<CacheBundle[]>(NumBundle);
@@ -80,6 +83,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
 
                 CacheElem->Next = Bundle->Head;
                 CacheElem->Prev = nullptr;
+                Bundle->Head->Prev = CacheElem;
                 Bundle->Head = CacheElem;
             }
 
@@ -104,6 +108,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
 
         CacheElem->Next = Bundle->Head;
         CacheElem->Prev = nullptr;
+        Bundle->Head->Prev = CacheElem;
         Bundle->Head = CacheElem;
     }
 
@@ -150,6 +155,7 @@ bool EvalCache::load(const core::State& St, EvalInfo* EI) {
 
                 CacheElem->Next = Bundle->Head;
                 CacheElem->Prev = nullptr;
+                Bundle->Head->Prev = CacheElem;
                 Bundle->Head = CacheElem;
             }
 
