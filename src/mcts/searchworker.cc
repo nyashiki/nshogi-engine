@@ -142,7 +142,9 @@ Node* SearchWorker::collectOneLeaf() {
 
             if (NewNode == nullptr) {
                 // If there is no available memory, it has failed to allocate a
-                // new node.
+                // new node. Roll back the expanding mark so that this edge
+                // does not remain in the "being expanded" state forever.
+                E->unmarkExpanding();
                 PStat->incrementNumFailedToAllocateNode();
                 cancelVirtualLoss(CurrentNode);
                 return nullptr;
