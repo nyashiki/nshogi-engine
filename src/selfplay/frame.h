@@ -68,6 +68,10 @@ struct Frame {
     void pushDidFullSearch(bool);
     const std::vector<bool>& getDidFullSearch() const;
 
+    void clearQValues();
+    void pushQValue(float);
+    const std::vector<float>& getQValues() const;
+
  private:
     void setSearchTree(std::unique_ptr<mcts::Tree>&&);
     void allocatePolicyArray();
@@ -100,6 +104,10 @@ struct Frame {
     std::vector<double> Noise;
 
     std::vector<bool> DidFullSearch;
+
+    // The win rate of the chosen move at each ply, seen from the player
+    // who played the move.
+    std::vector<float> QValues;
 };
 
 } // namespace selfplay

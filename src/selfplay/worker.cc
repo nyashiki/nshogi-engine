@@ -152,6 +152,7 @@ SelfplayPhase Worker::initialize(Frame* F) {
     F->setConfig(std::move(Config));
 
     F->clearDidFullSearch();
+    F->clearQValues();
 
     return SelfplayPhase::RootPreparation;
 }
@@ -515,6 +516,8 @@ SelfplayPhase Worker::judge(Frame* F) const {
         F->setWinner(F->getState()->getSideToMove());
         F->getState()->doMove(CheckmateMove);
         F->pushDidFullSearch(true);
+        // The move is a proven checkmate: the mover wins for sure.
+        F->pushQValue(1.0f);
         return SelfplayPhase::Save;
     }
 
@@ -553,6 +556,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
 
             mcts::Edge* SelectedEdge =
                 &F->getSearchTree()->getRoot()->getEdge()[SelectedIndex];
+            F->pushQValue(computeQOfSelectedEdge(F, SelectedEdge));
             F->getState()->doMove(
                 F->getState()->getMove32FromMove16(SelectedEdge->getMove()));
         } else {
@@ -587,6 +591,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
 
             assert(MaxEdge != nullptr ||
                    F->getSearchTree()->getRoot()->getNumChildren() == 1);
+            F->pushQValue(computeQOfSelectedEdge(F, MaxEdge));
             F->getState()->doMove(
                 F->getState()->getMove32FromMove16(MaxEdge->getMove()));
         }
@@ -594,7 +599,8 @@ SelfplayPhase Worker::transition(Frame* F) const {
     }
 
     if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
-        const mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[0];
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[0];
+        F->pushQValue(computeQOfSelectedEdge(F, Edge));
         F->getState()->doMove(
             F->getState()->getMove32FromMove16(Edge->getMove()));
         return SelfplayPhase::Judging;
@@ -628,6 +634,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
     }
 
     assert(ScoreMaxEdge != nullptr);
+    F->pushQValue(computeQOfSelectedEdge(F, ScoreMaxEdge));
     F->getState()->doMove(
         F->getState()->getMove32FromMove16(ScoreMaxEdge->getMove()));
     return SelfplayPhase::Judging;
@@ -755,6 +762,24 @@ double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                  : F->getStateConfig()->WhiteDrawValue;
 
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+}
+
+float Worker::computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const {
+    // Must be called before the selected move is applied to the state,
+    // since the win rate is computed from the perspective of the player
+    // to move at the root.
+    mcts::Node* Child = SelectedEdge->getTarget();
+
+    if (Child != nullptr) {
+        return (float)computeWinRateOfChild(F, F->getState()->getSideToMove(),
+                                            Child);
+    }
+
+    // The selected child has never been visited (e.g., the search was
+    // reduced because the root has only one legal move), so fall back
+    // to the root's own estimation.
+    return (float)computeWinRate(F, F->getState()->getSideToMove(),
+                                 F->getSearchTree()->getRoot());
 }
 
 bool Worker::isCheckmated(Frame* F) const {

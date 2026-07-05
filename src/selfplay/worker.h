@@ -60,6 +60,7 @@ class Worker : public worker::Worker {
                           mcts::Node* Child) const;
     double computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                  mcts::Node* Child) const;
+    float computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const;
     bool isCheckmated(Frame* F) const;
     void sampleTopMMoves(Frame*) const;
     uint16_t executeSequentialHalving(Frame*) const;

@@ -199,6 +199,18 @@ const std::vector<bool>& Frame::getDidFullSearch() const {
     return DidFullSearch;
 }
 
+void Frame::clearQValues() {
+    QValues.clear();
+}
+
+void Frame::pushQValue(float Q) {
+    QValues.emplace_back(Q);
+}
+
+const std::vector<float>& Frame::getQValues() const {
+    return QValues;
+}
+
 template void Frame::setEvaluation<false>(const float* Policy, float WinRate,
                                           float DrawRate);
 template void Frame::setEvaluation<true>(const float* Policy, float WinRate,
