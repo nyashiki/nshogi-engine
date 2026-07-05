@@ -109,12 +109,16 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
 
     if constexpr (!Aggregated) {
         assert(EvalCache != nullptr);
-        EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(),
-                         WinRate, DrawRate);
+        if (Policy != nullptr) {
+            EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(),
+                    WinRate, DrawRate);
+        }
     }
 
     if (!isGumbel() || NodeToEvaluate != SearchTree->getRoot()) {
-        ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+        if (Policy != nullptr) {
+            ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+        }
     }
 
     // Add dirichlet noise.
