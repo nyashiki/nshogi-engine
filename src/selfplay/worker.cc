@@ -221,7 +221,7 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
     mcts::Node* Node = F->getSearchTree()->getRoot();
     assert(Node->getRepetitionStatus() == core::RepetitionStatus::NoRepetition);
 
-    uint8_t Depth = 0;
+    int32_t Depth = 0;
     while (true) {
         if (Node->getVisitsAndVirtualLoss() == 0) {
             break;
@@ -718,7 +718,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
 }
 
 mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove,
-                                        mcts::Node* N, uint8_t Depth) const {
+                                        mcts::Node* N, int32_t Depth) const {
     if (F->isGumbel()) {
         return (Depth == 0) ? pickUpEdgeToExplore<true>(F, SideToMove, N)
                             : pickUpEdgeToExplore<false>(F, SideToMove, N);

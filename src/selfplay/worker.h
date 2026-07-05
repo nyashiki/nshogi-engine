@@ -55,7 +55,7 @@ class Worker : public worker::Worker {
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove,
                                     mcts::Node*) const;
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*,
-                                    uint8_t Depth) const;
+                                    int32_t Depth) const;
     double computeWinRate(Frame* F, core::Color SideToMove,
                           mcts::Node* Child) const;
     double computeWinRateOfChild(Frame* F, core::Color SideToMove,
