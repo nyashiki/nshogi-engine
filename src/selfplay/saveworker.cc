@@ -164,6 +164,9 @@ void SaveWorker::save(Frame* F) {
 
     STeacher.setConfig(*F->getStateConfig());
     STeacher.setWinner(F->getWinner());
+    STeacher.setGamePly(F->getState()->getPly());
+
+    assert(F->getQValues().size() == F->getDidFullSearch().size());
 
     while (Replay.getPly(false) < F->getState()->getPly(false)) {
         const auto NextMove =
@@ -174,6 +177,7 @@ void SaveWorker::save(Frame* F) {
         if (F->getDidFullSearch().at(Replay.getPly(false))) {
             STeacher.setState(Replay);
             STeacher.setNextMove(core::Move16(NextMove));
+            STeacher.setQ(F->getQValues().at(Replay.getPly(false)));
             io::file::simple_teacher::save(Ofs, STeacher);
         }
 
