@@ -151,6 +151,8 @@ SelfplayPhase Worker::initialize(Frame* F) {
 
     F->clearDidFullSearch();
     F->clearQValues();
+    F->clearVValues();
+    F->setDeclared(false);
 
     return SelfplayPhase::RootPreparation;
 }
@@ -486,6 +488,7 @@ SelfplayPhase Worker::judge(Frame* F) const {
     if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27 &&
         F->getState()->canDeclare()) {
         F->setWinner(F->getState()->getSideToMove());
+        F->setDeclared(true);
         return SelfplayPhase::Save;
     }
 
@@ -515,7 +518,10 @@ SelfplayPhase Worker::judge(Frame* F) const {
         F->getState()->doMove(CheckmateMove);
         F->pushDidFullSearch(true);
         // The move is a proven checkmate: the mover wins for sure.
+        // No neural-network evaluation exists for this position, so
+        // use the proven value for V as well.
         F->pushQValue(1.0f);
+        F->pushVValue(1.0f);
         return SelfplayPhase::Save;
     }
 
@@ -526,6 +532,10 @@ SelfplayPhase Worker::transition(Frame* F) const {
     while (F->getState()->getPly() > F->getRootPly()) {
         F->getState()->undoMove();
     }
+
+    // The raw value-head output of the root position. The root has
+    // always been evaluated once by the time the search finishes.
+    F->pushVValue(F->getSearchTree()->getRoot()->getWinRatePredicted());
 
     if (!F->isGumbel()) { // AlphaZero style.
         // Choose a next move proportionally to visit counts.

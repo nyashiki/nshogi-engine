@@ -58,6 +58,10 @@ core::Color Frame::getWinner() const {
     return Winner;
 }
 
+bool Frame::getDeclared() const {
+    return Declared;
+}
+
 void Frame::setState(std::unique_ptr<core::State>&& S) {
     State = std::move(S);
 }
@@ -68,6 +72,10 @@ void Frame::setConfig(std::unique_ptr<core::StateConfig>&& SC) {
 
 void Frame::setWinner(core::Color C) {
     Winner = C;
+}
+
+void Frame::setDeclared(bool D) {
+    Declared = D;
 }
 
 mcts::Node* Frame::getNodeToEvaluate() {
@@ -209,6 +217,18 @@ void Frame::pushQValue(float Q) {
 
 const std::vector<float>& Frame::getQValues() const {
     return QValues;
+}
+
+void Frame::clearVValues() {
+    VValues.clear();
+}
+
+void Frame::pushVValue(float V) {
+    VValues.emplace_back(V);
+}
+
+const std::vector<float>& Frame::getVValues() const {
+    return VValues;
 }
 
 template void Frame::setEvaluation<false>(const float* Policy, float WinRate,

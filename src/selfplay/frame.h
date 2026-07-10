@@ -38,11 +38,13 @@ struct Frame {
     core::StateConfig* getStateConfig();
     mcts::Tree* getSearchTree();
     core::Color getWinner() const;
+    bool getDeclared() const;
 
     void setPhase(SelfplayPhase);
     void setState(std::unique_ptr<core::State>&&);
     void setConfig(std::unique_ptr<core::StateConfig>&&);
     void setWinner(core::Color);
+    void setDeclared(bool);
 
     mcts::Node* getNodeToEvaluate();
     uint16_t getRootPly() const;
@@ -72,6 +74,10 @@ struct Frame {
     void pushQValue(float);
     const std::vector<float>& getQValues() const;
 
+    void clearVValues();
+    void pushVValue(float);
+    const std::vector<float>& getVValues() const;
+
  private:
     void setSearchTree(std::unique_ptr<mcts::Tree>&&);
     void allocatePolicyArray();
@@ -86,6 +92,7 @@ struct Frame {
 
     // Result.
     core::Color Winner;
+    bool Declared; // Whether the game ended by declaration.
 
     // Search.
     uint16_t RootPly;
@@ -108,6 +115,10 @@ struct Frame {
     // The win rate of the chosen move at each ply, seen from the player
     // who played the move.
     std::vector<float> QValues;
+
+    // The raw value-head output of the position at each ply, seen from
+    // the player to move.
+    std::vector<float> VValues;
 };
 
 } // namespace selfplay
