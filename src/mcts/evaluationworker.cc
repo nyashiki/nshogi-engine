@@ -157,21 +157,30 @@ std::unique_ptr<Batch> EvaluationWorker::doInference() {
     // Start inference.
     Evaluator->computeNonBlocking(BatchCount);
 
-    std::unique_ptr<core::Color[]> Colors =
-        std::make_unique<core::Color[]>(BatchCount);
-    std::unique_ptr<Node*[]> Nodes = std::make_unique<Node*[]>(BatchCount);
+    // Prepare the batch while the inference is running.
+    std::unique_ptr<Node*[]> Nodes =
+        std::unique_ptr<Node*[]>(new Node*[BatchCount]);
     std::unique_ptr<uint64_t[]> Hashes =
-        std::make_unique<uint64_t[]>(BatchCount);
-    std::unique_ptr<float[]> Policies =
-        std::make_unique<float[]>(BatchCount * 27 * core::NumSquares);
-    std::unique_ptr<float[]> WinRates = std::make_unique<float[]>(BatchCount);
-    std::unique_ptr<float[]> DrawRates = std::make_unique<float[]>(BatchCount);
+        std::unique_ptr<uint64_t[]>(new uint64_t[BatchCount]);
+    std::unique_ptr<uint32_t[]> PolicyOffsets =
+        std::unique_ptr<uint32_t[]>(new uint32_t[BatchCount + 1]);
+    std::unique_ptr<float[]> WinRates =
+        std::unique_ptr<float[]>(new float[BatchCount]);
+    std::unique_ptr<float[]> DrawRates =
+        std::unique_ptr<float[]>(new float[BatchCount]);
 
     // Copy input.
-    std::memcpy(Colors.get(), PendingSideToMoves,
-                BatchCount * sizeof(core::Color));
     std::memcpy(Nodes.get(), PendingNodes, BatchCount * sizeof(Node*));
     std::memcpy(Hashes.get(), PendingHashes, BatchCount * sizeof(uint64_t));
+
+    uint32_t NumLegalMoves = 0;
+    for (std::size_t I = 0; I < BatchCount; ++I) {
+        PolicyOffsets[I] = NumLegalMoves;
+        NumLegalMoves += PendingNodes[I]->getNumChildren();
+    }
+    PolicyOffsets[BatchCount] = NumLegalMoves;
+    std::unique_ptr<float[]> LegalPolicies =
+        std::unique_ptr<float[]>(new float[NumLegalMoves]);
 
     PStat->incrementEvaluationCount();
     PStat->addBatchSizeAccumulated(BatchCount);
@@ -179,17 +188,32 @@ std::unique_ptr<Batch> EvaluationWorker::doInference() {
     // Await inference.
     Evaluator->await();
 
-    // Copy output.
-    std::memcpy(Policies.get(), Evaluator->getPolicy(),
-                BatchCount * 27 * core::NumSquares * sizeof(float));
+    // Copy output: gather the logits of the legal moves directly out
+    // of the evaluator's output buffer. The feed worker consumes
+    // nothing else of the policy head, so the raw policy (27 x 81
+    // floats per position) is not copied around.
+    const float* RawPolicy = Evaluator->getPolicy();
+    for (std::size_t I = 0; I < BatchCount; ++I) {
+        const Node* N = PendingNodes[I];
+        const uint16_t NumChildren = N->getNumChildren();
+        const float* Src = RawPolicy + 27 * core::NumSquares * I;
+        float* Dst = LegalPolicies.get() + PolicyOffsets[I];
+        for (uint16_t J = 0; J < NumChildren; ++J) {
+            const std::size_t MoveIndex =
+                ml::getMoveIndex<global_config::ChannelsFirst>(
+                    PendingSideToMoves[I], N->getEdge()[J].getMove());
+            Dst[J] = Src[MoveIndex];
+        }
+    }
     std::memcpy(WinRates.get(), Evaluator->getWinRate(),
                 BatchCount * sizeof(float));
     std::memcpy(DrawRates.get(), Evaluator->getDrawRate(),
                 BatchCount * sizeof(float));
 
     std::unique_ptr<Batch> B = std::make_unique<Batch>(
-        BatchCount, std::move(Colors), std::move(Nodes), std::move(Hashes),
-        std::move(Policies), std::move(WinRates), std::move(DrawRates));
+        BatchCount, std::move(Nodes), std::move(Hashes),
+        std::move(PolicyOffsets), std::move(LegalPolicies),
+        std::move(WinRates), std::move(DrawRates));
 
     return B;
 }
