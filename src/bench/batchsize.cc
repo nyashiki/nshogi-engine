@@ -22,6 +22,7 @@
 #include <nshogi/core/stateconfig.h>
 #include <nshogi/ml/featurestack.h>
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 

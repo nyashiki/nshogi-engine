@@ -10,6 +10,7 @@
 #include "worker.h"
 #include "../mcts/pointer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -879,7 +880,7 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
     assert(NumSort > 1);
     assert(F->getSequentialHalvingCount() > 0);
     NumSort =
-        std::max((uint64_t)2, (NumSort + 1) >> F->getSequentialHalvingCount());
+        std::max((uint64_t)2, (uint64_t)((NumSort + 1) >> F->getSequentialHalvingCount()));
 
     // Gather top moves along policy + gumbel noise.
     std::partial_sort(ScoreWithIndex, ScoreWithIndex + (long)NumSort,

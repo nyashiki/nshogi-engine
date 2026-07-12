@@ -10,7 +10,7 @@
 #ifndef NSHOGI_ENGINE_BENCH_BATCHSIZE_H
 #define NSHOGI_ENGINE_BENCH_BATCHSIZE_H
 
-#include <cstdint>
+#include <cstddef>
 
 namespace nshogi {
 namespace engine {
