@@ -215,7 +215,7 @@ $(SELFPLAY_TARGET): $(OBJECTS) $(SELFPLAY_OBJECTS) src/selfplay/main.cc
 
 $(BENCH_TARGET): $(OBJECTS) $(BENCH_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	$(CXX) -o $@ $(OBJECTS) $(BENCH_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
+	$(CXX) -o $@ $(OBJECTS) $(BENCH_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS)
 
 endif
 

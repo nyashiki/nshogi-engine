@@ -20,6 +20,30 @@ jobs:
       run: |
         git clone https://github.com/nyashiki/nshogi.git
         cd nshogi && sudo make install
-    - name: make engine
+    - name: ldconfig
+      if: runner.os == 'Linux'
+      run: sudo ldconfig
+    # Build every target so that none of them rots when internal APIs
+    # change (src/bench once broke this way unnoticed: the target was
+    # not part of CI).
+    - name: make engine, selfplay and bench
       working-directory: ${{ env.working-directory }}
-      run: make NUMA_ENABLED=1 EXECUTOR=random engine
+      run: make -j"$(getconf _NPROCESSORS_ONLN)" NUMA_ENABLED=1 EXECUTOR=random engine selfplay bench
+    - name: usi smoke test
+      if: runner.os == 'Linux'
+      working-directory: ${{ env.working-directory }}
+      run: |
+        {
+          printf "usi\n"
+          sleep 1
+          printf "setoption name USI_Hash value 1024\n"
+          printf "setoption name EvalCacheMemoryMB value 128\n"
+          printf "isready\n"
+          sleep 5
+          printf "position startpos\n"
+          printf "go movetime 2000\n"
+          sleep 4
+          printf "quit\n"
+        } | timeout 120 ./build/release_clang++/nshogi-engine | tee usi_smoke.log
+        grep -q "readyok" usi_smoke.log
+        grep -q "bestmove" usi_smoke.log
