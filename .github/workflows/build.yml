@@ -23,9 +23,6 @@ jobs:
     - name: ldconfig
       if: runner.os == 'Linux'
       run: sudo ldconfig
-    # Build every target so that none of them rots when internal APIs
-    # change (src/bench once broke this way unnoticed: the target was
-    # not part of CI).
     - name: make engine, selfplay and bench
       working-directory: ${{ env.working-directory }}
       run: make -j"$(getconf _NPROCESSORS_ONLN)" NUMA_ENABLED=1 EXECUTOR=random engine selfplay bench
