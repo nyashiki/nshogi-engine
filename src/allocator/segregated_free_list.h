@@ -12,6 +12,7 @@
 
 #include "../lock/locktype.h"
 #include "allocator.h"
+#include "prefault.h"
 
 #include <atomic>
 #include <mutex>
@@ -63,7 +64,12 @@ class SegregatedFreeListAllocator : public Allocator {
         Size = sizeof(Header1) + AlignedSize + Alignment + sizeof(Header1);
 #ifdef __linux__
         Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE,
-                      MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+                      MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+        madvise(Memory, Size, MADV_HUGEPAGE);
+        // Commit every page now (as MAP_POPULATE did), but on all
+        // cores, so that no page-fault latency leaks into malloc()
+        // during the search.
+        prefaultRegionParallel(Memory, Size);
 #else
         Memory = std::malloc(Size);
 #endif

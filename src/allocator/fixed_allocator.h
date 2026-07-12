@@ -12,6 +12,7 @@
 
 #include "../lock/locktype.h"
 #include "allocator.h"
+#include "prefault.h"
 
 #include <algorithm>
 #include <atomic>
@@ -66,8 +67,13 @@ class FixedAllocator : public Allocator {
         Size = Size_;
         Used = 0;
 #ifdef __linux__
+        // No MAP_POPULATE here: building the free list below writes
+        // into every block and thus commits every page anyway, and it
+        // does so on all cores instead of the kernel's sequential
+        // populate.
         Memory = mmap(nullptr, Size, PROT_READ | PROT_WRITE,
-                      MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+                      MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+        madvise(Memory, Size, MADV_HUGEPAGE);
 #else
         Memory = std::malloc(Size);
 #endif
@@ -76,27 +82,25 @@ class FixedAllocator : public Allocator {
             (reinterpret_cast<std::size_t>(Memory) + AlignmentMask) &
             ~AlignmentMask);
 
-        FreeList = nullptr;
-        Header* Previous = nullptr;
+        const std::size_t Usable =
+            Size - (std::size_t)(reinterpret_cast<char*>(AlignedMemory) -
+                                 reinterpret_cast<char*>(Memory));
+        const std::size_t NumBlocks = Usable / BlockSize;
 
-        for (void* Mem = AlignedMemory;
-             (reinterpret_cast<char*>(Mem) + BlockSize) <=
-             reinterpret_cast<char*>(Memory) + Size;
-             Mem = reinterpret_cast<char*>(Mem) + BlockSize) {
-            Header* H = reinterpret_cast<Header*>(Mem);
+        // Build the same address-ordered free list as a sequential
+        // construction would: block I points to block I + 1. Each
+        // slice's last block points at the next slice's first block,
+        // so the slices can be linked independently.
+        forEachSliceParallel(
+            NumBlocks, (32ULL << 20) / BlockSize,
+            [&](std::size_t Begin, std::size_t End) {
+                for (std::size_t I = Begin; I < End; ++I) {
+                    blockAt(I)->Next =
+                        (I + 1 < NumBlocks) ? blockAt(I + 1) : nullptr;
+                }
+            });
 
-            if (Previous != nullptr) {
-                Previous->Next = H;
-            } else {
-                FreeList = H;
-            }
-
-            Previous = H;
-        }
-
-        if (Previous != nullptr) {
-            Previous->Next = nullptr;
-        }
+        FreeList = NumBlocks > 0 ? blockAt(0) : nullptr;
     }
 
     void* malloc(std::size_t) override {
@@ -143,6 +147,11 @@ class FixedAllocator : public Allocator {
     struct Header {
         Header* Next;
     };
+
+    Header* blockAt(std::size_t I) const {
+        return reinterpret_cast<Header*>(
+            reinterpret_cast<char*>(AlignedMemory) + I * BlockSize);
+    }
 
     const std::size_t Alignment = 16;
     const std::size_t AlignmentMask = Alignment - 1;
