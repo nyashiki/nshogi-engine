@@ -251,24 +251,23 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             if (MyVirtualLoss == 0) {
                 return &N->getEdge()[0];
             } else {
-                bool Acceptable = true;
-
+                // The preceding MyVirtualLoss edges have been claimed by
+                // concurrent descents. Speculatively take the next best
+                // edge, but only when it is the genuine UCB maximum with
+                // each claimed child modeled as one virtual visit whose
+                // win rate is zero: the claimed edge I then scores
+                // C * P[I] / (1 + 1) while an unvisited edge scores
+                // C * P[VL], so the speculative edge wins iff
+                // 2 * P[VL] > P[I] for every claimed I. The edges are
+                // sorted by prior, so checking I = 0 suffices. Otherwise
+                // the UCB maximum is a claimed edge and descending there
+                // cannot make progress, so give up this descent.
                 const double ThisPolicy =
                     (double)N->getEdge()[MyVirtualLoss].getProbability();
-                const double Const =
-                    1.0 /
-                    (CInit * std::sqrt((double)(MyVirtualLoss + (uint64_t)1)));
-                for (uint16_t I = 0; I < MyVirtualLoss - 1; ++I) {
-                    const double Policy =
-                        (double)N->getEdge()[I].getProbability();
+                const double TopPolicy =
+                    (double)N->getEdge()[0].getProbability();
 
-                    if (Const + Policy / (double)MyVirtualLoss >= ThisPolicy) {
-                        Acceptable = false;
-                        break;
-                    }
-                }
-
-                if (Acceptable) {
+                if (2.0 * ThisPolicy > TopPolicy) {
                     return &N->getEdge()[MyVirtualLoss];
                 } else {
                     PStat->incrementNumSpeculativeFailedEdge();
