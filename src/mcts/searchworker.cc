@@ -10,8 +10,10 @@
 #include "searchworker.h"
 #include "../globalconfig.h"
 
+#include <chrono>
 #include <cmath>
 #include <limits>
+#include <thread>
 
 #include <nshogi/core/movegenerator.h>
 
@@ -41,7 +43,8 @@ SearchWorker::SearchWorker(bool CheckmateSearchEnabled,
     , EQueue(EQ)
     , ECache(EC)
     , DfPnSolver(CheckmateSearchEnabled ? 64 : 0)
-    , PStat(Stat) {
+    , PStat(Stat)
+    , ConsecutiveNullLeaves(0) {
 
     spawnThread();
 }
@@ -58,6 +61,7 @@ void SearchWorker::updateRoot(const core::State& S,
     RootSideToMove = State->getSideToMove();
 
     RootPly = State->getPly();
+    ConsecutiveNullLeaves = 0;
 }
 
 Node* SearchWorker::collectOneLeaf() {
@@ -456,8 +460,23 @@ bool SearchWorker::doTask() {
 
     if (LeafNode == nullptr) {
         PStat->incrementNumNullLeaf();
+        // See the comment on the constants in the header for why short
+        // streaks take a microsecond-scale pause and only long streaks
+        // sleep.
+        ++ConsecutiveNullLeaves;
+        if (ConsecutiveNullLeaves >= NullLeafStreakToPause) {
+            if (ConsecutiveNullLeaves >= NullLeafStreakToSleep) {
+                std::this_thread::sleep_for(NullLeafSleep);
+            } else {
+                const auto PauseStart = std::chrono::steady_clock::now();
+                while (std::chrono::steady_clock::now() - PauseStart <
+                       NullLeafRetryPause) {
+                }
+            }
+        }
         return false;
     }
+    ConsecutiveNullLeaves = 0;
 
     const uint64_t NumVisitsAndVirtualLoss =
         LeafNode->getVisitsAndVirtualLoss();
