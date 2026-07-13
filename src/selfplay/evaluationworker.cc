@@ -40,18 +40,19 @@ namespace engine {
 namespace selfplay {
 
 EvaluationWorker::EvaluationWorker(std::size_t ThreadId,
-                                   [[maybe_unused]] std::size_t GPUId,
+                                   std::size_t GPUId,
                                    std::size_t BSize,
-                                   [[maybe_unused]] const char* WeightPath,
+                                   const char* WeightPath,
                                    FrameQueue* EQ, FrameQueue* SQ,
                                    SelfplayInfo* SI)
     : worker::Worker(true)
+    , MyThreadId(ThreadId)
+    , MyGPUId(GPUId)
+    , MyWeightPath(WeightPath)
     , BatchSize(BSize)
     , EvaluationQueue(EQ)
     , SearchQueue(SQ)
     , SInfo(SI) {
-
-    prepareInfer(ThreadId, GPUId, WeightPath);
 
     spawnThread();
 }
@@ -60,6 +61,12 @@ EvaluationWorker::~EvaluationWorker() {
 }
 
 void EvaluationWorker::initializationTask() {
+    // The Evaluator's constructor calls sched_setaffinity() for the
+    // calling thread, so it must be constructed here, on this worker's
+    // own thread, not in the constructor which runs on the caller's
+    // thread.
+    prepareInfer(MyThreadId, MyGPUId, MyWeightPath.c_str());
+
 #if defined(EXECUTOR_TRT)
     auto TRTInfer = reinterpret_cast<infer::TensorRT*>(Infer.get());
     TRTInfer->resetGPU();

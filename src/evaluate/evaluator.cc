@@ -39,7 +39,7 @@ Evaluator::Evaluator([[maybe_unused]] std::size_t ThreadId,
 #ifdef NUMA_ENABLED
     const int NumaAvailable = numa_available();
     if (NumaAvailable < 0) {
-        std::cout << "Warning: numa is enabled by numa_available() returns "
+        std::cout << "Warning: numa is enabled but numa_available() returns "
                   << NumaAvailable << std::endl;
     } else {
         // Fetch available NUMA nodes.
