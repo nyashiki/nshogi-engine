@@ -451,6 +451,15 @@ double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
 }
 
 bool SearchWorker::doTask() {
+#ifdef SEARCH_WORKER_DELAY_NS
+    // Busy-wait rather than sleep: a low-clocked CPU keeps the core occupied
+    // while running slowly, whereas sleeping would release the core.
+    const auto DelayStart = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - DelayStart <
+           std::chrono::nanoseconds(SEARCH_WORKER_DELAY_NS)) {
+    }
+#endif
+
     // Go back to the root state.
     while (State->getPly() != RootPly) {
         State->undoMove();
