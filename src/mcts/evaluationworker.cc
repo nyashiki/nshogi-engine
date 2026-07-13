@@ -106,9 +106,10 @@ bool EvaluationWorker::doTask() {
     getBatch();
 
     if (BatchCount == 0) {
-        // As the batch size is zero, there is no tasks to do, so
-        // return false to notify this thread can be stopped.
-        return EQueue->count() > 0;
+        // As the batch size is zero, there is no task to do. Sleep until
+        // an element arrives instead of polling the queue mutex at full
+        // speed, which would take CPU time away from the other workers.
+        return EQueue->waitForElements(EmptyQueueWaitTimeout);
     }
 
     auto B = doInference();
