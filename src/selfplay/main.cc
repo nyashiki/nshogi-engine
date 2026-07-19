@@ -76,6 +76,9 @@ int main(int Argc, char* Argv[]) {
 
     const std::size_t AVAILABLE_MEMORY_MB =
         (std::size_t)std::stoull(Parser.getOption("memory-size"));
+    // One shard per allocating thread (the search workers).
+    EdgeAllocator->setNumShards(
+        (std::size_t)std::stoull(Parser.getOption("num-search-workers")) + 1);
     NodeAllocator->resize(
         (std::size_t)(0.1 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
     EdgeAllocator->resize(

@@ -15,6 +15,7 @@
 #include "prefault.h"
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -45,6 +46,17 @@ namespace allocator {
 // a side table indexed by slab number, and a freed object stores the
 // intra-slab free-list link in its own first bytes.
 //
+// Concurrency is sharded: each thread is assigned a home shard with
+// its own lock and partial-slab lists, so threads working on
+// different shards never contend (the same idea that lets glibc's
+// per-thread arenas scale). A slab is owned by the shard that took it
+// from the empty pool, and free() locks the owner's shard, so a
+// cross-thread free only contends with that one shard. The shared
+// empty pool is touched once per slab lifetime, not per object. Only
+// when the pool is exhausted does malloc() fall back to serving from
+// another shard's partial slab, so sharding costs no capacity at the
+// point where capacity matters.
+//
 // Requests larger than MaxClassBytes (far above the largest possible
 // Edge array) are not served and return nullptr.
 template <lock::LockType LockT = std::mutex>
@@ -53,12 +65,11 @@ class SlabAllocator : public Allocator {
     SlabAllocator()
         : Size(0)
         , NumSlabs(0)
-        , Used(0)
         , Memory(nullptr)
+        , ShardCount(DefaultNumShards)
+        , Shards(new Shard[DefaultNumShards])
         , EmptyHead(InvalidIndex) {
-        for (std::size_t I = 0; I < NumClasses; ++I) {
-            PartialHead[I] = InvalidIndex;
-        }
+        initShards();
     }
 
     ~SlabAllocator() {
@@ -95,10 +106,7 @@ class SlabAllocator : public Allocator {
 #endif
 
         Slabs.assign(NumSlabs, Slab{});
-        for (std::size_t I = 0; I < NumClasses; ++I) {
-            PartialHead[I] = InvalidIndex;
-        }
-        Used.store(0, std::memory_order_relaxed);
+        initShards();
 
         // All slabs start in the shared empty pool.
         EmptyHead = InvalidIndex;
@@ -116,54 +124,52 @@ class SlabAllocator : public Allocator {
 
         const std::size_t Stride = ClassIndex * Alignment;
         const uint32_t ObjectsPerSlab = (uint32_t)(SlabSize / Stride);
+        // Popular small classes are sharded by thread for
+        // scalability. Large classes hold few objects per slab, so
+        // per-thread slabs would multiply half-empty slabs across
+        // shards; they are rare, so binding them to a fixed shard
+        // costs no scalability and keeps one partial set per class.
+        const std::size_t Home = Stride >= ClassShardedMinStride
+                                     ? ClassIndex % ShardCount
+                                     : myThreadIndex() % ShardCount;
 
-        std::lock_guard<LockT> Lk(Lock);
+        {
+            std::lock_guard<LockT> Lk(Shards[Home].Lock);
 
-        uint32_t S = PartialHead[ClassIndex];
-        if (S == InvalidIndex) {
-            // Take a slab from the shared empty pool and bind it to
-            // this class.
-            S = EmptyHead;
+            uint32_t S = Shards[Home].PartialHead[ClassIndex];
             if (S == InvalidIndex) {
-                return nullptr;
+                // Take a slab from the shared empty pool and bind it
+                // to this class, owned by the home shard.
+                S = popEmptySlab();
+                if (S != InvalidIndex) {
+                    Slab& NewSlab = Slabs[S];
+                    NewSlab.ClassIndex = (uint32_t)ClassIndex;
+                    NewSlab.LiveCount = 0;
+                    NewSlab.FreeHead = InvalidIndex;
+                    NewSlab.BumpNext = 0;
+                    NewSlab.Owner = (uint32_t)Home;
+                    pushPartial(Home, ClassIndex, S);
+                }
             }
-            EmptyHead = Slabs[S].Next;
-
-            Slab& NewSlab = Slabs[S];
-            NewSlab.ClassIndex = (uint32_t)ClassIndex;
-            NewSlab.LiveCount = 0;
-            NewSlab.FreeHead = InvalidIndex;
-            NewSlab.BumpNext = 0;
-            pushPartial(ClassIndex, S);
+            if (S != InvalidIndex) {
+                return takeObject(Home, S, ClassIndex, Stride,
+                                  ObjectsPerSlab);
+            }
         }
 
-        Slab& Sl = Slabs[S];
-        assert(Sl.ClassIndex == ClassIndex);
-
-        uint32_t Object;
-        if (Sl.FreeHead != InvalidIndex) {
-            // Reuse a freed object; it stores the next link in its
-            // first bytes.
-            Object = Sl.FreeHead;
-            Sl.FreeHead = *reinterpret_cast<const uint32_t*>(
-                objectAt(S, Object, Stride));
-        } else {
-            Object = Sl.BumpNext;
-            ++Sl.BumpNext;
+        // Near-full slow path: the pool is exhausted and the home
+        // shard has no partial slab of this class. Serve from any
+        // shard that still has one, so sharding strands no capacity.
+        // One lock is held at a time, so the scan cannot deadlock.
+        for (std::size_t V = 0; V < ShardCount; ++V) {
+            std::lock_guard<LockT> Lk(Shards[V].Lock);
+            const uint32_t S = Shards[V].PartialHead[ClassIndex];
+            if (S != InvalidIndex) {
+                return takeObject(V, S, ClassIndex, Stride, ObjectsPerSlab);
+            }
         }
 
-        ++Sl.LiveCount;
-        if (Sl.LiveCount == ObjectsPerSlab) {
-            // A full slab leaves the partial list; free() finds it
-            // again purely by the pointer's slab number.
-            removePartial(ClassIndex, S);
-        }
-
-        Used.fetch_add(Stride, std::memory_order_relaxed);
-
-        void* Ptr = objectAt(S, Object, Stride);
-        assert(reinterpret_cast<uint64_t>(Ptr) % Alignment == 0);
-        return Ptr;
+        return nullptr;
     }
 
     void free(void* Ptr) override {
@@ -178,9 +184,18 @@ class SlabAllocator : public Allocator {
 
         const uint32_t S = (uint32_t)(Offset >> SlabSizeShift);
 
-        std::lock_guard<LockT> Lk(Lock);
+        // The owner is stable without the lock: this object is still
+        // live, so LiveCount >= 1, so the slab cannot return to the
+        // pool and be rebound while we are here. The malloc() that
+        // handed the object out ordered the Owner write before us via
+        // the owner shard's lock.
+        const std::size_t Owner = Slabs[S].Owner;
+
+        std::lock_guard<LockT> Lk(Shards[Owner].Lock);
 
         Slab& Sl = Slabs[S];
+        assert(Sl.Owner == Owner);
+
         const std::size_t ClassIndex = Sl.ClassIndex;
         const std::size_t Stride = ClassIndex * Alignment;
         const uint32_t ObjectsPerSlab = (uint32_t)(SlabSize / Stride);
@@ -195,19 +210,18 @@ class SlabAllocator : public Allocator {
         Sl.FreeHead = Object;
         --Sl.LiveCount;
 
-        Used.fetch_sub(Stride, std::memory_order_relaxed);
+        Shards[Owner].Used.fetch_sub(Stride, std::memory_order_relaxed);
 
         if (WasFull) {
-            pushPartial(ClassIndex, S);
+            pushPartial(Owner, ClassIndex, S);
         }
 
         if (Sl.LiveCount == 0) {
             // The slab is empty again: unbind it from the class and
             // return it to the shared pool.
-            removePartial(ClassIndex, S);
+            removePartial(Owner, ClassIndex, S);
             Sl.ClassIndex = 0;
-            Sl.Next = EmptyHead;
-            EmptyHead = S;
+            pushEmptySlab(S);
         }
     }
 
@@ -216,7 +230,35 @@ class SlabAllocator : public Allocator {
     }
 
     std::size_t getUsed() const override {
-        return Used.load(std::memory_order_relaxed);
+        std::size_t Sum = 0;
+        for (std::size_t W = 0; W < ShardCount; ++W) {
+            Sum += Shards[W].Used.load(std::memory_order_relaxed);
+        }
+        return Sum;
+    }
+
+    // The number of shards should roughly match the number of
+    // allocating threads (the search workers): fewer shards restores
+    // lock contention, more shards disperses partial slabs for no
+    // gain. Must be called while no allocation is live, like
+    // resize().
+    void setNumShards(std::size_t NumShards) {
+        assert(getUsed() == 0);
+
+        if (NumShards < 1) {
+            NumShards = 1;
+        }
+        if (NumShards > MaxNumShards) {
+            NumShards = MaxNumShards;
+        }
+
+        ShardCount = NumShards;
+        Shards.reset(new Shard[ShardCount]);
+        initShards();
+    }
+
+    std::size_t getNumShards() const {
+        return ShardCount;
     }
 
     std::size_t getFree() const override {
@@ -240,6 +282,7 @@ class SlabAllocator : public Allocator {
         uint32_t BumpNext = 0;
         uint32_t Next = InvalidIndex;
         uint32_t Previous = InvalidIndex;
+        uint32_t Owner = 0;
     };
 
     constexpr static std::size_t Alignment = 16;
@@ -251,12 +294,43 @@ class SlabAllocator : public Allocator {
     constexpr static std::size_t NumClasses =
         MaxClassBytes / Alignment + 1;
     constexpr static uint32_t InvalidIndex = 0xffffffffU;
+    // Classes with at most SlabSize / ClassShardedMinStride (= 16)
+    // objects per slab are class-sharded instead of thread-sharded.
+    constexpr static std::size_t ClassShardedMinStride = 4096;
+    constexpr static std::size_t DefaultNumShards = 8;
+    constexpr static std::size_t MaxNumShards = 64;
 
     static_assert(MaxClassBytes * 4 <= SlabSize,
                   "every slab must hold at least four objects");
 
+    // Per-shard state on its own cache lines: lock, partial-slab list
+    // heads, and the used-bytes counter for slabs this shard owns.
+    struct alignas(128) Shard {
+        LockT Lock;
+        std::atomic<uint64_t> Used;
+        uint32_t PartialHead[NumClasses];
+    };
+
     constexpr static std::size_t getClassIndex(std::size_t Size_) {
         return Size_ == 0 ? 1 : (Size_ + Alignment - 1) / Alignment;
+    }
+
+    // Threads are numbered on first use; the home shard is the
+    // thread number modulo the runtime shard count, i.e. round-robin.
+    static std::size_t myThreadIndex() {
+        static std::atomic<uint32_t> Counter{0};
+        thread_local static const uint32_t Index =
+            Counter.fetch_add(1, std::memory_order_relaxed);
+        return Index;
+    }
+
+    void initShards() {
+        for (std::size_t W = 0; W < ShardCount; ++W) {
+            for (std::size_t I = 0; I < NumClasses; ++I) {
+                Shards[W].PartialHead[I] = InvalidIndex;
+            }
+            Shards[W].Used.store(0, std::memory_order_relaxed);
+        }
     }
 
     char* objectAt(uint32_t S, uint32_t Object, std::size_t Stride) const {
@@ -264,23 +338,78 @@ class SlabAllocator : public Allocator {
                (std::size_t)Object * Stride;
     }
 
-    void pushPartial(std::size_t ClassIndex, uint32_t S) {
+    // Pop one object from slab S. The caller holds the lock of the
+    // shard that owns S, and S has a free object.
+    void* takeObject(std::size_t ShardIndex, uint32_t S,
+                     std::size_t ClassIndex, std::size_t Stride,
+                     uint32_t ObjectsPerSlab) {
+        Slab& Sl = Slabs[S];
+        assert(Sl.ClassIndex == ClassIndex);
+        assert(Sl.Owner == ShardIndex);
+
+        uint32_t Object;
+        if (Sl.FreeHead != InvalidIndex) {
+            // Reuse a freed object; it stores the next link in its
+            // first bytes.
+            Object = Sl.FreeHead;
+            Sl.FreeHead = *reinterpret_cast<const uint32_t*>(
+                objectAt(S, Object, Stride));
+        } else {
+            Object = Sl.BumpNext;
+            ++Sl.BumpNext;
+        }
+
+        ++Sl.LiveCount;
+        if (Sl.LiveCount == ObjectsPerSlab) {
+            // A full slab leaves the partial list; free() finds it
+            // again purely by the pointer's slab number.
+            removePartial(ShardIndex, ClassIndex, S);
+        }
+
+        Shards[ShardIndex].Used.fetch_add(Stride,
+                                          std::memory_order_relaxed);
+
+        void* Ptr = objectAt(S, Object, Stride);
+        assert(reinterpret_cast<uint64_t>(Ptr) % Alignment == 0);
+        return Ptr;
+    }
+
+    // The empty pool has its own lock, always taken while holding a
+    // shard lock (shard -> pool order everywhere, so no deadlock).
+    uint32_t popEmptySlab() {
+        std::lock_guard<LockT> Lk(EmptyLock);
+        const uint32_t S = EmptyHead;
+        if (S != InvalidIndex) {
+            EmptyHead = Slabs[S].Next;
+        }
+        return S;
+    }
+
+    void pushEmptySlab(uint32_t S) {
+        std::lock_guard<LockT> Lk(EmptyLock);
+        Slabs[S].Next = EmptyHead;
+        EmptyHead = S;
+    }
+
+    void pushPartial(std::size_t ShardIndex, std::size_t ClassIndex,
+                     uint32_t S) {
         Slab& Sl = Slabs[S];
         Sl.Previous = InvalidIndex;
-        Sl.Next = PartialHead[ClassIndex];
+        Sl.Next = Shards[ShardIndex].PartialHead[ClassIndex];
         if (Sl.Next != InvalidIndex) {
             Slabs[Sl.Next].Previous = S;
         }
-        PartialHead[ClassIndex] = S;
+        Shards[ShardIndex].PartialHead[ClassIndex] = S;
     }
 
-    void removePartial(std::size_t ClassIndex, uint32_t S) {
+    void removePartial(std::size_t ShardIndex, std::size_t ClassIndex,
+                       uint32_t S) {
         Slab& Sl = Slabs[S];
         if (Sl.Previous != InvalidIndex) {
             Slabs[Sl.Previous].Next = Sl.Next;
         } else {
-            assert(PartialHead[ClassIndex] == S);
-            PartialHead[ClassIndex] = Sl.Next;
+            assert(Shards[ShardIndex].PartialHead[ClassIndex] == S);
+            Shards[ShardIndex].PartialHead[ClassIndex] = Sl.Next;
         }
         if (Sl.Next != InvalidIndex) {
             Slabs[Sl.Next].Previous = Sl.Previous;
@@ -291,15 +420,15 @@ class SlabAllocator : public Allocator {
 
     std::size_t Size;
     std::size_t NumSlabs;
-    std::atomic<uint64_t> Used;
 
     void* Memory;
 
     std::vector<Slab> Slabs;
-    uint32_t PartialHead[NumClasses];
-    uint32_t EmptyHead;
+    std::size_t ShardCount;
+    std::unique_ptr<Shard[]> Shards;
 
-    LockT Lock;
+    LockT EmptyLock;
+    uint32_t EmptyHead;
 };
 
 } // namespace allocator

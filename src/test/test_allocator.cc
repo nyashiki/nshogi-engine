@@ -12,7 +12,10 @@
 #include "../allocator/fixed_allocator.h"
 #include "../allocator/slab.h"
 
+#include <atomic>
+#include <cstring>
 #include <random>
+#include <thread>
 
 TEST(FixedAllocator, RandomWrite) {
     std::mt19937_64 mt(20231219);
@@ -194,6 +197,125 @@ TEST(SlabAllocator, EmptySlabRecyclingAcrossClasses) {
             Allocator.free(P);
         }
 
+        ASSERT_TRUE(Allocator.isAllBlockFree());
+        ASSERT_EQ(Allocator.getUsed(), 0ULL);
+    }
+}
+
+TEST(SlabAllocator, MultiThreadedChurn) {
+    nshogi::engine::allocator::SlabAllocator Allocator;
+    Allocator.resize(1ULL * 1024 * 1024 * 1024);
+
+    constexpr std::size_t NumThreads = 8;
+    constexpr std::size_t Slots = 5000;
+    constexpr std::size_t N = 200000;
+
+    std::atomic<bool> Failed(false);
+    std::vector<std::thread> Threads;
+
+    for (std::size_t T = 0; T < NumThreads; ++T) {
+        Threads.emplace_back([&Allocator, &Failed, T]() {
+            std::mt19937_64 mt(20260719 + T);
+
+            struct Rec {
+                uint8_t* P = nullptr;
+                std::size_t Bytes = 0;
+                uint8_t Tag = 0;
+            };
+            std::vector<Rec> Live(Slots);
+
+            const auto verify = [](const Rec& R) {
+                for (std::size_t I = 0; I < R.Bytes; ++I) {
+                    if (R.P[I] != R.Tag) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            for (std::size_t Op = 0; Op < N; ++Op) {
+                Rec& R = Live[mt() % Slots];
+                if (R.P != nullptr) {
+                    if (!verify(R)) {
+                        Failed.store(true);
+                        return;
+                    }
+                    Allocator.free(R.P);
+                }
+                R.Bytes = 16 * (1 + mt() % 593);
+                R.P = reinterpret_cast<uint8_t*>(Allocator.malloc(R.Bytes));
+                if (R.P == nullptr) {
+                    Failed.store(true);
+                    return;
+                }
+                R.Tag = (uint8_t)(mt());
+                std::memset(R.P, R.Tag, R.Bytes);
+            }
+
+            for (Rec& R : Live) {
+                if (R.P != nullptr) {
+                    if (!verify(R)) {
+                        Failed.store(true);
+                        return;
+                    }
+                    Allocator.free(R.P);
+                }
+            }
+        });
+    }
+
+    for (auto& T : Threads) {
+        T.join();
+    }
+
+    ASSERT_FALSE(Failed.load());
+    ASSERT_TRUE(Allocator.isAllBlockFree());
+    ASSERT_EQ(Allocator.getUsed(), 0ULL);
+}
+
+TEST(SlabAllocator, RuntimeShardCount) {
+    for (const std::size_t NumShards : {1UL, 3UL, 16UL}) {
+        nshogi::engine::allocator::SlabAllocator Allocator;
+        Allocator.setNumShards(NumShards);
+        Allocator.resize(256ULL * 1024 * 1024);
+        ASSERT_EQ(Allocator.getNumShards(), NumShards);
+
+        constexpr std::size_t NumThreads = 8;
+        constexpr std::size_t Slots = 1000;
+        constexpr std::size_t N = 30000;
+
+        std::atomic<bool> Failed(false);
+        std::vector<std::thread> Threads;
+        for (std::size_t T = 0; T < NumThreads; ++T) {
+            Threads.emplace_back([&Allocator, &Failed, T]() {
+                std::mt19937_64 mt(T);
+                std::vector<std::pair<uint8_t*, std::size_t>> Live(Slots);
+                for (std::size_t Op = 0; Op < N; ++Op) {
+                    auto& R = Live[mt() % Slots];
+                    if (R.first != nullptr) {
+                        Allocator.free(R.first);
+                    }
+                    R.second = 16 * (1 + mt() % 593);
+                    R.first =
+                        reinterpret_cast<uint8_t*>(Allocator.malloc(R.second));
+                    if (R.first == nullptr) {
+                        Failed.store(true);
+                        return;
+                    }
+                    std::memset(R.first, (int)T, R.second);
+                }
+                for (auto& R : Live) {
+                    if (R.first != nullptr) {
+                        Allocator.free(R.first);
+                    }
+                }
+            });
+        }
+        for (auto& T : Threads) {
+            T.join();
+        }
+
+        ASSERT_FALSE(Failed.load());
         ASSERT_TRUE(Allocator.isAllBlockFree());
         ASSERT_EQ(Allocator.getUsed(), 0ULL);
     }
