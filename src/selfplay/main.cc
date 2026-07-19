@@ -8,7 +8,7 @@
 //
 
 #include "../allocator/fixed_allocator.h"
-#include "../allocator/segregated_free_list.h"
+#include "../allocator/slab.h"
 #include "../argparser.h"
 #include "evaluationworker.h"
 #include "framequeue.h"
@@ -72,8 +72,7 @@ int main(int Argc, char* Argv[]) {
     // Setup allocator.
     auto NodeAllocator =
         std::make_unique<allocator::FixedAllocator<sizeof(mcts::Node)>>();
-    auto EdgeAllocator =
-        std::make_unique<allocator::SegregatedFreeListAllocator<>>();
+    auto EdgeAllocator = std::make_unique<allocator::SlabAllocator<>>();
 
     const std::size_t AVAILABLE_MEMORY_MB =
         (std::size_t)std::stoull(Parser.getOption("memory-size"));
