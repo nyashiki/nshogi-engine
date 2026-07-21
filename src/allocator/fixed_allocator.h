@@ -91,14 +91,14 @@ class FixedAllocator : public Allocator {
         // construction would: block I points to block I + 1. Each
         // slice's last block points at the next slice's first block,
         // so the slices can be linked independently.
-        forEachSliceParallel(
-            NumBlocks, (32ULL << 20) / BlockSize,
-            [&](std::size_t Begin, std::size_t End) {
-                for (std::size_t I = Begin; I < End; ++I) {
-                    blockAt(I)->Next =
-                        (I + 1 < NumBlocks) ? blockAt(I + 1) : nullptr;
-                }
-            });
+        forEachSliceParallel(NumBlocks, (32ULL << 20) / BlockSize,
+                             [&](std::size_t Begin, std::size_t End) {
+                                 for (std::size_t I = Begin; I < End; ++I) {
+                                     blockAt(I)->Next = (I + 1 < NumBlocks)
+                                                            ? blockAt(I + 1)
+                                                            : nullptr;
+                                 }
+                             });
 
         FreeList = NumBlocks > 0 ? blockAt(0) : nullptr;
     }

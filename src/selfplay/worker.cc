@@ -879,8 +879,8 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
                                    F->getIsTarget().size());
     assert(NumSort > 1);
     assert(F->getSequentialHalvingCount() > 0);
-    NumSort =
-        std::max((uint64_t)2, (uint64_t)((NumSort + 1) >> F->getSequentialHalvingCount()));
+    NumSort = std::max((uint64_t)2, (uint64_t)((NumSort + 1) >>
+                                               F->getSequentialHalvingCount()));
 
     // Gather top moves along policy + gumbel noise.
     std::partial_sort(ScoreWithIndex, ScoreWithIndex + (long)NumSort,

@@ -35,9 +35,9 @@ inline void forEachSliceParallel(std::size_t Count, std::size_t MinPerThread,
                                  F&& Fn) {
     const std::size_t HW =
         std::max<std::size_t>(1, std::thread::hardware_concurrency());
-    const std::size_t NumThreads = std::min(
-        HW, std::max<std::size_t>(
-                1, MinPerThread == 0 ? HW : Count / MinPerThread));
+    const std::size_t NumThreads =
+        std::min(HW, std::max<std::size_t>(
+                         1, MinPerThread == 0 ? HW : Count / MinPerThread));
 
     if (NumThreads <= 1) {
         Fn(std::size_t{0}, Count);
@@ -67,22 +67,22 @@ inline void forEachSliceParallel(std::size_t Count, std::size_t MinPerThread,
 // resize() for multi-GB regions.
 inline void prefaultRegionParallel(void* Memory, std::size_t Bytes) {
     constexpr std::size_t SliceBytes = 32ULL << 20;
-    forEachSliceParallel(
-        Bytes, SliceBytes, [&](std::size_t Begin, std::size_t End) {
-            char* P = static_cast<char*>(Memory) + Begin;
-            const std::size_t Len = End - Begin;
+    forEachSliceParallel(Bytes, SliceBytes,
+                         [&](std::size_t Begin, std::size_t End) {
+                             char* P = static_cast<char*>(Memory) + Begin;
+                             const std::size_t Len = End - Begin;
 #if defined(__linux__) && defined(MADV_POPULATE_WRITE)
-            if (::madvise(P, Len, MADV_POPULATE_WRITE) == 0) {
-                return;
-            }
+                             if (::madvise(P, Len, MADV_POPULATE_WRITE) == 0) {
+                                 return;
+                             }
 #endif
-            // Fallback (madvise unsupported): touch one byte per page.
-            // The pages are demand-zeroed, so writing zero does not
-            // change the contents.
-            for (std::size_t I = 0; I < Len; I += 4096) {
-                static_cast<volatile char*>(P)[I] = 0;
-            }
-        });
+                             // Fallback (madvise unsupported): touch one byte
+                             // per page. The pages are demand-zeroed, so
+                             // writing zero does not change the contents.
+                             for (std::size_t I = 0; I < Len; I += 4096) {
+                                 static_cast<volatile char*>(P)[I] = 0;
+                             }
+                         });
 }
 
 } // namespace allocator

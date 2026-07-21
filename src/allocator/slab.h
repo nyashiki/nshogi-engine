@@ -152,8 +152,7 @@ class SlabAllocator : public Allocator {
                 }
             }
             if (S != InvalidIndex) {
-                return takeObject(Home, S, ClassIndex, Stride,
-                                  ObjectsPerSlab);
+                return takeObject(Home, S, ClassIndex, Stride, ObjectsPerSlab);
             }
         }
 
@@ -178,8 +177,7 @@ class SlabAllocator : public Allocator {
         }
 
         const std::size_t Offset =
-            (std::size_t)(static_cast<char*>(Ptr) -
-                          static_cast<char*>(Memory));
+            (std::size_t)(static_cast<char*>(Ptr) - static_cast<char*>(Memory));
         assert(Offset < Size);
 
         const uint32_t S = (uint32_t)(Offset >> SlabSizeShift);
@@ -199,8 +197,7 @@ class SlabAllocator : public Allocator {
         const std::size_t ClassIndex = Sl.ClassIndex;
         const std::size_t Stride = ClassIndex * Alignment;
         const uint32_t ObjectsPerSlab = (uint32_t)(SlabSize / Stride);
-        const uint32_t Object =
-            (uint32_t)((Offset & (SlabSize - 1)) / Stride);
+        const uint32_t Object = (uint32_t)((Offset & (SlabSize - 1)) / Stride);
 
         assert(Sl.LiveCount > 0);
 
@@ -291,8 +288,7 @@ class SlabAllocator : public Allocator {
     // Largest servable request. The largest Edge array is 593 legal
     // moves x 16 bytes = 9488 bytes, well below this.
     constexpr static std::size_t MaxClassBytes = 16ULL * 1024;
-    constexpr static std::size_t NumClasses =
-        MaxClassBytes / Alignment + 1;
+    constexpr static std::size_t NumClasses = MaxClassBytes / Alignment + 1;
     constexpr static uint32_t InvalidIndex = 0xffffffffU;
     // Classes with at most SlabSize / ClassShardedMinStride (= 16)
     // objects per slab are class-sharded instead of thread-sharded.
@@ -340,9 +336,8 @@ class SlabAllocator : public Allocator {
 
     // Pop one object from slab S. The caller holds the lock of the
     // shard that owns S, and S has a free object.
-    void* takeObject(std::size_t ShardIndex, uint32_t S,
-                     std::size_t ClassIndex, std::size_t Stride,
-                     uint32_t ObjectsPerSlab) {
+    void* takeObject(std::size_t ShardIndex, uint32_t S, std::size_t ClassIndex,
+                     std::size_t Stride, uint32_t ObjectsPerSlab) {
         Slab& Sl = Slabs[S];
         assert(Sl.ClassIndex == ClassIndex);
         assert(Sl.Owner == ShardIndex);
@@ -352,8 +347,8 @@ class SlabAllocator : public Allocator {
             // Reuse a freed object; it stores the next link in its
             // first bytes.
             Object = Sl.FreeHead;
-            Sl.FreeHead = *reinterpret_cast<const uint32_t*>(
-                objectAt(S, Object, Stride));
+            Sl.FreeHead =
+                *reinterpret_cast<const uint32_t*>(objectAt(S, Object, Stride));
         } else {
             Object = Sl.BumpNext;
             ++Sl.BumpNext;
@@ -366,8 +361,7 @@ class SlabAllocator : public Allocator {
             removePartial(ShardIndex, ClassIndex, S);
         }
 
-        Shards[ShardIndex].Used.fetch_add(Stride,
-                                          std::memory_order_relaxed);
+        Shards[ShardIndex].Used.fetch_add(Stride, std::memory_order_relaxed);
 
         void* Ptr = objectAt(S, Object, Stride);
         assert(reinterpret_cast<uint64_t>(Ptr) % Alignment == 0);

@@ -118,8 +118,8 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
     if constexpr (!Aggregated) {
         assert(EvalCache != nullptr);
         if (Policy != nullptr) {
-            EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(),
-                    WinRate, DrawRate);
+            EvalCache->store(State->getHash(), NumChildren,
+                             LegalPolicyLogits.get(), WinRate, DrawRate);
         }
     }
 

@@ -70,8 +70,7 @@ bool EvaluationQueue::add(const core::State& State,
 
 bool EvaluationQueue::waitForElements(std::chrono::microseconds Timeout) {
     std::unique_lock<std::mutex> Lock(Mutex);
-    CV.wait_for(Lock, Timeout,
-                [this]() { return !Queue.empty() || !IsOpen; });
+    CV.wait_for(Lock, Timeout, [this]() { return !Queue.empty() || !IsOpen; });
     return !Queue.empty();
 }
 

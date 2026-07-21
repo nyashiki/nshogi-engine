@@ -27,9 +27,8 @@ namespace {
 
 std::size_t computeNumBuckets(std::size_t MemorySizeMB,
                               std::size_t BucketBytes) {
-    const std::size_t N =
-        std::max<std::size_t>(1, MemorySizeMB * 1024ULL * 1024ULL /
-                                     BucketBytes);
+    const std::size_t N = std::max<std::size_t>(1, MemorySizeMB * 1024ULL *
+                                                       1024ULL / BucketBytes);
     // bucketIndex() requires the bucket count to fit in 32 bits.
     return std::min<std::size_t>(N, 0xFFFFFFFFULL);
 }
@@ -118,8 +117,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
     if ((V & 1U) != 0) {
         return false;
     }
-    if (!B->Version.compare_exchange_strong(V, V + 1,
-                                            std::memory_order_acquire,
+    if (!B->Version.compare_exchange_strong(V, V + 1, std::memory_order_acquire,
                                             std::memory_order_relaxed)) {
         // Another writer owns this bucket.
         return false;

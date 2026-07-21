@@ -213,8 +213,8 @@ std::unique_ptr<Batch> EvaluationWorker::doInference() {
 
     std::unique_ptr<Batch> B = std::make_unique<Batch>(
         BatchCount, std::move(Nodes), std::move(Hashes),
-        std::move(PolicyOffsets), std::move(LegalPolicies),
-        std::move(WinRates), std::move(DrawRates));
+        std::move(PolicyOffsets), std::move(LegalPolicies), std::move(WinRates),
+        std::move(DrawRates));
 
     return B;
 }

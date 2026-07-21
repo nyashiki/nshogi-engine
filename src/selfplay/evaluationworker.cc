@@ -39,10 +39,8 @@ namespace nshogi {
 namespace engine {
 namespace selfplay {
 
-EvaluationWorker::EvaluationWorker(std::size_t ThreadId,
-                                   std::size_t GPUId,
-                                   std::size_t BSize,
-                                   const char* WeightPath,
+EvaluationWorker::EvaluationWorker(std::size_t ThreadId, std::size_t GPUId,
+                                   std::size_t BSize, const char* WeightPath,
                                    FrameQueue* EQ, FrameQueue* SQ,
                                    SelfplayInfo* SI)
     : worker::Worker(true)
