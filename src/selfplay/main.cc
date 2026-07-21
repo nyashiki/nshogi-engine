@@ -190,6 +190,11 @@ int main(int Argc, char* Argv[]) {
             if (Line == "" || Line[0] == '#') {
                 continue;
             }
+            if (Line.find("moves") != std::string::npos) {
+                std::cerr << "Moves are not allowed in a taboo position." << std::endl;
+                std::cerr << Line << std::endl;
+                abort();
+            }
             const auto State =
                 nshogi::io::sfen::StateBuilder::newState(Line);
             if (State.canDeclare()) {
