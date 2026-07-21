@@ -276,7 +276,8 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     if (TabooPositions != nullptr) {
         for (const auto& TabooPosition : *TabooPositions) {
-            if (F->getState()->getPosition().equals(TabooPosition)) {
+            if (F->getState()->getPosition().equals(TabooPosition, true)) {
+                assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
                 F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
                 return SelfplayPhase::Backpropagation;
             }
@@ -507,7 +508,7 @@ SelfplayPhase Worker::judge(Frame* F) const {
 
     if (TabooPositions != nullptr) {
         for (const auto& TabooPosition : *TabooPositions) {
-            if (F->getState()->getPosition().equals(TabooPosition)) {
+            if (F->getState()->getPosition().equals(TabooPosition, true)) {
                 F->setWinner(~F->getState()->getSideToMove());
                 return SelfplayPhase::Save;
             }
