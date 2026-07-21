@@ -35,7 +35,8 @@ class Worker : public worker::Worker {
            uint64_t NumPlayouts, uint16_t NumSamplingMoves,
            double FullSearchRatio,
            std::vector<core::Position>* InitialPositionsToPlay,
-           bool UseShogi816k, SelfplayInfo*);
+           bool UseShogi816k, std::vector<core::Position>* TabooPositions,
+           SelfplayInfo*);
 
  private:
     bool doTask() override;
@@ -82,6 +83,7 @@ class Worker : public worker::Worker {
     const double MyFullSearchRatio;
 
     std::vector<core::Position>* InitialPositions;
+    std::vector<core::Position>* TabooPositions;
 
     const bool USE_SHOGI816K;
     PositionBuilderShogi816k PositionBuilder;

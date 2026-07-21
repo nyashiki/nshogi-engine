@@ -55,12 +55,23 @@ int main(int Argc, char* Argv[]) {
     Parser.addOption("full-search-ratio", "0.25",
                      "The ratio of full searches.");
     Parser.addOption("gumbel", "Gumbel AlphaZero style self-play.");
+    Parser.addOption("taboo-positions", "", "Use taboo positions.");
 
     Parser.parse(Argc, Argv);
 
     if (Parser.isSpecified("help")) {
         Parser.showHelp();
         return 0;
+    }
+
+    if (Parser.isSpecified("gumbel") && Parser.isSpecified("full-search-ratio")) {
+        std::cerr << "You can't specify --gumbel and --full-search-ratio at the same time."
+                  << std::endl;
+        return 1;
+    }
+
+    if (Parser.isSpecified("gumbel")) {
+        std::cout << "Gumbel AlphaZero style self-play is enabled." << std::endl;
     }
 
     using namespace nshogi;
@@ -163,6 +174,46 @@ int main(int Argc, char* Argv[]) {
         }
     }
 
+    // Prepare taboo positions.
+    std::unique_ptr<std::vector<core::Position>> TabooPositions;
+    const std::string TabooPositionsPath = Parser.getOption("taboo-positions");
+    if (TabooPositionsPath != "") {
+        std::ifstream Ifs(TabooPositionsPath);
+        if (!Ifs) {
+            throw std::runtime_error("taboo positions option was specified "
+                                     "but failed to open the file.");
+        }
+        TabooPositions = std::make_unique<std::vector<core::Position>>();
+
+        std::string Line;
+        while (std::getline(Ifs, Line)) {
+            if (Line == "" || Line[0] == '#') {
+                continue;
+            }
+            const auto State =
+                nshogi::io::sfen::StateBuilder::newState(Line);
+            if (State.canDeclare()) {
+                std::cerr << "Declaration position is not allowed." << std::endl;
+                std::cerr << Line << std::endl;
+                abort();
+            }
+
+            const auto Moves = core::MoveGenerator::generateLegalMoves(State);
+
+            if (Moves.size() == 0) {
+                std::cerr << "No moves in the position." << std::endl;
+                std::cerr << Line << std::endl;
+                abort();
+            }
+
+            TabooPositions->emplace_back(
+                nshogi::io::sfen::PositionBuilder::newPosition(Line));
+        }
+
+        std::cout << "Loaded " << TabooPositions->size() << " taboo positions."
+                  << std::endl;
+    }
+
     // Prepare workers.
     const std::size_t NUM_SEARCH_WORKERS =
         (std::size_t)std::stoull(Parser.getOption("num-search-workers"));
@@ -174,14 +225,16 @@ int main(int Argc, char* Argv[]) {
     // log2(1) == 0 when computing the sequential halving schedule.
     assert(!IsGumbel || NumSamplingMoves >= 2);
     const double FullSearchRatio =
-        std::stod(Parser.getOption("full-search-ratio"));
+        (Parser.isSpecified("gumbel"))
+            ? 5.0 // 1.0 is enough but we set 5.0 just in case of numerical errors.
+            : (double)std::stod(Parser.getOption("full-search-ratio"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
         SearchWorkers.emplace_back(std::make_unique<Worker>(
             SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(),
             NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(),
             NumPlayouts, NumSamplingMoves, FullSearchRatio,
-            InitialPositions.get(), USE_SHOGI816K, SInfo.get()));
+            InitialPositions.get(), USE_SHOGI816K, TabooPositions.get(), SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU = (std::size_t)std::stoull(
