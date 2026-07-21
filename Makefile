@@ -5,6 +5,11 @@ BUILD_DIR ?= build
 BUILD ?= release
 EXECUTOR ?= random
 
+# Insert an intentional busy-wait (in nanoseconds) at the top of every search
+# iteration to emulate lower-clocked CPUs (e.g., many-core Xeon machines).
+# Usage: make engine SEARCH_WORKER_DELAY_NS=2000
+SEARCH_WORKER_DELAY_NS ?= 0
+
 CUDA_ENABLED ?= 0
 CUDA_DIR := /opt/cuda
 TENSORRT_DIR := /opt/tensorrt/TensorRT-10.15.1.29
@@ -12,6 +17,12 @@ NVCC_ARCH := arch=compute_89,code=sm_89 # 4080
 # NVCC_ARCH := arch=compute_120,code=sm_120 # 5090
 
 OBJDIR := $(BUILD_DIR)/$(BUILD)_$(CXX)
+
+# Keep delayed builds in a separate directory so that object files compiled
+# with different delay settings are never mixed.
+ifneq ($(SEARCH_WORKER_DELAY_NS), 0)
+    OBJDIR := $(OBJDIR)_delay$(SEARCH_WORKER_DELAY_NS)
+endif
 TARGET := $(OBJDIR)/nshogi-engine
 SELFPLAY_TARGET := $(OBJDIR)/nshogi-selfplay
 TEST_TARGET := $(OBJDIR)/nshogi-test
@@ -102,6 +113,10 @@ ifeq ($(NUMA_ENABLED), 1)
         CXX_FLAGS += -DNUMA_ENABLED
         LINKS += -lnuma
     endif
+endif
+
+ifneq ($(SEARCH_WORKER_DELAY_NS), 0)
+    CXX_FLAGS += -DSEARCH_WORKER_DELAY_NS=$(SEARCH_WORKER_DELAY_NS)
 endif
 
 ifeq ($(EXECUTOR), zero)
@@ -215,7 +230,7 @@ $(SELFPLAY_TARGET): $(OBJECTS) $(SELFPLAY_OBJECTS) src/selfplay/main.cc
 
 $(BENCH_TARGET): $(OBJECTS) $(BENCH_OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	$(CXX) -o $@ $(OBJECTS) $(BENCH_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS) $(TEST_LINKS)
+	$(CXX) -o $@ $(OBJECTS) $(BENCH_OBJECTS) $(OPTIM) $(ARCH_FLAGS) $(CXX_FLAGS) -fPIC $(LINK_DIRS) $(LINKS)
 
 endif
 

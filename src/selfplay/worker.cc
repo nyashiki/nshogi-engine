@@ -10,6 +10,7 @@
 #include "worker.h"
 #include "../mcts/pointer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -132,10 +133,8 @@ SelfplayPhase Worker::initialize(Frame* F) {
     // Setup a config.
     auto Config = std::make_unique<core::StateConfig>();
 
-    static std::uniform_int_distribution<> MaxPlyDistribution(160 + 64,
-                                                              512 + 128);
-    static std::uniform_real_distribution<float> DrawRateDistribution(0.0f,
-                                                                      1.0f);
+    std::uniform_int_distribution<> MaxPlyDistribution(160 + 64, 512 + 128);
+    std::uniform_real_distribution<float> DrawRateDistribution(0.0f, 1.0f);
 
     Config->MaxPly = (uint16_t)MaxPlyDistribution(MT);
 
@@ -152,6 +151,9 @@ SelfplayPhase Worker::initialize(Frame* F) {
     F->setConfig(std::move(Config));
 
     F->clearDidFullSearch();
+    F->clearQValues();
+    F->clearVValues();
+    F->setDeclared(false);
 
     return SelfplayPhase::RootPreparation;
 }
@@ -167,14 +169,10 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
     for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
         F->getNoise().at(I) = sampleNoise(F);
     }
-
-    if (!F->isGumbel()) {
-        const double Sum =
-            std::accumulate(F->getNoise().begin(), F->getNoise().end(), 0.0);
-        for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
-            F->getNoise().at(I) /= Sum;
-        }
-    }
+    // Note: in the non-gumbel (Dirichlet) case, the gamma samples are
+    // normalized over the actual number of legal moves when they are
+    // consumed in Frame::setEvaluation(), not here, because the number
+    // of legal moves at the root is unknown at this point.
 
     std::uniform_real_distribution<double> Distribution(0.0, 1.0);
     const double R = Distribution(MT);
@@ -224,7 +222,7 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
     mcts::Node* Node = F->getSearchTree()->getRoot();
     assert(Node->getRepetitionStatus() == core::RepetitionStatus::NoRepetition);
 
-    uint8_t Depth = 0;
+    int32_t Depth = 0;
     while (true) {
         if (Node->getVisitsAndVirtualLoss() == 0) {
             break;
@@ -491,6 +489,7 @@ SelfplayPhase Worker::judge(Frame* F) const {
     if (F->getStateConfig()->Rule == core::EndingRule::ER_Declare27 &&
         F->getState()->canDeclare()) {
         F->setWinner(F->getState()->getSideToMove());
+        F->setDeclared(true);
         return SelfplayPhase::Save;
     }
 
@@ -519,6 +518,11 @@ SelfplayPhase Worker::judge(Frame* F) const {
         F->setWinner(F->getState()->getSideToMove());
         F->getState()->doMove(CheckmateMove);
         F->pushDidFullSearch(true);
+        // The move is a proven checkmate: the mover wins for sure.
+        // No neural-network evaluation exists for this position, so
+        // use the proven value for V as well.
+        F->pushQValue(1.0f);
+        F->pushVValue(1.0f);
         return SelfplayPhase::Save;
     }
 
@@ -529,6 +533,10 @@ SelfplayPhase Worker::transition(Frame* F) const {
     while (F->getState()->getPly() > F->getRootPly()) {
         F->getState()->undoMove();
     }
+
+    // The raw value-head output of the root position. The root has
+    // always been evaluated once by the time the search finishes.
+    F->pushVValue(F->getSearchTree()->getRoot()->getWinRatePredicted());
 
     if (!F->isGumbel()) { // AlphaZero style.
         // Choose a next move proportionally to visit counts.
@@ -557,6 +565,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
 
             mcts::Edge* SelectedEdge =
                 &F->getSearchTree()->getRoot()->getEdge()[SelectedIndex];
+            F->pushQValue(computeQOfSelectedEdge(F, SelectedEdge));
             F->getState()->doMove(
                 F->getState()->getMove32FromMove16(SelectedEdge->getMove()));
         } else {
@@ -591,6 +600,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
 
             assert(MaxEdge != nullptr ||
                    F->getSearchTree()->getRoot()->getNumChildren() == 1);
+            F->pushQValue(computeQOfSelectedEdge(F, MaxEdge));
             F->getState()->doMove(
                 F->getState()->getMove32FromMove16(MaxEdge->getMove()));
         }
@@ -598,7 +608,8 @@ SelfplayPhase Worker::transition(Frame* F) const {
     }
 
     if (F->getSearchTree()->getRoot()->getNumChildren() == 1) {
-        const mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[0];
+        mcts::Edge* Edge = &F->getSearchTree()->getRoot()->getEdge()[0];
+        F->pushQValue(computeQOfSelectedEdge(F, Edge));
         F->getState()->doMove(
             F->getState()->getMove32FromMove16(Edge->getMove()));
         return SelfplayPhase::Judging;
@@ -632,6 +643,7 @@ SelfplayPhase Worker::transition(Frame* F) const {
     }
 
     assert(ScoreMaxEdge != nullptr);
+    F->pushQValue(computeQOfSelectedEdge(F, ScoreMaxEdge));
     F->getState()->doMove(
         F->getState()->getMove32FromMove16(ScoreMaxEdge->getMove()));
     return SelfplayPhase::Judging;
@@ -715,7 +727,7 @@ mcts::Edge* Worker::pickUpEdgeToExplore<false>(Frame* F, core::Color SideToMove,
 }
 
 mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove,
-                                        mcts::Node* N, uint8_t Depth) const {
+                                        mcts::Node* N, int32_t Depth) const {
     if (F->isGumbel()) {
         return (Depth == 0) ? pickUpEdgeToExplore<true>(F, SideToMove, N)
                             : pickUpEdgeToExplore<false>(F, SideToMove, N);
@@ -759,6 +771,24 @@ double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                  : F->getStateConfig()->WhiteDrawValue;
 
     return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+}
+
+float Worker::computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const {
+    // Must be called before the selected move is applied to the state,
+    // since the win rate is computed from the perspective of the player
+    // to move at the root.
+    mcts::Node* Child = SelectedEdge->getTarget();
+
+    if (Child != nullptr) {
+        return (float)computeWinRateOfChild(F, F->getState()->getSideToMove(),
+                                            Child);
+    }
+
+    // The selected child has never been visited (e.g., the search was
+    // reduced because the root has only one legal move), so fall back
+    // to the root's own estimation.
+    return (float)computeWinRate(F, F->getState()->getSideToMove(),
+                                 F->getSearchTree()->getRoot());
 }
 
 bool Worker::isCheckmated(Frame* F) const {
@@ -849,8 +879,8 @@ uint16_t Worker::executeSequentialHalving(Frame* F) const {
                                    F->getIsTarget().size());
     assert(NumSort > 1);
     assert(F->getSequentialHalvingCount() > 0);
-    NumSort =
-        std::max((uint64_t)2, (NumSort + 1) >> F->getSequentialHalvingCount());
+    NumSort = std::max((uint64_t)2, (uint64_t)((NumSort + 1) >>
+                                               F->getSequentialHalvingCount()));
 
     // Gather top moves along policy + gumbel noise.
     std::partial_sort(ScoreWithIndex, ScoreWithIndex + (long)NumSort,

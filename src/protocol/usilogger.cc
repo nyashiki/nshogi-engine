@@ -154,8 +154,11 @@ int32_t USILogger::getScoreFromWinRate(double WinRate, double DrawRate,
 
     const double WinRateConsideringDraw =
         DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
-    if (WinRateConsideringDraw == 0.0) {
+    if (WinRateConsideringDraw <= 0.0) {
         return -9999;
+    }
+    if (WinRateConsideringDraw >= 1.0) {
+        return 9999;
     }
 
     return (int32_t)(-PonanzaConstant *

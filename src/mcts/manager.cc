@@ -128,6 +128,9 @@ void Manager::setupAllocator() {
     });
 
     std::thread EdgeAllocatorPrepareThread([&]() {
+        // One shard per allocating thread (search workers plus the
+        // manager thread, which expands the root).
+        EdgeAllocator.setNumShards(PContext->getNumSearchThreads() + 1);
         EdgeAllocator.resize(
             (std::size_t)(0.9 * (double)(PContext->getAvailableMemoryMB() *
                                          1024UL * 1024UL)));

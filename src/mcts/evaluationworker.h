@@ -22,6 +22,7 @@
 #include "statistics.h"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <nshogi/ml/common.h>
@@ -41,6 +42,10 @@ class EvaluationWorker : public worker::Worker {
 
  private:
     static constexpr std::size_t SEQUENTIAL_SKIP_THRESHOLD = 3;
+
+    // How long to sleep on an empty queue before re-checking; bounds the
+    // reaction time to a stop request while the queue stays empty.
+    static constexpr std::chrono::microseconds EmptyQueueWaitTimeout{200};
 
     void initializationTask() override;
     bool doTask() override;

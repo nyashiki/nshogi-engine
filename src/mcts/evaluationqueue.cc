@@ -46,17 +46,32 @@ bool EvaluationQueue::add(const core::State& State,
                           const core::StateConfig& Config, Node* N) {
     global_config::FeatureType FSC(State, Config);
 
-    std::unique_lock<std::mutex> Lock(Mutex);
+    {
+        std::unique_lock<std::mutex> Lock(Mutex);
 
-    CV.wait(Lock, [this]() { return Queue.size() < MaxQueueSize || !IsOpen; });
+        CV.wait(Lock,
+                [this]() { return Queue.size() < MaxQueueSize || !IsOpen; });
 
-    if (IsOpen) {
+        if (!IsOpen) {
+            return false;
+        }
+
         Queue.emplace(State.getSideToMove(), N, std::move(FSC),
                       State.getHash());
-        return true;
     }
 
-    return false;
+    // Wake up an evaluation worker waiting on an empty queue. A waiter
+    // blocked in add() (full queue) and a waiter blocked in
+    // waitForElements() (empty queue) can never coexist, so notifying
+    // just one waiter here cannot starve the other kind.
+    CV.notify_one();
+    return true;
+}
+
+bool EvaluationQueue::waitForElements(std::chrono::microseconds Timeout) {
+    std::unique_lock<std::mutex> Lock(Mutex);
+    CV.wait_for(Lock, Timeout, [this]() { return !Queue.empty() || !IsOpen; });
+    return !Queue.empty();
 }
 
 auto EvaluationQueue::get(std::size_t NumElements)

@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <cstddef>
 
 namespace nshogi {
 namespace engine {
@@ -70,32 +71,36 @@ class Statistics {
     void updateSolverElapsed(uint64_t Elapsed);
 
  private:
+    // Align each counter to its own cache line to avoid false sharing:
+    // these counters are incremented by all workers in the search hot path.
+    static constexpr std::size_t CacheLineSize = 64;
+
     // Search worker.
-    std::atomic<uint64_t> NumNullLeaf;
-    std::atomic<uint64_t> NumNonLeaf;
-    std::atomic<uint64_t> NumRepetition;
-    std::atomic<uint64_t> NumCheckmate;
-    std::atomic<uint64_t> NumFailedToAllocateNode;
-    std::atomic<uint64_t> NumFailedToAllocateEdge;
-    std::atomic<uint64_t> NumConflictNodeAllocation;
-    std::atomic<uint64_t> NumSpeculativeFailedEdge;
-    std::atomic<uint64_t> NumTooManyVirtualLossEdge;
-    std::atomic<uint64_t> NumBeingExtractedChildren;
-    std::atomic<uint64_t> NumUCBSelectionFailedEdge;
-    std::atomic<uint64_t> NumNullUCBMaxEdge;
-    std::atomic<uint64_t> NumCanDeclare;
-    std::atomic<uint64_t> NumOverMaxPly;
-    std::atomic<uint64_t> NumFailedToAddEvaluationQueue;
-    std::atomic<uint64_t> NumCacheHit;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumNullLeaf;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumNonLeaf;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumRepetition;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumCheckmate;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumFailedToAllocateNode;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumFailedToAllocateEdge;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumConflictNodeAllocation;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumSpeculativeFailedEdge;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumTooManyVirtualLossEdge;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumBeingExtractedChildren;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumUCBSelectionFailedEdge;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumNullUCBMaxEdge;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumCanDeclare;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumOverMaxPly;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumFailedToAddEvaluationQueue;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumCacheHit;
 
     // Evaluation worker.
-    std::atomic<uint64_t> EvaluationCount;
-    std::atomic<uint64_t> BatchSizeAccumulated;
+    alignas(CacheLineSize) std::atomic<uint64_t> EvaluationCount;
+    alignas(CacheLineSize) std::atomic<uint64_t> BatchSizeAccumulated;
 
     // Checkmate worker.
-    std::atomic<uint64_t> NumSolverWorked;
-    std::atomic<uint64_t> SolverElapsedMax;
-    std::atomic<uint64_t> SolverElapsedAccumulated;
+    alignas(CacheLineSize) std::atomic<uint64_t> NumSolverWorked;
+    alignas(CacheLineSize) std::atomic<uint64_t> SolverElapsedMax;
+    alignas(CacheLineSize) std::atomic<uint64_t> SolverElapsedAccumulated;
 };
 
 } // namespace mcts

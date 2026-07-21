@@ -9,7 +9,6 @@
 
 #include "feedworker.h"
 
-#include "../globalconfig.h"
 #include "../math/math.h"
 #include <nshogi/ml/math.h>
 
@@ -41,21 +40,20 @@ bool FeedWorker::doTask() {
 void FeedWorker::feedResults(std::unique_ptr<Batch>&& B) {
     if (PContext->isNaNFallbackEnabled()) {
         for (std::size_t I = 0; I < B->size(); ++I) {
-            feedResult<true>(B->color(I), B->node(I), B->policy(I),
-                             B->winRate(I), B->drawRate(I), B->hash(I));
+            feedResult<true>(B->node(I), B->legalPolicy(I), B->winRate(I),
+                             B->drawRate(I), B->hash(I));
         }
     } else {
         for (std::size_t I = 0; I < B->size(); ++I) {
-            feedResult<false>(B->color(I), B->node(I), B->policy(I),
-                              B->winRate(I), B->drawRate(I), B->hash(I));
+            feedResult<false>(B->node(I), B->legalPolicy(I), B->winRate(I),
+                              B->drawRate(I), B->hash(I));
         }
     }
 }
 
 template <bool NaNFallbackEnabled>
-void FeedWorker::feedResult(core::Color SideToMove, Node* N,
-                            const float* Policy, float WinRate, float DrawRate,
-                            uint64_t Hash) {
+void FeedWorker::feedResult(Node* N, float* LegalPolicy, float WinRate,
+                            float DrawRate, uint64_t Hash) {
     bool NaNFound = false;
     if constexpr (NaNFallbackEnabled) {
         if (math::isnan_(WinRate)) {
@@ -102,12 +100,11 @@ void FeedWorker::feedResult(core::Color SideToMove, Node* N,
         LegalPolicy[0] = 1.0f;
         N->setEvaluation(LegalPolicy, WinRate, DrawRate);
     } else {
+        // LegalPolicy holds the logits of the legal moves in the edge
+        // order, gathered by the evaluation worker; turn them into
+        // probabilities in place.
         if constexpr (NaNFallbackEnabled) {
             for (uint16_t I = 0; I < NumChildren; ++I) {
-                const std::size_t MoveIndex =
-                    ml::getMoveIndex<global_config::ChannelsFirst>(
-                        SideToMove, N->getEdge()[I].getMove());
-                LegalPolicy[I] = Policy[MoveIndex];
                 if (math::isnan_(LegalPolicy[I])) {
                     NaNFound = true;
                     for (uint16_t J = 0; J < NumChildren; ++J) {
@@ -115,13 +112,6 @@ void FeedWorker::feedResult(core::Color SideToMove, Node* N,
                     }
                     break;
                 }
-            }
-        } else {
-            for (uint16_t I = 0; I < NumChildren; ++I) {
-                const std::size_t MoveIndex =
-                    ml::getMoveIndex<global_config::ChannelsFirst>(
-                        SideToMove, N->getEdge()[I].getMove());
-                LegalPolicy[I] = Policy[MoveIndex];
             }
         }
         ml::math::softmax_(LegalPolicy, NumChildren, 1.0f);

@@ -10,7 +10,7 @@
 #define NSHOGI_ENGINE_MCTS_MANAGER_H
 
 #include "../allocator/fixed_allocator.h"
-#include "../allocator/segregated_free_list.h"
+#include "../allocator/slab.h"
 #include "../book/book.h"
 #include "../context.h"
 #include "../globalconfig.h"
@@ -90,7 +90,7 @@ class Manager {
 
     const Context* PContext;
     allocator::FixedAllocator<sizeof(Node)> NodeAllocator;
-    allocator::SegregatedFreeListAllocator<> EdgeAllocator;
+    allocator::SlabAllocator<> EdgeAllocator;
 
     std::unique_ptr<Tree> SearchTree;
     std::unique_ptr<GarbageCollector> GC;

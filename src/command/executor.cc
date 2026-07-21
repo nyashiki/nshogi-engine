@@ -129,8 +129,16 @@ void Executor::executeCommand(const commands::SetPosition* Command) {
 void Executor::executeCommand(const commands::Think* Command) {
     if (State == nullptr) {
         PLogger->printLog("ERROR: State is null.");
+        // Reply with a bestmove (resign) so that the GUI does not hang
+        // waiting for a response.
+        if (Command->callback() != nullptr) {
+            Command->callback()(core::Move32::MoveNone());
+        }
     } else if (StateConfig == nullptr) {
         PLogger->printLog("ERROR: StateConfig is null.");
+        if (Command->callback() != nullptr) {
+            Command->callback()(core::Move32::MoveNone());
+        }
     } else {
         const Limit* MyLimit = State->getSideToMove() == core::Black
                                    ? &Command->limit()[0]

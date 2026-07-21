@@ -55,11 +55,12 @@ class Worker : public worker::Worker {
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove,
                                     mcts::Node*) const;
     mcts::Edge* pickUpEdgeToExplore(Frame*, core::Color SideToMove, mcts::Node*,
-                                    uint8_t Depth) const;
+                                    int32_t Depth) const;
     double computeWinRate(Frame* F, core::Color SideToMove,
                           mcts::Node* Child) const;
     double computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                  mcts::Node* Child) const;
+    float computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const;
     bool isCheckmated(Frame* F) const;
     void sampleTopMMoves(Frame*) const;
     uint16_t executeSequentialHalving(Frame*) const;

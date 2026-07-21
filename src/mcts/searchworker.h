@@ -25,6 +25,7 @@
 #include <nshogi/core/stateconfig.h>
 #include <nshogi/solver/dfpn.h>
 
+#include <chrono>
 #include <functional>
 #include <vector>
 
@@ -45,6 +46,25 @@ class SearchWorker : public worker::Worker {
  protected:
     static constexpr int32_t CBase = 19652;
     static constexpr double CInit = 1.25;
+
+    // A single failed descent can be a transient race with another
+    // worker; a short streak of them occurs while harvesting a freshly
+    // fed frontier; only a long streak means every reachable leaf is
+    // pending evaluation. On short streaks the worker briefly pauses and
+    // retries: the pause must stay in the microsecond range because the
+    // retries themselves (through the transient virtual losses they
+    // leave behind) are what steers descents to free leaves and keeps
+    // the evaluation pipeline saturated, while anything longer (a yield
+    // or a sleep) throttles the retries so much that the in-flight
+    // evaluations collapse to a single batch and the pipeline stages
+    // serialize. Only on long streaks does the worker sleep to release
+    // the core; the sleep must stay well below the feed interval since
+    // slots for new descents open up per fed node and a sleeping worker
+    // cannot see them until it wakes up.
+    static constexpr uint32_t NullLeafStreakToPause = 3;
+    static constexpr uint32_t NullLeafStreakToSleep = 1024;
+    static constexpr std::chrono::microseconds NullLeafRetryPause{2};
+    static constexpr std::chrono::microseconds NullLeafSleep{50};
 
     bool doTask() override;
 
@@ -78,6 +98,7 @@ class SearchWorker : public worker::Worker {
     EvalCache* ECache;
     solver::dfpn::Solver DfPnSolver;
     Statistics* PStat;
+    uint32_t ConsecutiveNullLeaves;
 
     EvalCache::EvalInfo CacheEvalInfo;
 };

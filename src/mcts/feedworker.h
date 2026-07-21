@@ -17,8 +17,6 @@
 
 #include <memory>
 
-#include <nshogi/ml/common.h>
-
 namespace nshogi {
 namespace engine {
 namespace mcts {
@@ -33,13 +31,12 @@ class FeedWorker : public worker::Worker {
     void feedResults(std::unique_ptr<Batch>&&);
 
     template <bool NaNFallbackEnabled>
-    void feedResult(core::Color SideToMove, Node* N, const float* Policy,
-                    float WinRate, float DrawRate, uint64_t Hash);
+    void feedResult(Node* N, float* LegalPolicy, float WinRate, float DrawRate,
+                    uint64_t Hash);
 
     const Context* PContext;
     FeedQueue* Queue;
     EvalCache* ECache;
-    float LegalPolicy[ml::MoveIndexMax];
 };
 
 } // namespace mcts

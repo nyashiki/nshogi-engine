@@ -8,7 +8,7 @@
 //
 
 #include "../allocator/fixed_allocator.h"
-#include "../allocator/segregated_free_list.h"
+#include "../allocator/slab.h"
 #include "../argparser.h"
 #include "evaluationworker.h"
 #include "framequeue.h"
@@ -16,6 +16,7 @@
 #include "selfplayinfo.h"
 #include "worker.h"
 
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -71,11 +72,13 @@ int main(int Argc, char* Argv[]) {
     // Setup allocator.
     auto NodeAllocator =
         std::make_unique<allocator::FixedAllocator<sizeof(mcts::Node)>>();
-    auto EdgeAllocator =
-        std::make_unique<allocator::SegregatedFreeListAllocator<>>();
+    auto EdgeAllocator = std::make_unique<allocator::SlabAllocator<>>();
 
     const std::size_t AVAILABLE_MEMORY_MB =
         (std::size_t)std::stoull(Parser.getOption("memory-size"));
+    // One shard per allocating thread (the search workers).
+    EdgeAllocator->setNumShards(
+        (std::size_t)std::stoull(Parser.getOption("num-search-workers")) + 1);
     NodeAllocator->resize(
         (std::size_t)(0.1 * (double)AVAILABLE_MEMORY_MB * 1024ULL * 1024ULL));
     EdgeAllocator->resize(
@@ -167,6 +170,9 @@ int main(int Argc, char* Argv[]) {
         (uint64_t)std::stoull(Parser.getOption("num-playouts"));
     const uint64_t NumSamplingMoves =
         (uint16_t)std::stoul(Parser.getOption("num-sampling-moves"));
+    // In gumbel mode, NumSamplingMoves == 1 causes a division by
+    // log2(1) == 0 when computing the sequential halving schedule.
+    assert(!IsGumbel || NumSamplingMoves >= 2);
     const double FullSearchRatio =
         std::stod(Parser.getOption("full-search-ratio"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;

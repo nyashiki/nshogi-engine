@@ -11,6 +11,7 @@
 #define NSHOGI_ENGINE_BENCH_MCTS_H
 
 #include <cinttypes>
+#include <cstddef>
 
 namespace nshogi {
 namespace engine {

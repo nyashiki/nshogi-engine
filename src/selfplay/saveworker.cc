@@ -102,7 +102,7 @@ void SaveWorker::updateStatistics(Frame* F) {
         SInfo->incrementDraw();
     }
 
-    if (F->getState()->canDeclare()) {
+    if (F->getDeclared()) {
         SInfo->incrementDeclare();
     }
 
@@ -164,6 +164,11 @@ void SaveWorker::save(Frame* F) {
 
     STeacher.setConfig(*F->getStateConfig());
     STeacher.setWinner(F->getWinner());
+    STeacher.setGamePly(F->getState()->getPly());
+    STeacher.setDeclared(F->getDeclared());
+
+    assert(F->getQValues().size() == F->getDidFullSearch().size());
+    assert(F->getVValues().size() == F->getDidFullSearch().size());
 
     while (Replay.getPly(false) < F->getState()->getPly(false)) {
         const auto NextMove =
@@ -174,6 +179,8 @@ void SaveWorker::save(Frame* F) {
         if (F->getDidFullSearch().at(Replay.getPly(false))) {
             STeacher.setState(Replay);
             STeacher.setNextMove(core::Move16(NextMove));
+            STeacher.setV(F->getVValues().at(Replay.getPly(false)));
+            STeacher.setQ(F->getQValues().at(Replay.getPly(false)));
             io::file::simple_teacher::save(Ofs, STeacher);
         }
 

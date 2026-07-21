@@ -16,6 +16,8 @@
 #include "framequeue.h"
 #include "selfplayinfo.h"
 
+#include <string>
+
 namespace nshogi {
 namespace engine {
 namespace selfplay {
@@ -36,6 +38,9 @@ class EvaluationWorker : public worker::Worker {
 
     std::unique_ptr<infer::Infer> Infer;
     std::unique_ptr<evaluate::Evaluator> Evaluator;
+    const std::size_t MyThreadId;
+    const std::size_t MyGPUId;
+    const std::string MyWeightPath;
     const std::size_t BatchSize;
     FrameQueue* EvaluationQueue;
     FrameQueue* SearchQueue;

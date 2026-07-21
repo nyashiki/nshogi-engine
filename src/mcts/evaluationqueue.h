@@ -13,6 +13,7 @@
 #include "../globalconfig.h"
 #include "node.h"
 
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -34,6 +35,10 @@ class EvaluationQueue {
                       std::vector<global_config::FeatureType>,
                       std::vector<uint64_t>>;
     std::size_t count() const;
+
+    // Blocks until the queue has at least one element, the queue gets
+    // closed, or Timeout elapses. Returns true if an element is available.
+    bool waitForElements(std::chrono::microseconds Timeout);
 
  private:
     const std::size_t MaxQueueSize;

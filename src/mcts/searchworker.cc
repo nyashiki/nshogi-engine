@@ -10,8 +10,10 @@
 #include "searchworker.h"
 #include "../globalconfig.h"
 
+#include <chrono>
 #include <cmath>
 #include <limits>
+#include <thread>
 
 #include <nshogi/core/movegenerator.h>
 
@@ -41,7 +43,8 @@ SearchWorker::SearchWorker(bool CheckmateSearchEnabled,
     , EQueue(EQ)
     , ECache(EC)
     , DfPnSolver(CheckmateSearchEnabled ? 64 : 0)
-    , PStat(Stat) {
+    , PStat(Stat)
+    , ConsecutiveNullLeaves(0) {
 
     spawnThread();
 }
@@ -58,6 +61,7 @@ void SearchWorker::updateRoot(const core::State& S,
     RootSideToMove = State->getSideToMove();
 
     RootPly = State->getPly();
+    ConsecutiveNullLeaves = 0;
 }
 
 Node* SearchWorker::collectOneLeaf() {
@@ -142,7 +146,9 @@ Node* SearchWorker::collectOneLeaf() {
 
             if (NewNode == nullptr) {
                 // If there is no available memory, it has failed to allocate a
-                // new node.
+                // new node. Roll back the expanding mark so that this edge
+                // does not remain in the "being expanded" state forever.
+                E->unmarkExpanding();
                 PStat->incrementNumFailedToAllocateNode();
                 cancelVirtualLoss(CurrentNode);
                 return nullptr;
@@ -249,24 +255,23 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
             if (MyVirtualLoss == 0) {
                 return &N->getEdge()[0];
             } else {
-                bool Acceptable = true;
-
+                // The preceding MyVirtualLoss edges have been claimed by
+                // concurrent descents. Speculatively take the next best
+                // edge, but only when it is the genuine UCB maximum with
+                // each claimed child modeled as one virtual visit whose
+                // win rate is zero: the claimed edge I then scores
+                // C * P[I] / (1 + 1) while an unvisited edge scores
+                // C * P[VL], so the speculative edge wins iff
+                // 2 * P[VL] > P[I] for every claimed I. The edges are
+                // sorted by prior, so checking I = 0 suffices. Otherwise
+                // the UCB maximum is a claimed edge and descending there
+                // cannot make progress, so give up this descent.
                 const double ThisPolicy =
                     (double)N->getEdge()[MyVirtualLoss].getProbability();
-                const double Const =
-                    1.0 /
-                    (CInit * std::sqrt((double)(MyVirtualLoss + (uint64_t)1)));
-                for (uint16_t I = 0; I < MyVirtualLoss - 1; ++I) {
-                    const double Policy =
-                        (double)N->getEdge()[I].getProbability();
+                const double TopPolicy =
+                    (double)N->getEdge()[0].getProbability();
 
-                    if (Const + Policy / (double)MyVirtualLoss >= ThisPolicy) {
-                        Acceptable = false;
-                        break;
-                    }
-                }
-
-                if (Acceptable) {
+                if (2.0 * ThisPolicy > TopPolicy) {
                     return &N->getEdge()[MyVirtualLoss];
                 } else {
                     PStat->incrementNumSpeculativeFailedEdge();
@@ -446,6 +451,15 @@ double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
 }
 
 bool SearchWorker::doTask() {
+#ifdef SEARCH_WORKER_DELAY_NS
+    // Busy-wait rather than sleep: a low-clocked CPU keeps the core occupied
+    // while running slowly, whereas sleeping would release the core.
+    const auto DelayStart = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - DelayStart <
+           std::chrono::nanoseconds(SEARCH_WORKER_DELAY_NS)) {
+    }
+#endif
+
     // Go back to the root state.
     while (State->getPly() != RootPly) {
         State->undoMove();
@@ -455,8 +469,23 @@ bool SearchWorker::doTask() {
 
     if (LeafNode == nullptr) {
         PStat->incrementNumNullLeaf();
+        // See the comment on the constants in the header for why short
+        // streaks take a microsecond-scale pause and only long streaks
+        // sleep.
+        ++ConsecutiveNullLeaves;
+        if (ConsecutiveNullLeaves >= NullLeafStreakToPause) {
+            if (ConsecutiveNullLeaves >= NullLeafStreakToSleep) {
+                std::this_thread::sleep_for(NullLeafSleep);
+            } else {
+                const auto PauseStart = std::chrono::steady_clock::now();
+                while (std::chrono::steady_clock::now() - PauseStart <
+                       NullLeafRetryPause) {
+                }
+            }
+        }
         return false;
     }
+    ConsecutiveNullLeaves = 0;
 
     const uint64_t NumVisitsAndVirtualLoss =
         LeafNode->getVisitsAndVirtualLoss();
@@ -619,7 +648,9 @@ SearchWorkerMaster::SearchWorkerMaster(
     , Callback(SearchStopCallback)
     , Logger(std::move(L))
     , ImmediateLogEnabled(true)
-    , Exiting(false) {
+    , Exiting(false)
+    , MadeUpCheckElapsedPrevious(0)
+    , BestEdgePrevious(nullptr) {
 
     StopCallThread = std::thread([this]() {
         while (true) {
@@ -654,6 +685,8 @@ void SearchWorkerMaster::setLimit(const engine::Limit& L) {
 void SearchWorkerMaster::start() {
     SearchStartTime = std::chrono::steady_clock::now();
     MadeUpCheckElapsedPrevious = 0;
+    BestEdgePrevious = nullptr;
+    VisitsPrevious.clear();
     NumNodesAtStart = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
     LogOutputPrevious = 0;
     CallbackCalled.store(false, std::memory_order_release);

@@ -58,6 +58,10 @@ core::Color Frame::getWinner() const {
     return Winner;
 }
 
+bool Frame::getDeclared() const {
+    return Declared;
+}
+
 void Frame::setState(std::unique_ptr<core::State>&& S) {
     State = std::move(S);
 }
@@ -68,6 +72,10 @@ void Frame::setConfig(std::unique_ptr<core::StateConfig>&& SC) {
 
 void Frame::setWinner(core::Color C) {
     Winner = C;
+}
+
+void Frame::setDeclared(bool D) {
+    Declared = D;
 }
 
 mcts::Node* Frame::getNodeToEvaluate() {
@@ -109,12 +117,16 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
 
     if constexpr (!Aggregated) {
         assert(EvalCache != nullptr);
-        EvalCache->store(State->getHash(), NumChildren, LegalPolicyLogits.get(),
-                         WinRate, DrawRate);
+        if (Policy != nullptr) {
+            EvalCache->store(State->getHash(), NumChildren,
+                             LegalPolicyLogits.get(), WinRate, DrawRate);
+        }
     }
 
     if (!isGumbel() || NodeToEvaluate != SearchTree->getRoot()) {
-        ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+        if (Policy != nullptr) {
+            ml::math::softmax_(LegalPolicyLogits.get(), NumChildren, 1.0f);
+        }
     }
 
     // Add dirichlet noise.
@@ -124,10 +136,18 @@ void Frame::setEvaluation(const float* Policy, float WinRate, float DrawRate) {
         assert(getDidFullSearch().size() > 0);
         if (getDidFullSearch().back()) {
             const double EPS = 0.25;
+            // The noise values are raw gamma samples. Normalizing them
+            // over the legal moves turns them into a Dirichlet sample.
+            double NoiseSum = 0.0;
             for (std::size_t I = 0; I < NumChildren; ++I) {
-                LegalPolicyLogits[I] =
-                    (float)((1 - EPS) * (double)LegalPolicyLogits[I] +
-                            EPS * Noise[I]);
+                NoiseSum += Noise[I];
+            }
+            if (NoiseSum > 0.0) {
+                for (std::size_t I = 0; I < NumChildren; ++I) {
+                    LegalPolicyLogits[I] =
+                        (float)((1 - EPS) * (double)LegalPolicyLogits[I] +
+                                EPS * (Noise[I] / NoiseSum));
+                }
             }
         }
     }
@@ -185,6 +205,30 @@ void Frame::pushDidFullSearch(bool V) {
 
 const std::vector<bool>& Frame::getDidFullSearch() const {
     return DidFullSearch;
+}
+
+void Frame::clearQValues() {
+    QValues.clear();
+}
+
+void Frame::pushQValue(float Q) {
+    QValues.emplace_back(Q);
+}
+
+const std::vector<float>& Frame::getQValues() const {
+    return QValues;
+}
+
+void Frame::clearVValues() {
+    VValues.clear();
+}
+
+void Frame::pushVValue(float V) {
+    VValues.emplace_back(V);
+}
+
+const std::vector<float>& Frame::getVValues() const {
+    return VValues;
 }
 
 template void Frame::setEvaluation<false>(const float* Policy, float WinRate,
