@@ -31,7 +31,8 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
                uint64_t NumPlayouts, uint16_t NumSamplingMoves,
                double FullSearchRatio,
                std::vector<core::Position>* InitialPositionsToPlay,
-               bool UseShogi816k, SelfplayInfo* SI)
+               bool UseShogi816k, std::vector<core::Position>* TP,
+               SelfplayInfo* SI)
     : worker::Worker(true)
     , FQueue(FQ)
     , EvaluationQueue(EFQ)
@@ -43,6 +44,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
     , MyNumSamplingMoves(NumSamplingMoves)
     , MyFullSearchRatio(FullSearchRatio)
     , InitialPositions(InitialPositionsToPlay)
+    , TabooPositions(TP)
     , USE_SHOGI816K(UseShogi816k)
     , Solver(64)
     , SInfo(SI) {
@@ -271,6 +273,16 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         return SelfplayPhase::Backpropagation;
     }
 
+    if (TabooPositions != nullptr) {
+        for (const auto& TabooPosition : *TabooPositions) {
+            if (F->getState()->getPosition().equals(TabooPosition, true)) {
+                assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
+                F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
+                return SelfplayPhase::Backpropagation;
+            }
+        }
+    }
+
     const auto RS = F->getState()->getRepetitionStatus(true);
 
     // Repetition.
@@ -491,6 +503,15 @@ SelfplayPhase Worker::judge(Frame* F) const {
         F->setWinner(F->getState()->getSideToMove());
         F->setDeclared(true);
         return SelfplayPhase::Save;
+    }
+
+    if (TabooPositions != nullptr) {
+        for (const auto& TabooPosition : *TabooPositions) {
+            if (F->getState()->getPosition().equals(TabooPosition, true)) {
+                F->setWinner(~F->getState()->getSideToMove());
+                return SelfplayPhase::Save;
+            }
+        }
     }
 
     if (core::MoveGenerator::generateLegalMoves(*F->getState()).size() == 0) {
