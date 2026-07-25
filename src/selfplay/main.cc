@@ -64,14 +64,17 @@ int main(int Argc, char* Argv[]) {
         return 0;
     }
 
-    if (Parser.isSpecified("gumbel") && Parser.isSpecified("full-search-ratio")) {
-        std::cerr << "You can't specify --gumbel and --full-search-ratio at the same time."
+    if (Parser.isSpecified("gumbel") &&
+        Parser.isSpecified("full-search-ratio")) {
+        std::cerr << "You can't specify --gumbel and --full-search-ratio at "
+                     "the same time."
                   << std::endl;
         return 1;
     }
 
     if (Parser.isSpecified("gumbel")) {
-        std::cout << "Gumbel AlphaZero style self-play is enabled." << std::endl;
+        std::cout << "Gumbel AlphaZero style self-play is enabled."
+                  << std::endl;
     }
 
     using namespace nshogi;
@@ -191,14 +194,15 @@ int main(int Argc, char* Argv[]) {
                 continue;
             }
             if (Line.find("moves") != std::string::npos) {
-                std::cerr << "Moves are not allowed in a taboo position." << std::endl;
+                std::cerr << "Moves are not allowed in a taboo position."
+                          << std::endl;
                 std::cerr << Line << std::endl;
                 abort();
             }
-            const auto State =
-                nshogi::io::sfen::StateBuilder::newState(Line);
+            const auto State = nshogi::io::sfen::StateBuilder::newState(Line);
             if (State.canDeclare()) {
-                std::cerr << "Declaration position is not allowed." << std::endl;
+                std::cerr << "Declaration position is not allowed."
+                          << std::endl;
                 std::cerr << Line << std::endl;
                 abort();
             }
@@ -231,7 +235,8 @@ int main(int Argc, char* Argv[]) {
     assert(!IsGumbel || NumSamplingMoves >= 2);
     const double FullSearchRatio =
         (Parser.isSpecified("gumbel"))
-            ? 5.0 // 1.0 is enough but we set 5.0 just in case of numerical errors.
+            ? 5.0 // 1.0 is enough but we set 5.0 just in case of numerical
+                  // errors.
             : (double)std::stod(Parser.getOption("full-search-ratio"));
     std::vector<std::unique_ptr<worker::Worker>> SearchWorkers;
     for (std::size_t I = 0; I < NUM_SEARCH_WORKERS; ++I) {
@@ -239,7 +244,8 @@ int main(int Argc, char* Argv[]) {
             SearchQueue.get(), EvaluationQueue.get(), SaveQueue.get(),
             NodeAllocator.get(), EdgeAllocator.get(), EvalCache.get(),
             NumPlayouts, NumSamplingMoves, FullSearchRatio,
-            InitialPositions.get(), USE_SHOGI816K, TabooPositions.get(), SInfo.get()));
+            InitialPositions.get(), USE_SHOGI816K, TabooPositions.get(),
+            SInfo.get()));
     }
 
     const std::size_t NUM_EVALUATION_WORKERS_PER_GPU = (std::size_t)std::stoull(

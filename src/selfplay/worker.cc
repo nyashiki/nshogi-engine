@@ -31,8 +31,7 @@ Worker::Worker(FrameQueue* FQ, FrameQueue* EFQ, FrameQueue* SFQ,
                uint64_t NumPlayouts, uint16_t NumSamplingMoves,
                double FullSearchRatio,
                std::vector<core::Position>* InitialPositionsToPlay,
-               bool UseShogi816k,
-               std::vector<core::Position>* TP,
+               bool UseShogi816k, std::vector<core::Position>* TP,
                SelfplayInfo* SI)
     : worker::Worker(true)
     , FQueue(FQ)
