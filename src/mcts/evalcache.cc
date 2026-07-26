@@ -66,8 +66,7 @@ EvalCache::EvalCache(std::size_t MemorySize)
     , RegionBytes(NumBuckets * BUCKET_BYTES)
     , Region(allocateRegion(RegionBytes))
     , Buckets(static_cast<Bucket*>(Region))
-    , Payloads(reinterpret_cast<Payload*>(static_cast<char*>(Region) +
-                                          NumBuckets * sizeof(Bucket))) {
+    , Regions(static_cast<char*>(Region) + NumBuckets * sizeof(Bucket)) {
     // Zero-initialized headers (all ways empty, version 0) are the
     // valid initial state. The payload region needs no initialization:
     // a payload slot is read only after a completed store() published
@@ -83,22 +82,8 @@ EvalCache::~EvalCache() {
 }
 
 std::size_t EvalCache::bucketIndex(uint64_t Hash) const {
-    // Mix the hash first: the bucket spread must not depend on how
-    // core::State::getHash() distributes its bits across the word
-    // (the side-to-move bit and the stands occupy fixed positions,
-    // and the Zobrist keys' width is not guaranteed here). Only the
-    // bucket selection uses the mixed value; the ways store the raw
-    // hash as the key. The mixer is the 64-bit finalizer of
-    // MurmurHash3.
-    uint64_t X = Hash;
-    X ^= X >> 33;
-    X *= 0xFF51AFD7ED558CCDULL;
-    X ^= X >> 33;
-    X *= 0xC4CEB9FE1A85EC53ULL;
-    X ^= X >> 33;
-    // Multiply-shift maps the mixed value onto [0, NumBuckets) without
-    // an integer division. NumBuckets fits in 32 bits.
-    return (std::size_t)(((X >> 32) * (uint64_t)NumBuckets) >> 32);
+    // Multiply-shift maps the hash's top 32 bits onto [0, NumBuckets).
+    return (std::size_t)(((Hash >> 32) * (uint64_t)NumBuckets) >> 32);
 }
 
 bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
@@ -123,48 +108,133 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
         return false;
     }
 
-    // The version is now odd: this thread owns the bucket.
-    // Pick the way to write to: an empty way if there is one,
-    // otherwise the least recently used one.
-    std::size_t ReplaceWay = 0;
-    std::size_t Empty = NUM_WAYS;
-    uint8_t MinRecency = 255;
+    // The version is now odd: this thread owns the bucket, so the
+    // header fields and the payload region are safe to mutate; readers
+    // that overlap with the mutation discard their copy on the version
+    // re-check.
+    uint16_t NM[NUM_WAYS];
+    uint16_t Off[NUM_WAYS];
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        const uint16_t NM = B->NumMoves[W].load(std::memory_order_relaxed);
+        NM[W] = B->NumMoves[W].load(std::memory_order_relaxed);
+        Off[W] = B->Offset[W].load(std::memory_order_relaxed);
 
-        if (B->Key[W].load(std::memory_order_relaxed) == Hash && NM == NumM) {
+        if (NM[W] != 0 && NM[W] == NumM &&
+            B->Key[W].load(std::memory_order_relaxed) == Hash) {
             // The entry already exists; keep the stored values and only
             // refresh its recency.
             B->Recency[W].store(255, std::memory_order_relaxed);
             B->Version.store(V + 2, std::memory_order_release);
             return true;
         }
+    }
 
-        if (NM == 0) {
-            if (Empty == NUM_WAYS) {
-                Empty = W;
-            }
+    const std::size_t Need = entryBytes(NumM);
+
+    // Make room: the new entry needs a free way and Need bytes of
+    // region space. Evict the least recently used way first when all
+    // four are occupied, then keep evicting until the entry fits.
+    // The loop terminates because Need <= REGION_BYTES.
+    std::size_t LiveBytes = 0;
+    bool HasFreeWay = false;
+    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+        if (NM[W] != 0) {
+            LiveBytes += entryBytes(NM[W]);
         } else {
-            const uint8_t R = B->Recency[W].load(std::memory_order_relaxed);
-            if (R < MinRecency) {
-                MinRecency = R;
-                ReplaceWay = W;
-            }
+            HasFreeWay = true;
         }
     }
-    if (Empty != NUM_WAYS) {
-        ReplaceWay = Empty;
+
+    const auto EvictLRU = [&]() {
+        std::size_t Victim = NUM_WAYS;
+        uint8_t MinRecency = 0;
+        for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+            if (NM[W] == 0) {
+                continue;
+            }
+            const uint8_t R = B->Recency[W].load(std::memory_order_relaxed);
+            if (Victim == NUM_WAYS || R < MinRecency) {
+                MinRecency = R;
+                Victim = W;
+            }
+        }
+        LiveBytes -= entryBytes(NM[Victim]);
+        NM[Victim] = 0;
+        B->NumMoves[Victim].store(0, std::memory_order_relaxed);
+    };
+
+    if (!HasFreeWay) {
+        EvictLRU();
+    }
+    while (REGION_BYTES - LiveBytes < Need) {
+        EvictLRU();
     }
 
-    Payload* PL = payloadOf(BIdx, ReplaceWay);
-    PL->WinRate = WR;
-    PL->DrawRate = D;
-    std::memcpy(PL->Policy, P, sizeof(float) * NumM);
+    // Place the entry after the last live one if the tail is large
+    // enough, or failing that into the first eviction gap it fits in;
+    // only when neither works are the live entries compacted to the
+    // front of the region. Compaction moves at most REGION_BYTES bytes
+    // inside one bucket and happens at most once per insertion.
+    char* Rg = regionOf(BIdx);
 
-    B->Key[ReplaceWay].store(Hash, std::memory_order_relaxed);
-    B->NumMoves[ReplaceWay].store(NumM, std::memory_order_relaxed);
+    std::size_t Order[NUM_WAYS];
+    std::size_t NumLive = 0;
+    std::size_t End = 0;
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        if (W == ReplaceWay) {
+        if (NM[W] != 0) {
+            Order[NumLive++] = W;
+            End = std::max<std::size_t>(End, Off[W] + entryBytes(NM[W]));
+        }
+    }
+
+    std::size_t At = End;
+    if (REGION_BYTES - End < Need) {
+        std::sort(Order, Order + NumLive,
+                  [&](std::size_t A, std::size_t C) { return Off[A] < Off[C]; });
+
+        // Gaps precede each live entry in offset order.
+        At = REGION_BYTES; // Sentinel: no gap found yet.
+        std::size_t Cursor = 0;
+        for (std::size_t I = 0; I < NumLive; ++I) {
+            const std::size_t W = Order[I];
+            if (Off[W] - Cursor >= Need) {
+                At = Cursor;
+                break;
+            }
+            Cursor = Off[W] + entryBytes(NM[W]);
+        }
+
+        if (At == REGION_BYTES) {
+            Cursor = 0;
+            for (std::size_t I = 0; I < NumLive; ++I) {
+                const std::size_t W = Order[I];
+                const std::size_t Sz = entryBytes(NM[W]);
+                if (Off[W] != Cursor) {
+                    std::memmove(Rg + Cursor, Rg + Off[W], Sz);
+                    B->Offset[W].store((uint16_t)Cursor,
+                                       std::memory_order_relaxed);
+                }
+                Cursor += Sz;
+            }
+            At = Cursor;
+        }
+    }
+
+    std::memcpy(Rg + At, &WR, sizeof(float));
+    std::memcpy(Rg + At + sizeof(float), &D, sizeof(float));
+    std::memcpy(Rg + At + 2 * sizeof(float), P, sizeof(float) * NumM);
+
+    std::size_t Slot = NUM_WAYS;
+    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+        if (NM[W] == 0) {
+            Slot = W;
+            break;
+        }
+    }
+    B->Key[Slot].store(Hash, std::memory_order_relaxed);
+    B->NumMoves[Slot].store(NumM, std::memory_order_relaxed);
+    B->Offset[Slot].store((uint16_t)At, std::memory_order_relaxed);
+    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+        if (W == Slot) {
             B->Recency[W].store(255, std::memory_order_relaxed);
         } else {
             const uint8_t R = B->Recency[W].load(std::memory_order_relaxed);
@@ -197,15 +267,25 @@ bool EvalCache::load(uint64_t Hash, EvalInfo* EI) {
             continue;
         }
 
+        const uint16_t Off = B->Offset[W].load(std::memory_order_relaxed);
+        if (Off > REGION_BYTES - entryBytes(NumM)) {
+            // A torn read of the header (the offset and the move count
+            // belong to different versions of the way). Bounding the
+            // copy keeps it inside this bucket's region; the version
+            // re-check below rejects the result anyway.
+            continue;
+        }
+
         // The payload is copied without holding a lock, so it may be
         // torn by a concurrent store(); the version re-check below
         // discards such a read. (This is the usual seqlock pattern;
         // the racing reads are benign and are never returned.)
-        const Payload* PL = payloadOf(BIdx, W);
+        const char* Rg = regionOf(BIdx);
         EI->NumMoves = NumM;
-        EI->WinRate = PL->WinRate;
-        EI->DrawRate = PL->DrawRate;
-        std::memcpy(EI->Policy, PL->Policy, sizeof(float) * NumM);
+        std::memcpy(&EI->WinRate, Rg + Off, sizeof(float));
+        std::memcpy(&EI->DrawRate, Rg + Off + sizeof(float), sizeof(float));
+        std::memcpy(EI->Policy, Rg + Off + 2 * sizeof(float),
+                    sizeof(float) * NumM);
 
         std::atomic_thread_fence(std::memory_order_acquire);
         if (B->Version.load(std::memory_order_relaxed) != V0) {
