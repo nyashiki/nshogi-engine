@@ -188,8 +188,9 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
 
     std::size_t At = End;
     if (REGION_BYTES - End < Need) {
-        std::sort(Order, Order + NumLive,
-                  [&](std::size_t A, std::size_t C) { return Off[A] < Off[C]; });
+        std::sort(Order, Order + NumLive, [&](std::size_t A, std::size_t C) {
+            return Off[A] < Off[C];
+        });
 
         // Gaps precede each live entry in offset order.
         At = REGION_BYTES; // Sentinel: no gap found yet.

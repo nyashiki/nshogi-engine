@@ -31,8 +31,7 @@ uint16_t numMovesOf(uint64_t H) {
 }
 
 float policyOf(uint64_t H, uint32_t I) {
-    return (float)(uint32_t)(H * 2654435761U + I * 40503U) /
-           (float)UINT32_MAX;
+    return (float)(uint32_t)(H * 2654435761U + I * 40503U) / (float)UINT32_MAX;
 }
 
 void fillEntry(uint64_t H, EvalCache::EvalInfo* EI) {
@@ -58,9 +57,8 @@ void expectEntryMatches(uint64_t H, const EvalCache::EvalInfo& EI) {
 TEST(EvalCache, StoreLoadRoundTrip) {
     EvalCache Cache(1);
 
-    for (uint16_t NumM :
-         {(uint16_t)1, (uint16_t)2, (uint16_t)43, (uint16_t)128,
-          (uint16_t)EvalCache::MAX_CACHE_MOVES_COUNT}) {
+    for (uint16_t NumM : {(uint16_t)1, (uint16_t)2, (uint16_t)43, (uint16_t)128,
+                          (uint16_t)EvalCache::MAX_CACHE_MOVES_COUNT}) {
         const uint64_t Hash = 0x123456789ABCDEFULL + NumM;
         float P[EvalCache::MAX_CACHE_MOVES_COUNT];
         for (uint16_t I = 0; I < NumM; ++I) {
@@ -83,9 +81,9 @@ TEST(EvalCache, RejectsOutOfRangeMoveCounts) {
 
     float P[EvalCache::MAX_CACHE_MOVES_COUNT] = {};
     ASSERT_FALSE(Cache.store(0x1ULL, 0, P, 0.5f, 0.5f));
-    ASSERT_FALSE(Cache.store(
-        0x1ULL, (uint16_t)(EvalCache::MAX_CACHE_MOVES_COUNT + 1), P, 0.5f,
-        0.5f));
+    ASSERT_FALSE(Cache.store(0x1ULL,
+                             (uint16_t)(EvalCache::MAX_CACHE_MOVES_COUNT + 1),
+                             P, 0.5f, 0.5f));
 
     EvalCache::EvalInfo EI;
     ASSERT_FALSE(Cache.load(0x1ULL, &EI));
@@ -171,8 +169,7 @@ TEST(EvalCache, ConcurrentIntegrity) {
             while (!Stop.load(std::memory_order_relaxed)) {
                 const uint64_t H = (Rng() % PoolSize) * 0x100000001ULL + 1;
                 fillEntry(H, &EI);
-                Cache.store(H, EI.NumMoves, EI.Policy, EI.WinRate,
-                            EI.DrawRate);
+                Cache.store(H, EI.NumMoves, EI.Policy, EI.WinRate, EI.DrawRate);
             }
         });
     }
