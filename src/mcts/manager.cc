@@ -14,6 +14,8 @@
 #include <functional>
 #include <random>
 
+#include <nshogi/core/movegenerator.h>
+
 namespace nshogi {
 namespace engine {
 namespace mcts {
@@ -80,18 +82,21 @@ void Manager::thinkNextMove(const core::State& State,
 
     interruptInternal(true);
 
+    // interruptInternal() requests a stop but does not wait for the previous
+    // supervisor task to finish. Its state, callbacks and final status must
+    // remain intact until it releases MutexSupervisor.
     {
-        std::lock_guard<std::mutex> Lock(MutexStatus);
-        Status = ManagerStatus::Busy;
-    }
-
-    // Update the current state.
-    {
+        std::lock_guard<std::mutex> Lock(MutexSupervisor);
+        {
+            // Keep the same lock order as doSupervisorWork(). Marking Busy
+            // earlier would let the previous task overwrite it with Idle.
+            std::lock_guard<std::mutex> StatusLock(MutexStatus);
+            Status = ManagerStatus::Busy;
+        }
         CurrentState = std::make_unique<core::State>(State.clone());
         StateConfig = std::make_unique<core::StateConfig>(Config);
         BestMoveCallback = Callback;
         STCallback = SearchTreeCallback;
-        std::lock_guard<std::mutex> Lock(MutexSupervisor);
         SWorkerMaster->setLimit(Lim);
         assert(!WakeUpSupervisor);
         WakeUpSupervisor = true;
@@ -368,8 +373,10 @@ void Manager::doSupervisorWork(bool CallCallback) {
 
     // Update the root node here for the garbage collectors
     // to release the previous root node.
-    CurrentState->doMove(BestMove);
-    SearchTree->updateRoot(*CurrentState);
+    if (!BestMove.isNone() && !BestMove.isWin()) {
+        CurrentState->doMove(BestMove);
+        SearchTree->updateRoot(*CurrentState);
+    }
 
     if (CallCallback) {
         std::lock_guard<std::mutex> Lock(MutexStatus);
@@ -454,7 +461,12 @@ core::Move32 Manager::getBestmove(Node* Root) {
     const auto* BestEdge = Root->mostPromisingEdge();
 
     if (BestEdge == nullptr) {
-        return core::Move32::MoveNone();
+        // An immediate stop can finish before the root has been expanded.
+        // Return a legal move if one exists, rather than resigning merely
+        // because no search result is available yet.
+        const auto Moves =
+            core::MoveGenerator::generateLegalMoves(*CurrentState);
+        return Moves.size() == 0 ? core::Move32::MoveNone() : Moves[0];
     }
 
     return CurrentState->getMove32FromMove16(BestEdge->getMove());
