@@ -39,9 +39,11 @@ void FrameQueue::add(std::vector<std::unique_ptr<Frame>>& Fs) {
     CV.notify_one();
 }
 
-std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait,
-                                                    bool AcceptShortage) {
-    std::vector<std::unique_ptr<Frame>> Buffer;
+void FrameQueue::get(std::vector<std::unique_ptr<Frame>>& Buffer,
+                     std::size_t Size, bool Wait, bool AcceptShortage) {
+    Buffer.clear();
+    // Allocate outside the lock; repeated calls reuse the same capacity.
+    Buffer.reserve(Size);
 
     {
         std::unique_lock<std::mutex> Lock(Mutex);
@@ -57,8 +59,6 @@ std::vector<std::unique_ptr<Frame>> FrameQueue::get(std::size_t Size, bool Wait,
             }
         }
     }
-
-    return Buffer;
 }
 
 std::queue<std::unique_ptr<Frame>> FrameQueue::getAll() {

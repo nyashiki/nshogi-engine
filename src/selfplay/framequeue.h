@@ -25,8 +25,9 @@ class FrameQueue {
     FrameQueue();
     void add(std::unique_ptr<Frame>&&);
     void add(std::vector<std::unique_ptr<Frame>>&);
-    auto get(std::size_t, bool Wait = true,
-             bool AcceptShortage = true) -> std::vector<std::unique_ptr<Frame>>;
+    // Replace Buffer's contents while retaining its allocation for reuse.
+    void get(std::vector<std::unique_ptr<Frame>>& Buffer, std::size_t Size,
+             bool Wait = true, bool AcceptShortage = true);
     auto getAll() -> std::queue<std::unique_ptr<Frame>>;
     void close();
 

@@ -165,20 +165,18 @@ SelfplayPhase Worker::prepareRoot(Frame* F) const {
     F->getSearchTree()->updateRoot(*F->getState(), false);
     F->setRootPly(F->getState()->getPly());
 
-    // Sample noises.
-    // We don't care about actual the number of legal moves.
-    // In stead, we prepare sufficient enough number of gumbel noises.
-    for (std::size_t I = 0; I < F->getNoise().size(); ++I) {
+    const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
+
+    // Sample only the noises consumed by the root's legal moves.
+    for (std::size_t I = 0; I < Moves.size(); ++I) {
         F->getNoise().at(I) = sampleNoise(F);
     }
     // Note: in the non-gumbel (Dirichlet) case, the gamma samples are
     // normalized over the actual number of legal moves when they are
-    // consumed in Frame::setEvaluation(), not here, because the number
-    // of legal moves at the root is unknown at this point.
+    // consumed in Frame::setEvaluation().
 
     std::uniform_real_distribution<double> Distribution(0.0, 1.0);
     const double R = Distribution(MT);
-    const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
     if (Moves.size() == 1 || R > MyFullSearchRatio) {
         if (F->isGumbel()) {
             // NumPlayouts == NumSamplingMoves.
@@ -351,7 +349,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Checkmate by search.
     if (F->getState()->getPly() > F->getRootPly()) {
-        if (isCheckmated(F)) {
+        if (isCheckmated(F, LegalMoves)) {
             F->setEvaluation<true>(nullptr, 0.0f, 0.0f);
             assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
             return SelfplayPhase::Backpropagation;
@@ -788,12 +786,10 @@ float Worker::computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const {
                                  F->getSearchTree()->getRoot());
 }
 
-bool Worker::isCheckmated(Frame* F) const {
+bool Worker::isCheckmated(Frame* F, const core::MoveList& Moves) const {
     if (!F->getState()->isInCheck()) {
         return false;
     }
-
-    const auto Moves = core::MoveGenerator::generateLegalMoves(*F->getState());
 
     for (core::Move32 Move : Moves) {
         F->getState()->doMove(Move);

@@ -20,6 +20,7 @@
 #include <random>
 #include <vector>
 
+#include <nshogi/core/movelist.h>
 #include <nshogi/core/position.h>
 #include <nshogi/solver/dfpn.h>
 
@@ -62,7 +63,7 @@ class Worker : public worker::Worker {
     double computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                  mcts::Node* Child) const;
     float computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const;
-    bool isCheckmated(Frame* F) const;
+    bool isCheckmated(Frame* F, const core::MoveList& Moves) const;
     void sampleTopMMoves(Frame*) const;
     uint16_t executeSequentialHalving(Frame*) const;
     bool updateSequentialHalvingSchedule(Frame*, uint16_t NumValidChilds) const;
