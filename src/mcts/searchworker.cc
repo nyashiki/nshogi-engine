@@ -190,9 +190,9 @@ void SearchWorker::immediateUpdateByLoss(Node* LeafNode) {
     LeafNode->updateAncestors(0.0f, 0.0f);
 }
 
-void SearchWorker::immediateUpdateByDraw(Node* LeafNode, float DrawValue) {
-    LeafNode->setEvaluation(nullptr, DrawValue, 1.0f);
-    LeafNode->updateAncestors(DrawValue, 1.0f);
+void SearchWorker::immediateUpdateByDraw(Node* LeafNode) {
+    LeafNode->setEvaluation(nullptr, 0.5f, 1.0f);
+    LeafNode->updateAncestors(0.5f, 1.0f);
 }
 
 void SearchWorker::immediateUpdate(Node* LeafNode) {
@@ -436,18 +436,12 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
 
 double SearchWorker::computeWinRateOfChild(Node* Child, uint64_t ChildVisits,
                                            uint64_t ChildVirtualVisits) const {
-    const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
-    const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
-
-    const double WinRate = ((double)ChildVisits - ChildWinRateAccumulated) /
-                           (double)ChildVirtualVisits;
-    const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
-
     const double DrawValue = (State->getSideToMove() == core::Black)
                                  ? Config.BlackDrawValue
                                  : Config.WhiteDrawValue;
 
-    return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+    return Child->getScoreFromParent(DrawValue, ChildVisits,
+                                     ChildVirtualVisits);
 }
 
 bool SearchWorker::doTask() {
@@ -516,10 +510,7 @@ bool SearchWorker::doTask() {
             PStat->incrementNumRepetition();
             return false;
         } else if (RS == core::RepetitionStatus::Repetition) {
-            immediateUpdateByDraw(LeafNode,
-                                  State->getSideToMove() == core::Black
-                                      ? Config.BlackDrawValue
-                                      : Config.WhiteDrawValue);
+            immediateUpdateByDraw(LeafNode);
             PStat->incrementNumRepetition();
             return false;
         }
@@ -559,9 +550,7 @@ bool SearchWorker::doTask() {
 
     // Check the number of plies.
     if (State->getPly() >= Config.MaxPly) {
-        immediateUpdateByDraw(LeafNode, State->getSideToMove() == core::Black
-                                            ? Config.BlackDrawValue
-                                            : Config.WhiteDrawValue);
+        immediateUpdateByDraw(LeafNode);
         PStat->incrementNumOverMaxPly();
         return false;
     }
@@ -751,17 +740,20 @@ logger::PVLog SearchWorkerMaster::getPVLog() const {
     Log.CurrentSideToMove = RootSideToMove;
     Log.SolvedGameEndPly = N->getPlyToTerminalSolved();
     if (Log.SolvedGameEndPly > 0) {
-        Log.WinRate = 1.0;
+        Log.ExpectedScore = 1.0;
         Log.DrawRate = 0.0;
     } else if (Log.SolvedGameEndPly < 0) {
-        Log.WinRate = 0.0;
+        Log.ExpectedScore = 0.0;
         Log.DrawRate = 0.0;
     } else {
         if (Visits > 0) {
-            Log.WinRate = N->getWinRateAccumulated() / (double)Visits;
-            Log.DrawRate = N->getDrawRateAccumulated() / (double)Visits;
+            Log.ExpectedScore =
+                N->getExpectedScoreAccumulated() / (double)Visits;
+            // The counters can advance between these reads during search.
+            Log.DrawRate = std::clamp(
+                N->getDrawRateAccumulated() / (double)Visits, 0.0, 1.0);
         } else {
-            Log.WinRate = 0.0;
+            Log.ExpectedScore = 0.5;
             Log.DrawRate = 0.0;
         }
     }

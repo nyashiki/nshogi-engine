@@ -8,6 +8,7 @@
 //
 
 #include "usilogger.h"
+#include "../math/score.h"
 
 #include <cmath>
 #include <cstdint>
@@ -35,8 +36,8 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
     if (Log.SolvedGameEndPly != 0) {
         std::cout << " score mate " << Log.SolvedGameEndPly;
     } else {
-        int32_t Score =
-            getScoreFromWinRate(Log.WinRate, Log.DrawRate, Log.DrawValue);
+        int32_t Score = getScoreFromExpectedScore(Log.ExpectedScore,
+                                                  Log.DrawRate, Log.DrawValue);
         if (IsInverse) {
             Score = -Score;
         }
@@ -53,7 +54,8 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
     std::cout << std::endl;
 
     if (IsNShogiExtensionEnabled) {
-        const double WinRate = (1.0 - Log.DrawRate) * Log.WinRate;
+        const double WinRate = std::clamp(
+            Log.ExpectedScore - 0.5 * Log.DrawRate, 0.0, 1.0 - Log.DrawRate);
         const double BlackWinRate = (Log.CurrentSideToMove == core::Black)
                                         ? WinRate
                                         : (1.0 - Log.DrawRate - WinRate);
@@ -148,12 +150,13 @@ void USILogger::setIsInverse(bool Value) {
     IsInverse = Value;
 }
 
-int32_t USILogger::getScoreFromWinRate(double WinRate, double DrawRate,
-                                       double DrawValue) const {
+int32_t USILogger::getScoreFromExpectedScore(double ExpectedScore,
+                                             double DrawRate,
+                                             double DrawValue) const {
     const double PonanzaConstant = 600;
 
     const double WinRateConsideringDraw =
-        DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+        math::score::withDrawValue(ExpectedScore, DrawRate, DrawValue);
     if (WinRateConsideringDraw <= 0.0) {
         return -9999;
     }

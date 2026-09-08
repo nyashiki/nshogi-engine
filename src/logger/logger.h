@@ -23,7 +23,8 @@ namespace logger {
 struct PVLog {
     uint32_t ElapsedMilliSeconds = 0;
     core::Color CurrentSideToMove = core::NoColor;
-    double WinRate = 0;
+    // Neutral expected score: P(win) + P(draw) / 2, for CurrentSideToMove.
+    double ExpectedScore = 0.5;
     double DrawRate = 0;
     double DrawValue = 0.5;
     int32_t SolvedGameEndPly = 0;
@@ -35,7 +36,7 @@ struct PVLog {
 
 class Logger {
  public:
-    virtual ~Logger(){};
+    virtual ~Logger() {};
 
     virtual void printPVLog(const PVLog& Log) const = 0;
     virtual void printBestMove(core::Move32 Move) const = 0;

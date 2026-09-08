@@ -56,27 +56,33 @@ void FeedWorker::feedResult(Node* N, float* LegalPolicy, float WinRate,
                             float DrawRate, uint64_t Hash) {
     bool NaNFound = false;
     if constexpr (NaNFallbackEnabled) {
-        if (math::isnan_(WinRate)) {
+        const bool WinRateIsNaN = math::isnan_(WinRate);
+        const bool DrawRateIsNaN = math::isnan_(DrawRate);
+        if (WinRateIsNaN || DrawRateIsNaN) {
             NaNFound = true;
+            double ParentExpectedScore = 0.5;
+            double ParentDrawRate = 0.0;
             const Node* Parent = N->getParent();
-            if (Parent == nullptr) {
-                WinRate = 0.5f;
-            } else {
-                const double ParentWinRate =
-                    Parent->getWinRateAccumulated() /
-                    (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
-                WinRate = (float)(1.0 - ParentWinRate);
+            if (Parent != nullptr) {
+                const uint64_t ParentVisits =
+                    Parent->getVisitsAndVirtualLoss() & Node::VisitMask;
+                if (ParentVisits > 0) {
+                    ParentExpectedScore =
+                        Parent->getExpectedScoreAccumulated() /
+                        (double)ParentVisits;
+                    ParentDrawRate = std::clamp(
+                        Parent->getDrawRateAccumulated() / (double)ParentVisits,
+                        0.0, 1.0);
+                }
             }
-        }
-        if (math::isnan_(DrawRate)) {
-            NaNFound = true;
-            const Node* Parent = N->getParent();
-            if (Parent == nullptr) {
-                DrawRate = 0.0f;
-            } else {
-                const double ParentDrawRate =
-                    Parent->getDrawRateAccumulated() /
-                    (Parent->getVisitsAndVirtualLoss() & Node::VisitMask);
+            if (WinRateIsNaN) {
+                // updateAncestors() expects a conditional win rate and will
+                // convert it to a neutral score exactly once.
+                WinRate =
+                    (float)(1.0 - math::score::toConditionalWinRate(
+                                      ParentExpectedScore, ParentDrawRate));
+            }
+            if (DrawRateIsNaN) {
                 DrawRate = (float)ParentDrawRate;
             }
         }
