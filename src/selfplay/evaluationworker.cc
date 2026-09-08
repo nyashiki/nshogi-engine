@@ -75,8 +75,7 @@ bool EvaluationWorker::doTask() {
     const std::size_t MAX_TRIAL = 4 * BatchSize;
 
     for (std::size_t Counter = 0; Counter < MAX_TRIAL; ++Counter) {
-        Tasks =
-            EvaluationQueue->get(BatchSize, false, Counter == MAX_TRIAL - 1);
+        EvaluationQueue->get(Tasks, BatchSize, false, Counter == MAX_TRIAL - 1);
 
         if (Tasks.size() > 0) {
             break;
