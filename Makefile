@@ -92,7 +92,8 @@ TEST_SOURCES :=                  \
 	src/test/test_main.cc        \
 	src/test/test_math.cc        \
 	src/test/test_allocator.cc   \
-	src/test/test_evalcache.cc
+	src/test/test_evalcache.cc   \
+	src/test/test_score.cc
 
 BENCH_SOURCES :=           \
 	src/bench/bench.cc     \

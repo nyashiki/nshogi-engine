@@ -75,7 +75,7 @@ class SearchWorker : public worker::Worker {
 
     void immediateUpdateByWin(Node*);
     void immediateUpdateByLoss(Node*);
-    void immediateUpdateByDraw(Node*, float DrawValue);
+    void immediateUpdateByDraw(Node*);
     void immediateUpdate(Node*);
 
     Edge* computeUCBMaxEdge(Node*, uint16_t NumChildren, uint64_t MyVirtualLoss,

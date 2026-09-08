@@ -44,8 +44,8 @@ class USILogger : public logger::Logger {
     void setIsInverse(bool Value) override;
 
  private:
-    int32_t getScoreFromWinRate(double WinRate, double DrawRate,
-                                double DrawValue) const;
+    int32_t getScoreFromExpectedScore(double ExpectedScore, double DrawRate,
+                                      double DrawValue) const;
 
     bool IsInverse;
     mutable std::mutex Mtx;

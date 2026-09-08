@@ -298,10 +298,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
         return SelfplayPhase::Backpropagation;
     } else if (RS == core::RepetitionStatus::Repetition) {
         assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
-        const float DrawValue = F->getState()->getSideToMove() == core::Black
-                                    ? F->getStateConfig()->BlackDrawValue
-                                    : F->getStateConfig()->WhiteDrawValue;
-        F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
+        F->setEvaluation<true>(nullptr, 0.5f, 1.0f);
         F->getNodeToEvaluate()->setRepetitionStatus(RS);
         return SelfplayPhase::Backpropagation;
     }
@@ -347,11 +344,8 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Max ply.
     if (F->getState()->getPly() >= F->getStateConfig()->MaxPly) {
-        const float DrawValue = F->getState()->getSideToMove() == core::Black
-                                    ? F->getStateConfig()->BlackDrawValue
-                                    : F->getStateConfig()->WhiteDrawValue;
         assert(F->getNodeToEvaluate() != F->getSearchTree()->getRoot());
-        F->setEvaluation<true>(nullptr, DrawValue, 1.0f);
+        F->setEvaluation<true>(nullptr, 0.5f, 1.0f);
         return SelfplayPhase::Backpropagation;
     }
 
@@ -391,7 +385,7 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 }
 
 SelfplayPhase Worker::backpropagate(Frame* F) const {
-    // Backpropagate win rate and draw rate.
+    // Backpropagate neutral expected score and draw rate.
     F->getNodeToEvaluate()->updateAncestors<false>(
         F->getNodeToEvaluate()->getWinRatePredicted(),
         F->getNodeToEvaluate()->getDrawRatePredicted());
@@ -759,39 +753,21 @@ mcts::Edge* Worker::pickUpEdgeToExplore(Frame* F, core::Color SideToMove,
 
 double Worker::computeWinRate(Frame* F, core::Color SideToMove,
                               mcts::Node* Node) const {
-    const uint64_t Visits = Node->getVisitsAndVirtualLoss();
-    assert(Visits > 0);
-
-    const double WinRateAccumulated = Node->getWinRateAccumulated();
-    const double DrawRateAccumulated = Node->getDrawRateAccumulated();
-
-    const double WinRate = WinRateAccumulated / (double)Visits;
-    const double DrawRate = DrawRateAccumulated / (double)Visits;
-
     const double DrawValue = (SideToMove == core::Black)
                                  ? F->getStateConfig()->BlackDrawValue
                                  : F->getStateConfig()->WhiteDrawValue;
 
-    return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+    return Node->getScore(DrawValue);
 }
 
 double Worker::computeWinRateOfChild(Frame* F, core::Color SideToMove,
                                      mcts::Node* Child) const {
     const uint64_t ChildVisits = Child->getVisitsAndVirtualLoss();
-    assert(ChildVisits > 0);
-
-    const double ChildWinRateAccumulated = Child->getWinRateAccumulated();
-    const double ChildDrawRateAcuumulated = Child->getDrawRateAccumulated();
-
-    const double WinRate =
-        ((double)ChildVisits - ChildWinRateAccumulated) / (double)ChildVisits;
-    const double DrawRate = ChildDrawRateAcuumulated / (double)ChildVisits;
-
     const double DrawValue = (SideToMove == core::Black)
                                  ? F->getStateConfig()->BlackDrawValue
                                  : F->getStateConfig()->WhiteDrawValue;
 
-    return DrawRate * DrawValue + (1.0 - DrawRate) * WinRate;
+    return Child->getScoreFromParent(DrawValue, ChildVisits, ChildVisits);
 }
 
 float Worker::computeQOfSelectedEdge(Frame* F, mcts::Edge* SelectedEdge) const {

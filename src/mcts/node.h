@@ -12,6 +12,7 @@
 
 #include "../allocator/allocator.h"
 #include "../math/fixedpoint.h"
+#include "../math/score.h"
 #include "edge.h"
 #include "pointer.h"
 #include <algorithm>
@@ -47,7 +48,7 @@ struct Node {
         : Parent(ParentNode)
         , NumChildren(0)
         , VisitsAndVirtualLoss(0)
-        , WinRateAccumulated(0)
+        , ExpectedScoreAccumulated(0)
         , DrawRateAccumulated(0)
         , PlyToTerminalSolved(0)
         , WinRatePredicted(0)
@@ -103,12 +104,33 @@ struct Node {
         return VisitsAndVirtualLoss.load(std::memory_order_acquire);
     }
 
-    inline double getWinRateAccumulated() const {
-        return WinRateAccumulated.load(std::memory_order_acquire);
+    inline double getExpectedScoreAccumulated() const {
+        return ExpectedScoreAccumulated.load(std::memory_order_acquire);
     }
 
     inline double getDrawRateAccumulated() const {
         return DrawRateAccumulated.load(std::memory_order_acquire);
+    }
+
+    // Score from this node's side to move, with draws worth DrawValue.
+    inline double getScore(double DrawValue) const {
+        const uint64_t Visits = getVisitsAndVirtualLoss() & VisitMask;
+        assert(Visits > 0);
+        return math::score::withDrawValue(getExpectedScoreAccumulated(),
+                                          getDrawRateAccumulated(), DrawValue) /
+               (double)Visits;
+    }
+
+    // Use the visit snapshot taken by edge selection. VirtualVisits includes
+    // the real visits; each extra visit is a virtual loss (zero parent score).
+    inline double getScoreFromParent(double DrawValue, uint64_t Visits,
+                                     uint64_t VirtualVisits) const {
+        assert(Visits > 0);
+        assert(VirtualVisits >= Visits);
+        return math::score::withDrawValue((double)Visits -
+                                              getExpectedScoreAccumulated(),
+                                          getDrawRateAccumulated(), DrawValue) /
+               (double)VirtualVisits;
     }
 
     inline int16_t getPlyToTerminalSolved() const {
@@ -168,12 +190,16 @@ struct Node {
     }
 
     template <bool DecrementVirtualLoss = true>
-    inline void updateAncestors(float WinRate, float DrawRate) {
-        const float FlipWinRate = 1.0f - WinRate;
+    inline void updateAncestors(float ConditionalWinRate, float DrawRate) {
+        // Convert once at the leaf, before averaging. Keep the raw network
+        // predictions in WinRatePredicted/DrawRatePredicted for later visits.
+        const double ExpectedScore =
+            math::score::toExpectedScore(ConditionalWinRate, DrawRate);
+        const double FlipExpectedScore = 1.0 - ExpectedScore;
         Node* N = this;
 
         do {
-            N->addWinRate(WinRate);
+            N->addExpectedScore(ExpectedScore);
             N->addDrawRate(DrawRate);
             if constexpr (DecrementVirtualLoss) {
                 N->incrementVisitsAndDecrementVirtualLoss();
@@ -189,7 +215,7 @@ struct Node {
             // Flip.
             // Manually write flip version instead of
             // using `Flip` variable to unroll the loop.
-            N->addWinRate(FlipWinRate);
+            N->addExpectedScore(FlipExpectedScore);
             N->addDrawRate(DrawRate);
             if constexpr (DecrementVirtualLoss) {
                 N->incrementVisitsAndDecrementVirtualLoss();
@@ -201,8 +227,8 @@ struct Node {
         } while (N != nullptr);
     }
 
-    inline void addWinRate(double WinRate) {
-        addAtomicDouble(&WinRateAccumulated, WinRate);
+    inline void addExpectedScore(double ExpectedScore) {
+        addAtomicDouble(&ExpectedScoreAccumulated, ExpectedScore);
     }
 
     inline void addDrawRate(double DrawRate) {
@@ -289,7 +315,10 @@ struct Node {
                 return E;
             }
 
-            const double ChildScore = Child->getWinRateAccumulated();
+            // Rank accumulated neutral scores from the parent's perspective.
+            const double ChildScore =
+                (double)(Child->getVisitsAndVirtualLoss() & VisitMask) -
+                Child->getExpectedScoreAccumulated();
 
             if (ChildScore > ScoreMax) {
                 ScoreMax = ChildScore;
@@ -325,11 +354,13 @@ struct Node {
 
     // Variables updated in search iteration.
     std::atomic<uint64_t> VisitsAndVirtualLoss;
-    std::atomic<double> WinRateAccumulated;
+    // Sum of P(win) + P(draw) / 2, from this node's side to move.
+    std::atomic<double> ExpectedScoreAccumulated;
     std::atomic<double> DrawRateAccumulated;
     std::atomic<int16_t> PlyToTerminalSolved;
 
-    // Outputs of the evaluation function.
+    // Raw outputs of the evaluation function. WinRatePredicted is
+    // P(win | not draw), not the neutral expected score accumulated above.
     float WinRatePredicted;
     float DrawRatePredicted;
 
@@ -338,6 +369,8 @@ struct Node {
 
     core::RepetitionStatus Repetition;
 };
+
+static_assert(sizeof(Node) == 64, "Node must fit in one 64-byte cache line");
 
 } // namespace mcts
 } // namespace engine
