@@ -67,9 +67,9 @@ class EvalCache {
 
         bool tryLock() {
             uint32_t Expected = 0;
-            return Access.compare_exchange_strong(
-                Expected, 1, std::memory_order_acquire,
-                std::memory_order_relaxed);
+            return Access.compare_exchange_strong(Expected, 1,
+                                                  std::memory_order_acquire,
+                                                  std::memory_order_relaxed);
         }
 
         bool tryLockShared() {

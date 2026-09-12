@@ -62,9 +62,9 @@ class SelectionProbe : public mcts::SearchWorker {
 
     mcts::Edge* select(mcts::Node* N, bool RegardUnvisitedWin = false) {
         const uint64_t Previous = N->incrementVirtualLoss();
-        auto* E = computeUCBMaxEdge(
-            N, N->getNumChildren(), Previous >> mcts::Node::VirtualLossShift,
-            RegardUnvisitedWin);
+        auto* E = computeUCBMaxEdge(N, N->getNumChildren(),
+                                    Previous >> mcts::Node::VirtualLossShift,
+                                    RegardUnvisitedWin);
         N->decrementVirtualLoss();
         return E;
     }
@@ -86,8 +86,8 @@ class UCBSelection : public testing::Test {
         Root->expand(core::MoveGenerator::generateLegalMoves(Initial),
                      &Allocator);
         for (uint16_t I = 0; I < Root->getNumChildren(); ++I) {
-            Root->getEdge()[I].setProbability(
-                I == 0 ? 0.4f : (I < 3 ? 0.3f : 0.0f));
+            Root->getEdge()[I].setProbability(I == 0 ? 0.4f
+                                                     : (I < 3 ? 0.3f : 0.0f));
         }
         Root->setEvaluation(nullptr, 0.5f, 0.0f);
         Root->updateAncestors<false>(0.5f, 0.0f);
@@ -97,7 +97,8 @@ class UCBSelection : public testing::Test {
 
     void finishLeaf(mcts::Node* Leaf, const core::State& State) {
         ASSERT_GT(Leaf->expand(core::MoveGenerator::generateLegalMoves(State),
-                               &Allocator), 0);
+                               &Allocator),
+                  0);
         std::vector<float> Policy(Leaf->getNumChildren(),
                                   1.0f / Leaf->getNumChildren());
         Leaf->setEvaluation(Policy.data(), 0.1f, 0.0f);
@@ -150,10 +151,14 @@ class PVRecordingLogger : public logger::Logger {
     void printPVLog(const logger::PVLog& Log) const override {
         Logs.push_back(Log);
     }
-    void printBestMove(core::Move32) const override {}
-    void printLog(const char*) const override {}
-    void printStatistics(const mcts::Statistics&) const override {}
-    void setIsInverse(bool) override {}
+    void printBestMove(core::Move32) const override {
+    }
+    void printLog(const char*) const override {
+    }
+    void printStatistics(const mcts::Statistics&) const override {
+    }
+    void setIsInverse(bool) override {
+    }
 };
 
 struct StopGate {
@@ -173,7 +178,7 @@ struct StopGate {
     bool awaitEntry() {
         std::unique_lock<std::mutex> Lock(Mutex);
         return CV.wait_for(Lock, std::chrono::seconds(5),
-                            [&]() { return Entered; });
+                           [&]() { return Entered; });
     }
 
     void release() {
@@ -213,8 +218,10 @@ TEST_F(UCBSelection, StopIsIssuedOnlyOncePerSearch) {
         [&]() {
             MasterPtr->stop();
             const int Count = ++Calls;
-            if (Count == 1) FirstCallback.set_value();
-            if (Count == 2) SecondCallback.set_value();
+            if (Count == 1)
+                FirstCallback.set_value();
+            if (Count == 2)
+                SecondCallback.set_value();
         },
         Logger);
     MasterPtr = &Master;
@@ -301,7 +308,8 @@ TEST_P(PVPublication, ReadsOnlyEvaluatedNodes) {
         Root->incrementVirtualLoss();
         Pending->incrementVirtualLoss();
         Root->publishChild(&Root->getEdge()[0], std::move(Child));
-        const auto ChildMoves = core::MoveGenerator::generateLegalMoves(NextState);
+        const auto ChildMoves =
+            core::MoveGenerator::generateLegalMoves(NextState);
         Policy.assign(ChildMoves.size(), 1.0f / (float)ChildMoves.size());
         Pending->expand(ChildMoves, &Allocator);
         Pending->setEvaluation(Policy.data(), 0.5f, 0.0f);
@@ -377,7 +385,8 @@ TEST_F(UCBSelection, SlowRootEvaluationRemainsPrivateToItsOwner) {
         EXPECT_TRUE(Log.PV.empty());
         EXPECT_EQ(Log.NumNodes, 0U);
     }
-    EXPECT_EQ(Root->getVisitsAndVirtualLoss(), 1ULL << mcts::Node::VirtualLossShift);
+    EXPECT_EQ(Root->getVisitsAndVirtualLoss(),
+              1ULL << mcts::Node::VirtualLossShift);
     Root->decrementVirtualLoss();
 }
 
@@ -385,8 +394,8 @@ TEST_P(PausedUCBSelection, LaterEvaluatedChildIsConsidered) {
     auto* Root = makeRoot();
     const uint64_t BeforeA = Root->incrementVirtualLoss();
     auto* EdgeA = Worker.computeUCBMaxEdge(
-        Root, Root->getNumChildren(),
-        BeforeA >> mcts::Node::VirtualLossShift, false);
+        Root, Root->getNumChildren(), BeforeA >> mcts::Node::VirtualLossShift,
+        false);
     ASSERT_EQ(EdgeA, &Root->getEdge()[0]);
     // Pause descent A on either side of markExpanding(). Descent B can
     // complete in both schedules while A's virtual loss remains in place.
@@ -411,11 +420,10 @@ TEST_P(PausedUCBSelection, LaterEvaluatedChildIsConsidered) {
     EXPECT_EQ(Root->getVisitsAndVirtualLoss(), 2U);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    ExpansionBoundary, PausedUCBSelection, testing::Bool(),
-    [](const testing::TestParamInfo<bool>& Info) {
-        return Info.param ? "AfterClaim" : "BeforeClaim";
-    });
+INSTANTIATE_TEST_SUITE_P(ExpansionBoundary, PausedUCBSelection, testing::Bool(),
+                         [](const testing::TestParamInfo<bool>& Info) {
+                             return Info.param ? "AfterClaim" : "BeforeClaim";
+                         });
 
 TEST_F(UCBSelection, AllocationFailureDoesNotHideLaterEvaluatedChild) {
     auto* Root = makeRoot();
@@ -496,9 +504,10 @@ TEST_F(UCBSelection, EveryExpansionPatternMatchesFullScan) {
             VirtualLosses[Index] = static_cast<uint16_t>(Index % 3);
             // A strong, low-prior child makes premature scan termination
             // observably wrong (e.g. Mask == 128), even with score tolerance.
-            const float OwnWin = Index == Count - 1
-                                     ? 0.0f
-                                     : static_cast<float>((Index * 7) % 11) / 10.0f;
+            const float OwnWin =
+                Index == Count - 1
+                    ? 0.0f
+                    : static_cast<float>((Index * 7) % 11) / 10.0f;
             ParentScores[Index] = 1.0 - static_cast<double>(OwnWin);
             mcts::Pointer<mcts::Node> Child;
             auto* N = Child.malloc(&Allocator, Root);
@@ -516,9 +525,8 @@ TEST_F(UCBSelection, EveryExpansionPatternMatchesFullScan) {
 
         const double ParentN =
             static_cast<double>(TotalVisits + TotalVirtualLosses);
-        const double C =
-            (std::log((ParentN + 19652.0) / 19652.0) + 1.25) *
-            std::sqrt(ParentN);
+        const double C = (std::log((ParentN + 19652.0) / 19652.0) + 1.25) *
+                         std::sqrt(ParentN);
         for (bool Optimistic : {false, true}) {
             SCOPED_TRACE(Optimistic);
             std::vector<double> Values(Root->getNumChildren());
@@ -529,8 +537,7 @@ TEST_F(UCBSelection, EveryExpansionPatternMatchesFullScan) {
                 double Value = (Optimistic ? 1.0 : 0.0) + C * P;
                 if (I < Count && Visits[I] != 0) {
                     const double N = Visits[I] + VirtualLosses[I];
-                    Value = ParentScores[I] * Visits[I] / N +
-                            C * P / (1.0 + N);
+                    Value = ParentScores[I] * Visits[I] / N + C * P / (1.0 + N);
                 }
                 Values[I] = Value;
                 if (Value > Best) {
@@ -540,16 +547,16 @@ TEST_F(UCBSelection, EveryExpansionPatternMatchesFullScan) {
             }
             const auto* Selected = Worker.select(Root, Optimistic);
             ASSERT_NE(Selected, nullptr);
-            const auto SelectedIndex = static_cast<std::size_t>(
-                Selected - Root->getEdge().get());
+            const auto SelectedIndex =
+                static_cast<std::size_t>(Selected - Root->getEdge().get());
             ASSERT_LT(SelectedIndex, Values.size());
             // Equivalent maxima can round differently with FMA or
             // reassociation. Mask 79, Optimistic=true ties edges 0 and 4:
             // 1 + C * P[0] / 2 == 1 + C * P[4]. Compare the selected
             // score, allowing only double-precision rounding error.
-            const double Tolerance =
-                16.0 * std::numeric_limits<double>::epsilon() *
-                std::max(1.0, std::abs(Best));
+            const double Tolerance = 16.0 *
+                                     std::numeric_limits<double>::epsilon() *
+                                     std::max(1.0, std::abs(Best));
             EXPECT_NEAR(Values[SelectedIndex], Best, Tolerance)
                 << "selected=" << SelectedIndex << " best=" << BestIndex;
         }

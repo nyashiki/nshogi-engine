@@ -82,8 +82,7 @@ TEST_F(SearchTree, ConcurrentPublicationIncludesEveryVisibleChild) {
         Publishers.emplace_back([&, T] {
             Start.arrive_and_wait();
             for (uint16_t I = T; I < Count; I += NumThreads) {
-                Root->publishChild(&Root->getEdge()[I],
-                                   std::move(Children[I]));
+                Root->publishChild(&Root->getEdge()[I], std::move(Children[I]));
             }
         });
     }

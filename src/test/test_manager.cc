@@ -17,8 +17,8 @@
 #include <nshogi/io/sfen.h>
 #include <nshogi/solver/dfs.h>
 
-#include <chrono>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <filesystem>
@@ -239,18 +239,21 @@ TEST_P(ManagerSwitch, BookStopDoesNotCancelTheFollowingSearch) {
         std::string Path =
             (std::filesystem::temp_directory_path() /
              ("nshogi-stop-book-" +
-              std::to_string(std::chrono::steady_clock::now()
-                                 .time_since_epoch().count()) + ".db"))
+              std::to_string(
+                  std::chrono::steady_clock::now().time_since_epoch().count()) +
+              ".db"))
                 .string();
-        ~TemporaryBook() { std::remove(Path.c_str()); }
+        ~TemporaryBook() {
+            std::remove(Path.c_str());
+        }
     } Book;
     {
         std::ofstream Stream(Book.Path);
         ASSERT_TRUE(Stream);
         Stream << "sfen "
                << nshogi::io::sfen::positionToSfen(Initial.getPosition())
-               << '\n' << nshogi::io::sfen::move32ToSfen(Moves[0])
-               << " none 0 1 1\n";
+               << '\n'
+               << nshogi::io::sfen::move32ToSfen(Moves[0]) << " none 0 1 1\n";
     }
     C.setBookEnabled(true);
     C.setBookPath(Book.Path);
@@ -264,10 +267,12 @@ TEST_P(ManagerSwitch, BookStopDoesNotCancelTheFollowingSearch) {
     {
         mcts::Manager Manager(C.getContext(), std::make_shared<SilentLogger>());
         for (int I = 0; I < 4; ++I) {
-            Manager.thinkNextMove(Initial, Config, BookLimit,
+            Manager.thinkNextMove(
+                Initial, Config, BookLimit,
                 [&, I](core::Move32 Move) { Completed.add(2 * I, Move); });
             ASSERT_TRUE(Completed.awaitSize((std::size_t)(2 * I + 1)));
-            Manager.thinkNextMove(OutsideBook, Config, SearchLimit,
+            Manager.thinkNextMove(
+                OutsideBook, Config, SearchLimit,
                 [&, I](core::Move32 Move) { Completed.add(2 * I + 1, Move); },
                 [&](mcts::Tree* Tree) {
                     Visits = Tree->getRoot()->getVisitsAndVirtualLoss() &

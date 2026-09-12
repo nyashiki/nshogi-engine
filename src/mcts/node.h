@@ -90,10 +90,9 @@ struct Node {
         // Record the range before making the child visible. Concurrent
         // publishers may finish out of prior order, so never shrink it.
         uint16_t Previous = ExpandedEnd.load(std::memory_order_relaxed);
-        while (Previous < End &&
-               !ExpandedEnd.compare_exchange_weak(
-                   Previous, End, std::memory_order_release,
-                   std::memory_order_relaxed)) {
+        while (Previous < End && !ExpandedEnd.compare_exchange_weak(
+                                     Previous, End, std::memory_order_release,
+                                     std::memory_order_relaxed)) {
         }
         E->setTarget(std::move(Child));
     }
