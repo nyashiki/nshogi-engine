@@ -59,9 +59,9 @@ void expectEntryMatches(uint64_t H, const EvalCache::EvalInfo& EI) {
 TEST(EvalCache, StoreLoadRoundTrip) {
     EvalCache Cache(1);
 
-    for (uint16_t NumM : {(uint16_t)1, (uint16_t)2, (uint16_t)43, (uint16_t)128,
-                          (uint16_t)599, (uint16_t)600, (uint16_t)601,
-                          (uint16_t)4096, (uint16_t)UINT16_MAX}) {
+    for (uint16_t NumM :
+         {(uint16_t)1, (uint16_t)2, (uint16_t)43, (uint16_t)128, (uint16_t)599,
+          (uint16_t)600, (uint16_t)601, (uint16_t)4096, (uint16_t)UINT16_MAX}) {
         const uint64_t Hash = 0x123456789ABCDEFULL + NumM;
         std::vector<float> P(NumM);
         for (uint16_t I = 0; I < NumM; ++I) {
@@ -75,7 +75,8 @@ TEST(EvalCache, StoreLoadRoundTrip) {
         ASSERT_EQ(EI.NumMoves, NumM);
         ASSERT_EQ(EI.WinRate, 0.75f);
         ASSERT_EQ(EI.DrawRate, 0.125f);
-        ASSERT_EQ(std::memcmp(EI.Policy.data(), P.data(), sizeof(float) * NumM), 0);
+        ASSERT_EQ(std::memcmp(EI.Policy.data(), P.data(), sizeof(float) * NumM),
+                  0);
     }
 }
 
@@ -112,8 +113,8 @@ TEST(EvalCache, EvictionAndCompactionKeepEntriesIntact) {
     for (uint64_t& H : Hashes) {
         H = Rng() | 1U;
         fillEntry(H, &EI);
-        ASSERT_TRUE(
-            Cache.store(H, EI.NumMoves, EI.Policy.data(), EI.WinRate, EI.DrawRate));
+        ASSERT_TRUE(Cache.store(H, EI.NumMoves, EI.Policy.data(), EI.WinRate,
+                                EI.DrawRate));
 
         // Re-loading right after a single-threaded store must hit.
         ASSERT_TRUE(Cache.load(H, &EI));
@@ -141,8 +142,8 @@ TEST(EvalCache, RestoreSameHash) {
     EvalCache::EvalInfo EI;
     fillEntry(H, &EI);
     for (int I = 0; I < 3; ++I) {
-        ASSERT_TRUE(
-            Cache.store(H, EI.NumMoves, EI.Policy.data(), EI.WinRate, EI.DrawRate));
+        ASSERT_TRUE(Cache.store(H, EI.NumMoves, EI.Policy.data(), EI.WinRate,
+                                EI.DrawRate));
     }
     ASSERT_TRUE(Cache.load(H, &EI));
     expectEntryMatches(H, EI);
@@ -211,15 +212,15 @@ TEST(EvalCache, StorageGrowsAndShrinksWithPolicySizes) {
     const std::vector<float> Small(43, 0.5f);
 
     for (uint64_t H = 1; H <= 8; ++H) {
-        ASSERT_TRUE(Cache.store(H, (uint16_t)Large.size(), Large.data(),
-                                0.75f, 0.125f));
+        ASSERT_TRUE(Cache.store(H, (uint16_t)Large.size(), Large.data(), 0.75f,
+                                0.125f));
     }
     const std::size_t LargeBytes = Cache.getMemoryUsed() - EmptyBytes;
     ASSERT_GT(LargeBytes, 8 * Large.size() * sizeof(float));
 
     for (uint64_t H = 9; H <= 16; ++H) {
-        ASSERT_TRUE(Cache.store(H, (uint16_t)Small.size(), Small.data(),
-                                0.75f, 0.125f));
+        ASSERT_TRUE(Cache.store(H, (uint16_t)Small.size(), Small.data(), 0.75f,
+                                0.125f));
     }
     EXPECT_LT(Cache.getMemoryUsed() - EmptyBytes, LargeBytes / 4);
     EvalCache::EvalInfo EI;
@@ -324,7 +325,8 @@ TEST(EvalCache, ConcurrentIntegrity) {
             while (!Stop.load(std::memory_order_relaxed)) {
                 const uint64_t H = (Rng() % PoolSize) * 0x100000001ULL + 1;
                 fillEntry(H, &EI);
-                Cache.store(H, EI.NumMoves, EI.Policy.data(), EI.WinRate, EI.DrawRate);
+                Cache.store(H, EI.NumMoves, EI.Policy.data(), EI.WinRate,
+                            EI.DrawRate);
             }
         });
     }

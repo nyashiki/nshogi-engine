@@ -67,8 +67,8 @@ EvalCache::EvalCache(std::size_t MemorySize)
         }
         ::madvise(Ptr, HeaderBytes, MADV_HUGEPAGE);
 #else
-        void* Ptr = ::operator new(HeaderBytes,
-                                   std::align_val_t{alignof(Bucket)});
+        void* Ptr =
+            ::operator new(HeaderBytes, std::align_val_t{alignof(Bucket)});
 #endif
         return static_cast<Bucket*>(Ptr);
     }()) {
@@ -150,9 +150,9 @@ void EvalCache::erase(Bucket* B, std::size_t Way) {
 bool EvalCache::reserve(std::size_t Bytes) {
     std::size_t Previous = PayloadBytes.load(std::memory_order_relaxed);
     while (Bytes <= PayloadLimit - Previous) {
-        if (PayloadBytes.compare_exchange_weak(
-                Previous, Previous + Bytes, std::memory_order_relaxed,
-                std::memory_order_relaxed)) {
+        if (PayloadBytes.compare_exchange_weak(Previous, Previous + Bytes,
+                                               std::memory_order_relaxed,
+                                               std::memory_order_relaxed)) {
             return true;
         }
     }
@@ -279,8 +279,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
         }
         if (Tail != 0) {
             std::memcpy(Data + Offset + NewSize,
-                        B->Data.get() + Offset + OldSize,
-                        Tail * sizeof(float));
+                        B->Data.get() + Offset + OldSize, Tail * sizeof(float));
         }
     } else if (Tail != 0 && NewSize != OldSize) {
         std::memmove(Data + Offset + NewSize, Data + Offset + OldSize,
