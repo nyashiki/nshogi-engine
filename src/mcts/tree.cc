@@ -37,16 +37,24 @@ Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
         return createNewRoot(State);
     }
 
+    // History indices are relative to the initial position, excluding the
+    // SFEN ply offset. A shorter history cannot extend the current root.
+    const uint16_t RootPly = RootState->getPly(false);
+    const uint16_t StatePly = State.getPly(false);
+    if (StatePly < RootPly) {
+        return createNewRoot(State);
+    }
+
     uint16_t Ply = 0;
 
-    for (; Ply < RootState->getPly(); ++Ply) {
+    for (; Ply < RootPly; ++Ply) {
         if (RootState->getHistoryMove(Ply) != State.getHistoryMove(Ply)) {
             return createNewRoot(State);
         }
     }
 
     std::vector<Pointer<Node>> Garbages;
-    for (; Ply < State.getPly(); ++Ply) {
+    for (; Ply < StatePly; ++Ply) {
         const auto Move = State.getHistoryMove(Ply);
         const auto Move16 = core::Move16(Move);
 
@@ -80,10 +88,14 @@ Node* Tree::updateRoot(const nshogi::core::State& State, bool ReUse) {
         }
     }
 
-    PLogger->printLog("Existing node has been found.");
+    if (PLogger != nullptr) {
+        PLogger->printLog("Existing node has been found.");
+    }
 
     if (Root->getRepetitionStatus() != core::RepetitionStatus::NoRepetition) {
-        PLogger->printLog("But it has repetition so create a new one.");
+        if (PLogger != nullptr) {
+            PLogger->printLog("But it has repetition so create a new one.");
+        }
         GC->addGarbages(std::move(Garbages));
         return createNewRoot(State);
     }

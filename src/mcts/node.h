@@ -277,8 +277,8 @@ struct Node {
 
         const auto SMove = getSolverResult();
 
-        uint32_t MostVisitedCount = 0;
-        Edge* MostVisitedEdge = &getEdge()[0];
+        uint64_t MostVisitedCount = 0;
+        Edge* MostVisitedEdge = nullptr;
 
         for (uint16_t I = 0; I < NumChildren_; ++I) {
             Edge* E = &getEdge()[I];
@@ -289,6 +289,10 @@ struct Node {
             }
 
             if (Child == nullptr) {
+                // An unsearched move is still preferable to a proven loss.
+                if (MostVisitedEdge == nullptr) {
+                    MostVisitedEdge = E;
+                }
                 continue;
             }
 
@@ -296,20 +300,21 @@ struct Node {
                 return E;
             }
 
-            const uint32_t ChildVisits =
-                (uint32_t)(Child->getVisitsAndVirtualLoss());
+            const uint64_t ChildVisits =
+                Child->getVisitsAndVirtualLoss() & VisitMask;
 
             if (Child->getPlyToTerminalSolved() > 0) {
                 continue;
             }
 
-            if (ChildVisits > MostVisitedCount) {
+            if (MostVisitedEdge == nullptr || ChildVisits > MostVisitedCount) {
                 MostVisitedCount = ChildVisits;
                 MostVisitedEdge = E;
             }
         }
 
-        return MostVisitedEdge;
+        // If every move is a proven loss, retain the prior-ordered fallback.
+        return MostVisitedEdge != nullptr ? MostVisitedEdge : &getEdge()[0];
     }
 
     Edge* mostPromisingEdgeV2() {
