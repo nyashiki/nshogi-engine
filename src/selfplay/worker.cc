@@ -252,7 +252,7 @@ SelfplayPhase Worker::selectLeaf(Frame* F) const {
             NewNode.malloc(NA, Node);
             assert(NewNode != nullptr);
 
-            E->setTarget(std::move(NewNode));
+            Node->publishChild(E, std::move(NewNode));
         }
 
         Node = E->getTarget();

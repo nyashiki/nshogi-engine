@@ -117,6 +117,8 @@ class Manager {
 
     std::unique_ptr<core::State> CurrentState;
     std::unique_ptr<core::StateConfig> StateConfig;
+    // Protected by MutexSupervisor; applied only after the old search stops.
+    engine::Limit PendingLimit;
     std::function<void(core::Move32)> BestMoveCallback;
     std::function<void(Tree*)> STCallback;
 

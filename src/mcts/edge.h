@@ -58,14 +58,6 @@ struct Edge {
         return Probability;
     }
 
-    void setTarget(Pointer<Node>&& T) {
-        assert(Target == nullptr);
-        assert(Ready == false);
-
-        Target = std::move(T);
-        Ready.store(true, std::memory_order_release);
-    }
-
     Node* getTarget() {
         if (Ready.load(std::memory_order_acquire)) {
             assert(Target != nullptr);
@@ -101,6 +93,17 @@ struct Edge {
     }
 
  private:
+    // Publishing through Node also updates the UCB scan boundary.
+    friend struct Node;
+
+    void setTarget(Pointer<Node>&& T) {
+        assert(Target == nullptr);
+        assert(Ready == false);
+
+        Target = std::move(T);
+        Ready.store(true, std::memory_order_release);
+    }
+
     Pointer<Node> Target;
     float Probability;
     core::Move16 Move;

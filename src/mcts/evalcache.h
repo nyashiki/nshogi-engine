@@ -46,20 +46,51 @@ class EvalCache {
 
     // Two cache lines per bucket. NumMoves[W] == 0 means way W is
     // empty. Offset[W] is the byte offset of way W's entry inside the
-    // bucket's payload region. Version is the seqlock counter: odd
-    // while a writer is active.
+    // bucket's payload region. A writer excludes all readers; readers
+    // can copy entries concurrently. Lock attempts never wait or retry.
     // Recency stamps are replacement hints: a way is stamped 255 when
     // it is inserted or hit, and the other ways decay on each
     // insertion, so the way with the smallest stamp is replaced first.
-    // Readers update the stamps without holding the lock, so a stamp
-    // may occasionally be applied to a way that a concurrent writer
-    // just replaced; that only perturbs a future replacement choice.
+    // Keys remain atomic for the scan before locking. Recency stamps
+    // remain atomic because multiple readers can refresh the same way.
     struct alignas(128) Bucket {
         std::atomic<uint64_t> Key[NUM_WAYS];
-        std::atomic<uint16_t> NumMoves[NUM_WAYS];
-        std::atomic<uint16_t> Offset[NUM_WAYS];
+        uint16_t NumMoves[NUM_WAYS];
+        uint16_t Offset[NUM_WAYS];
         std::atomic<uint8_t> Recency[NUM_WAYS];
-        std::atomic<uint32_t> Version;
+        // Bit 0 denotes the writer; the remaining bits count readers.
+        std::atomic<uint32_t> Access;
+
+        bool isWriting() const {
+            return (Access.load(std::memory_order_relaxed) & 1U) != 0;
+        }
+
+        bool tryLock() {
+            uint32_t Expected = 0;
+            return Access.compare_exchange_strong(
+                Expected, 1, std::memory_order_acquire,
+                std::memory_order_relaxed);
+        }
+
+        bool tryLockShared() {
+            const uint32_t Previous =
+                Access.fetch_add(2, std::memory_order_acquire);
+            if ((Previous & 1U) != 0) {
+                Access.fetch_sub(2, std::memory_order_release);
+                return false;
+            }
+            return true;
+        }
+
+        void unlock() {
+            // A rejected reader may still be undoing its increment.
+            // Clear only the writer bit, preserving those reader counts.
+            Access.fetch_sub(1, std::memory_order_release);
+        }
+
+        void unlockShared() {
+            Access.fetch_sub(2, std::memory_order_release);
+        }
     };
 
     // An entry inside a payload region: WinRate, DrawRate, then
@@ -87,9 +118,8 @@ class EvalCache {
                   "a bucket header must be exactly two cache lines");
     static_assert(std::atomic<uint64_t>::is_always_lock_free &&
                       std::atomic<uint32_t>::is_always_lock_free &&
-                      std::atomic<uint16_t>::is_always_lock_free &&
                       std::atomic<uint8_t>::is_always_lock_free,
-                  "the seqlock scheme requires lock-free atomics");
+                  "bucket access requires lock-free atomics");
 
     static constexpr std::size_t BUCKET_BYTES = sizeof(Bucket) + REGION_BYTES;
 

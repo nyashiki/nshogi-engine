@@ -113,9 +113,12 @@ class SearchWorkerMaster : public SearchWorker {
                        std::shared_ptr<logger::Logger>);
     ~SearchWorkerMaster() override;
 
+    // Call only before start(), after any previous search has been awaited.
     void setLimit(const engine::Limit& L);
 
     void start() override;
+    // Wait for both the search loop and its asynchronous stop callback.
+    void await() override;
     bool doTask() override;
     void issueStop();
 
@@ -151,6 +154,7 @@ class SearchWorkerMaster : public SearchWorker {
     bool ToCallCallback;
     std::thread StopCallThread;
     std::condition_variable StopCV;
+    std::condition_variable CallbackDoneCV;
 
     // Variables for checking if we make up the best move.
     uint64_t MadeUpCheckElapsedPrevious;

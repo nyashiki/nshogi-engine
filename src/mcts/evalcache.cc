@@ -67,13 +67,11 @@ EvalCache::EvalCache(std::size_t MemorySize)
     , Region(allocateRegion(RegionBytes))
     , Buckets(static_cast<Bucket*>(Region))
     , Regions(static_cast<char*>(Region) + NumBuckets * sizeof(Bucket)) {
-    // Zero-initialized headers (all ways empty, version 0) are the
-    // valid initial state. The payload region needs no initialization:
-    // a payload slot is read only after a completed store() published
-    // the corresponding way. std::atomic is not an implicit-lifetime
-    // type, so the headers are constructed explicitly.
+    // Value-initialize the headers (all ways empty, no active users).
+    // Payload pages need no initialization: only occupied entries are read,
+    // and readers keep writers out until their copy is complete.
     for (std::size_t I = 0; I < NumBuckets; ++I) {
-        new (&Buckets[I]) Bucket;
+        new (&Buckets[I]) Bucket{};
     }
 }
 
@@ -98,32 +96,24 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
     const std::size_t BIdx = bucketIndex(Hash);
     Bucket* B = &Buckets[BIdx];
 
-    uint32_t V = B->Version.load(std::memory_order_relaxed);
-    if ((V & 1U) != 0) {
-        return false;
-    }
-    if (!B->Version.compare_exchange_strong(V, V + 1, std::memory_order_acquire,
-                                            std::memory_order_relaxed)) {
-        // Another writer owns this bucket.
+    if (!B->tryLock()) {
         return false;
     }
 
-    // The version is now odd: this thread owns the bucket, so the
-    // header fields and the payload region are safe to mutate; readers
-    // that overlap with the mutation discard their copy on the version
-    // re-check.
+    // The writer owns the header and payload until unlock(). Readers may
+    // still inspect the atomic keys, but cannot start copying an entry.
     uint16_t NM[NUM_WAYS];
     uint16_t Off[NUM_WAYS];
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        NM[W] = B->NumMoves[W].load(std::memory_order_relaxed);
-        Off[W] = B->Offset[W].load(std::memory_order_relaxed);
+        NM[W] = B->NumMoves[W];
+        Off[W] = B->Offset[W];
 
         if (NM[W] != 0 && NM[W] == NumM &&
             B->Key[W].load(std::memory_order_relaxed) == Hash) {
             // The entry already exists; keep the stored values and only
             // refresh its recency.
             B->Recency[W].store(255, std::memory_order_relaxed);
-            B->Version.store(V + 2, std::memory_order_release);
+            B->unlock();
             return true;
         }
     }
@@ -159,7 +149,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
         }
         LiveBytes -= entryBytes(NM[Victim]);
         NM[Victim] = 0;
-        B->NumMoves[Victim].store(0, std::memory_order_relaxed);
+        B->NumMoves[Victim] = 0;
     };
 
     if (!HasFreeWay) {
@@ -211,8 +201,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
                 const std::size_t Sz = entryBytes(NM[W]);
                 if (Off[W] != Cursor) {
                     std::memmove(Rg + Cursor, Rg + Off[W], Sz);
-                    B->Offset[W].store((uint16_t)Cursor,
-                                       std::memory_order_relaxed);
+                    B->Offset[W] = (uint16_t)Cursor;
                 }
                 Cursor += Sz;
             }
@@ -232,8 +221,8 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
         }
     }
     B->Key[Slot].store(Hash, std::memory_order_relaxed);
-    B->NumMoves[Slot].store(NumM, std::memory_order_relaxed);
-    B->Offset[Slot].store((uint16_t)At, std::memory_order_relaxed);
+    B->NumMoves[Slot] = NumM;
+    B->Offset[Slot] = (uint16_t)At;
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
         if (W == Slot) {
             B->Recency[W].store(255, std::memory_order_relaxed);
@@ -243,7 +232,7 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
         }
     }
 
-    B->Version.store(V + 2, std::memory_order_release);
+    B->unlock();
     return true;
 }
 
@@ -251,9 +240,7 @@ bool EvalCache::load(uint64_t Hash, EvalInfo* EI) {
     const std::size_t BIdx = bucketIndex(Hash);
     Bucket* B = &Buckets[BIdx];
 
-    const uint32_t V0 = B->Version.load(std::memory_order_acquire);
-    if ((V0 & 1U) != 0) {
-        // A writer is updating this bucket.
+    if (B->isWriting()) {
         return false;
     }
 
@@ -261,44 +248,28 @@ bool EvalCache::load(uint64_t Hash, EvalInfo* EI) {
         if (B->Key[W].load(std::memory_order_relaxed) != Hash) {
             continue;
         }
-
-        const uint16_t NumM = B->NumMoves[W].load(std::memory_order_relaxed);
-        if (NumM == 0 || NumM > MAX_CACHE_MOVES_COUNT) {
-            // An empty way whose zero key happened to match.
+        // Misses need no read lock. Recheck a matching key after acquiring
+        // it: a writer may have replaced this way during the initial scan.
+        if (!B->tryLockShared()) {
+            return false;
+        }
+        const uint16_t NumM = B->NumMoves[W];
+        if (NumM == 0 || B->Key[W].load(std::memory_order_relaxed) != Hash) {
+            B->unlockShared();
             continue;
         }
-
-        const uint16_t Off = B->Offset[W].load(std::memory_order_relaxed);
-        if (Off > REGION_BYTES - entryBytes(NumM)) {
-            // A torn read of the header (the offset and the move count
-            // belong to different versions of the way). Bounding the
-            // copy keeps it inside this bucket's region; the version
-            // re-check below rejects the result anyway.
-            continue;
-        }
-
-        // The payload is copied without holding a lock, so it may be
-        // torn by a concurrent store(); the version re-check below
-        // discards such a read. (This is the usual seqlock pattern;
-        // the racing reads are benign and are never returned.)
+        const uint16_t Off = B->Offset[W];
         const char* Rg = regionOf(BIdx);
         EI->NumMoves = NumM;
         std::memcpy(&EI->WinRate, Rg + Off, sizeof(float));
         std::memcpy(&EI->DrawRate, Rg + Off + sizeof(float), sizeof(float));
         std::memcpy(EI->Policy, Rg + Off + 2 * sizeof(float),
                     sizeof(float) * NumM);
-
-        std::atomic_thread_fence(std::memory_order_acquire);
-        if (B->Version.load(std::memory_order_relaxed) != V0) {
-            // A writer interleaved with the copy.
-            return false;
-        }
-
-        // Mark the way as recently used (a replacement hint only).
+        // Other readers may refresh the same stamp concurrently.
         B->Recency[W].store(255, std::memory_order_relaxed);
+        B->unlockShared();
         return true;
     }
-
     return false;
 }
 

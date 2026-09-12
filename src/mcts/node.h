@@ -47,6 +47,7 @@ struct Node {
     Node(Node* ParentNode)
         : Parent(ParentNode)
         , NumChildren(0)
+        , ExpandedEnd(0)
         , VisitsAndVirtualLoss(0)
         , ExpectedScoreAccumulated(0)
         , DrawRateAccumulated(0)
@@ -80,9 +81,32 @@ struct Node {
         return Edges;
     }
 
+    inline void publishChild(Edge* E, Pointer<Node>&& Child) {
+        assert(Child != nullptr);
+        assert(Child->getParent() == this);
+        assert(E >= Edges.get() && E < Edges.get() + NumChildren);
+        const uint16_t End = static_cast<uint16_t>(E - Edges.get() + 1);
+
+        // Record the range before making the child visible. Concurrent
+        // publishers may finish out of prior order, so never shrink it.
+        uint16_t Previous = ExpandedEnd.load(std::memory_order_relaxed);
+        while (Previous < End &&
+               !ExpandedEnd.compare_exchange_weak(
+                   Previous, End, std::memory_order_release,
+                   std::memory_order_relaxed)) {
+        }
+        E->setTarget(std::move(Child));
+    }
+
+    inline uint16_t getExpandedEnd() const {
+        return ExpandedEnd.load(std::memory_order_acquire);
+    }
+
     inline uint64_t incrementVirtualLoss() {
         constexpr uint64_t Value = 1ULL << VirtualLossShift;
-        return VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_release);
+        // The returned visit count gates reads of the expansion/evaluation.
+        // Acquiring here also hands off a cancelled expansion when it is zero.
+        return VisitsAndVirtualLoss.fetch_add(Value, std::memory_order_acq_rel);
     }
 
     inline void incrementVisits() {
@@ -183,6 +207,8 @@ struct Node {
     }
 
     inline void sort() {
+        // Published child indices must remain stable for ExpandedEnd.
+        assert(getExpandedEnd() == 0);
         std::sort(Edges.get(), Edges.get() + getNumChildren(),
                   [](const Edge& E1, const Edge& E2) {
                       return E1.getProbability() > E2.getProbability();
@@ -345,11 +371,20 @@ struct Node {
     void releaseEdges(allocator::Allocator* Allocator) {
         Edges.destroy(Allocator, NumChildren);
         NumChildren = 0;
+        ExpandedEnd.store(0, std::memory_order_relaxed);
     }
 
  private:
+    // Parent changes only while search/evaluation workers are stopped.
     Node* Parent;
+    // Expansion and evaluation have one owner until the first release visit
+    // increment. Concurrent readers must acquire a nonzero visit count before
+    // reading these fields, Edges, its moves/priors, or the raw predictions and
+    // repetition below. Edge::Ready publishes construction, not evaluation.
     uint16_t NumChildren;
+    // Exclusive upper bound of published child indices, including in-flight
+    // publication. Fits in the padding before Edges; reset only with Edges.
+    std::atomic<uint16_t> ExpandedEnd;
     Pointer<Edge> Edges;
 
     // Variables updated in search iteration.

@@ -97,10 +97,9 @@ void Manager::thinkNextMove(const core::State& State,
         StateConfig = std::make_unique<core::StateConfig>(Config);
         BestMoveCallback = Callback;
         STCallback = SearchTreeCallback;
-        SWorkerMaster->setLimit(Lim);
+        PendingLimit = Lim;
         assert(!WakeUpSupervisor);
         WakeUpSupervisor = true;
-        PLogger->setIsInverse(false);
     }
 
     // Wake up the supervisor.
@@ -262,6 +261,12 @@ void Manager::doSupervisorWork(bool CallCallback) {
     // Wait for all workers if previous search is running.
     awaitWorkers();
     assert(checkAllVirtualLossIsZero(SearchTree->getRoot()));
+
+    // Pondering can outlive the previous supervisor task. Do not change the
+    // master's active limit or log viewpoint until its last iteration has
+    // finished.
+    SWorkerMaster->setLimit(PendingLimit);
+    PLogger->setIsInverse(false);
 
     // Reset statistics.
     Stat.reset();

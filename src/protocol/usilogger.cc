@@ -147,6 +147,7 @@ void USILogger::printStatistics(const mcts::Statistics& Statistics) const {
 }
 
 void USILogger::setIsInverse(bool Value) {
+    std::lock_guard<std::mutex> Lock(Mtx);
     IsInverse = Value;
 }
 
