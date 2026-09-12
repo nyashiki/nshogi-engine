@@ -13,6 +13,8 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstddef>
+#include <memory>
+#include <vector>
 
 #include <nshogi/core/state.h>
 
@@ -22,13 +24,13 @@ namespace mcts {
 
 class EvalCache {
  public:
-    static constexpr std::size_t MAX_CACHE_MOVES_COUNT = 600;
-
     struct EvalInfo {
-        uint16_t NumMoves;
-        float Policy[MAX_CACHE_MOVES_COUNT];
-        float WinRate;
-        float DrawRate;
+        uint16_t NumMoves = 0;
+        // Reusable scratch storage; only the first NumMoves values are valid.
+        // Retaining its size avoids reinitializing overwritten values on load.
+        std::vector<float> Policy;
+        float WinRate = 0.0f;
+        float DrawRate = 0.0f;
     };
 
     EvalCache(std::size_t MemorySize);
@@ -41,38 +43,42 @@ class EvalCache {
     bool load(uint64_t Hash, EvalInfo*);
     bool load(const core::State&, EvalInfo*);
 
+    // Retained storage, including headers and a conservative allocation
+    // overhead allowance. Transient resize buffers / caller scratch are extra.
+    std::size_t getMemoryUsed() const;
+    std::size_t getMemoryLimit() const;
+
  private:
     static constexpr std::size_t NUM_WAYS = 8;
 
-    // Two cache lines per bucket. NumMoves[W] == 0 means way W is
-    // empty. Offset[W] is the byte offset of way W's entry inside the
-    // bucket's payload region. A writer excludes all readers; readers
-    // can copy entries concurrently. Lock attempts never wait or retry.
-    // Recency stamps are replacement hints: a way is stamped 255 when
-    // it is inserted or hit, and the other ways decay on each
-    // insertion, so the way with the smallest stamp is replaced first.
-    // Keys remain atomic for the scan before locking. Recency stamps
-    // remain atomic because multiple readers can refresh the same way.
+    // Entries are packed in way order in a dynamically sized buffer. Only
+    // NumMoves[W] + 2 floats are stored for an occupied way; zero means empty.
+    // Readers share the bucket lock, while a writer can resize or free its
+    // buffer only after all readers have left. Keys alone are probed unlocked.
     struct alignas(128) Bucket {
         std::atomic<uint64_t> Key[NUM_WAYS];
         uint16_t NumMoves[NUM_WAYS];
+        // Float offsets; UINT16_MAX asks offsetOf() to compute a wide offset.
         uint16_t Offset[NUM_WAYS];
         std::atomic<uint8_t> Recency[NUM_WAYS];
         // Bit 0 denotes the writer; the remaining bits count readers.
         std::atomic<uint32_t> Access;
+        std::unique_ptr<float[]> Data;
+        uint32_t Size;
+        uint32_t Capacity;
 
         bool isWriting() const {
             return (Access.load(std::memory_order_relaxed) & 1U) != 0;
         }
 
-        bool tryLock() {
+        bool try_lock() {
             uint32_t Expected = 0;
             return Access.compare_exchange_strong(Expected, 1,
                                                   std::memory_order_acquire,
                                                   std::memory_order_relaxed);
         }
 
-        bool tryLockShared() {
+        bool try_lock_shared() {
             const uint32_t Previous =
                 Access.fetch_add(2, std::memory_order_acquire);
             if ((Previous & 1U) != 0) {
@@ -88,52 +94,43 @@ class EvalCache {
             Access.fetch_sub(1, std::memory_order_release);
         }
 
-        void unlockShared() {
+        void unlock_shared() {
             Access.fetch_sub(2, std::memory_order_release);
         }
     };
 
-    // An entry inside a payload region: WinRate, DrawRate, then
-    // NumMoves floats of policy. Everything is 4-byte aligned, so
-    // offsets and sizes are multiples of 4.
-    static constexpr std::size_t entryBytes(std::size_t NumM) {
-        return 2 * sizeof(float) + sizeof(float) * NumM;
+    static constexpr std::size_t entryFloats(uint16_t NumM) {
+        return NumM == 0 ? 0 : std::size_t{NumM} + 2;
     }
 
-    // The payload region of one bucket. Eight independently drawn
-    // entries (mean legal-move count 49, mean entry 205 bytes) sum to
-    // at most 2432 bytes ~99% of the time, and the largest legal
-    // entry (600 moves, 2408 bytes) fits alone.
-    static constexpr std::size_t REGION_BYTES = 2432;
+    static std::size_t allocationBytes(std::size_t NumFloats);
+    static std::size_t computeMemoryLimit(std::size_t MemoryMB);
+    static std::size_t computeNumBuckets(std::size_t MemoryBytes);
+    static std::size_t offsetOf(const Bucket*, std::size_t Way);
+    static void updateOffsets(Bucket*);
+    static std::size_t leastRecent(const Bucket*, std::size_t ExcludedWay);
+    static void erase(Bucket*, std::size_t Way);
 
-    // (entryBytes() is not usable in a constant expression until the
-    // class is complete, so the size of the largest entry is spelled
-    // out.)
-    static_assert(REGION_BYTES >=
-                      2 * sizeof(float) + sizeof(float) * MAX_CACHE_MOVES_COUNT,
-                  "a region must be able to hold the largest entry");
-    static_assert(REGION_BYTES % 4 == 0 && REGION_BYTES <= UINT16_MAX,
-                  "offsets are 4-byte-aligned uint16 byte counts");
+    std::size_t bucketIndex(uint64_t Hash) const;
+    bool reserve(std::size_t Bytes);
+    bool reclaimAndReserve(std::size_t Bytes, std::size_t ExcludedBucket);
+
     static_assert(sizeof(Bucket) == 128,
                   "a bucket header must be exactly two cache lines");
     static_assert(std::atomic<uint64_t>::is_always_lock_free &&
                       std::atomic<uint32_t>::is_always_lock_free &&
-                      std::atomic<uint8_t>::is_always_lock_free,
+                      std::atomic<uint8_t>::is_always_lock_free &&
+                      std::atomic<std::size_t>::is_always_lock_free,
                   "bucket access requires lock-free atomics");
 
-    static constexpr std::size_t BUCKET_BYTES = sizeof(Bucket) + REGION_BYTES;
-
-    std::size_t bucketIndex(uint64_t Hash) const;
-
-    char* regionOf(std::size_t BucketIdx) const {
-        return Regions + BucketIdx * REGION_BYTES;
-    }
-
+    const std::size_t MemoryLimit;
     const std::size_t NumBuckets;
-    const std::size_t RegionBytes;
-    void* const Region;
+    const std::size_t HeaderBytes;
+    const std::size_t PayloadLimit;
     Bucket* const Buckets;
-    char* const Regions;
+    // Keep accounting writes off the cache lines read by every lookup.
+    alignas(64) std::atomic<std::size_t> PayloadBytes{0};
+    alignas(64) std::atomic<std::size_t> EvictionCursor{0};
 };
 
 } // namespace mcts

@@ -76,6 +76,7 @@ class Worker : public worker::Worker {
     allocator::Allocator* EA;
 
     mcts::EvalCache* EvalCache;
+    mutable mcts::EvalCache::EvalInfo CacheEvalInfo;
 
     mutable std::mt19937_64 MT;
 

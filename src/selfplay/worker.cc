@@ -368,10 +368,10 @@ SelfplayPhase Worker::checkTerminal(Frame* F) const {
 
     // Check evaluation cache.
     assert(EvalCache != nullptr);
-    mcts::EvalCache::EvalInfo EvalInfo;
+    auto& EvalInfo = CacheEvalInfo;
     if (EvalCache->load(*F->getState(), &EvalInfo)) {
         if (EvalInfo.NumMoves == LegalMoves.size()) {
-            F->setEvaluation<true>(EvalInfo.Policy, EvalInfo.WinRate,
+            F->setEvaluation<true>(EvalInfo.Policy.data(), EvalInfo.WinRate,
                                    EvalInfo.DrawRate);
             SInfo->incrementCacheHit();
             return SelfplayPhase::Backpropagation;
