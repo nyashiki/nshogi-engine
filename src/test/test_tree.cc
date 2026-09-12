@@ -179,9 +179,8 @@ TEST_F(SearchTree, RewindReplacesRootDespiteRetainedLastMove) {
 }
 
 TEST_F(SearchTree, ReusesChildrenWithAndWithoutSfenPlyOffset) {
-    for (const char* Sfen : {
-             "startpos",
-             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 100"}) {
+    for (const char* Sfen : {"startpos", "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/"
+                                         "PPPPPPPPP/1B5R1/LNSGKGSNL b - 100"}) {
         SCOPED_TRACE(Sfen);
         auto State = io::sfen::StateBuilder::newState(Sfen);
         auto* Root = expandRoot(State);
@@ -240,7 +239,8 @@ TEST_F(SearchTree, MissingChildCreatesRootAtRequestedPosition) {
 TEST_F(SearchTree, RepetitionChildIsReplacedWithFreshRoot) {
     auto State = Initial.clone();
     auto* Root = expandRoot(State);
-    addChild(Root, 0, 7)->setRepetitionStatus(core::RepetitionStatus::Repetition);
+    addChild(Root, 0, 7)
+        ->setRepetitionStatus(core::RepetitionStatus::Repetition);
     State.doMove(State.getMove32FromMove16(Root->getEdge()[0].getMove()));
     Tree.updateRoot(State);
     expectState(State);
