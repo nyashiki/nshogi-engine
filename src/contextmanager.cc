@@ -61,6 +61,10 @@ void ContextManager::setThinkingTimeMargin(uint32_t Margin) {
     Context_->ThinkingTimeMargin = Margin;
 }
 
+void ContextManager::setLogMargin(uint32_t Margin) {
+    Context_->LogMargin = Margin;
+}
+
 void ContextManager::setAvailableMemoryMB(std::size_t Memory) {
     Context_->AvailableMemoryMB = Memory;
 }

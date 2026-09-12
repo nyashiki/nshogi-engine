@@ -156,7 +156,7 @@ Node* SearchWorker::collectOneLeaf() {
 
             auto* NewNodePtr = NewNode.get();
             NewNodePtr->incrementVirtualLoss();
-            E->setTarget(std::move(NewNode));
+            CurrentNode->publishChild(E, std::move(NewNode));
 
             return NewNodePtr;
         }
@@ -334,17 +334,14 @@ Edge* SearchWorker::computeUCBMaxEdge(Node* N, uint16_t NumChildren,
                 UCBMaxEdge = Edge;
             }
 
-            // Since the children is sorted by its policy,
-            // we can break the loop here because if its visit count
-            // is zero, a child that has higher policy has higher UCB value.
-            // The relationship can be broken if the visit count is not zero,
-            // but in that case, there is no unvisited child previously in this
-            // loop.
-            if (!IsExpanding) {
+            // Concurrent descents can publish later children before this
+            // one. Only beyond the published range are all remaining moves
+            // unvisited, where prior order also bounds their UCB values.
+            // Read the boundary after the parent's acquire visit load above.
+            if (!IsExpanding && I + 1 >= N->getExpandedEnd()) {
                 break;
-            } else {
-                continue;
             }
+            continue;
         }
 
         const uint64_t ChildVisits =
@@ -638,6 +635,8 @@ SearchWorkerMaster::SearchWorkerMaster(
     , Logger(std::move(L))
     , ImmediateLogEnabled(true)
     , Exiting(false)
+    , CallbackCalled(false)
+    , ToCallCallback(false)
     , MadeUpCheckElapsedPrevious(0)
     , BestEdgePrevious(nullptr) {
 
@@ -653,6 +652,7 @@ SearchWorkerMaster::SearchWorkerMaster(
 
             Callback();
             ToCallCallback = false;
+            CallbackDoneCV.notify_all();
         }
     });
 }
@@ -668,10 +668,14 @@ SearchWorkerMaster::~SearchWorkerMaster() {
 }
 
 void SearchWorkerMaster::setLimit(const engine::Limit& L) {
+    assert(!isRunning());
     Limit = L;
 }
 
 void SearchWorkerMaster::start() {
+    // The stop callback reads/resets ToCallCallback under this mutex too.
+    std::lock_guard<std::mutex> Lock(Mutex);
+    assert(!ToCallCallback);
     SearchStartTime = std::chrono::steady_clock::now();
     MadeUpCheckElapsedPrevious = 0;
     BestEdgePrevious = nullptr;
@@ -679,9 +683,17 @@ void SearchWorkerMaster::start() {
     NumNodesAtStart = RootNode->getVisitsAndVirtualLoss() & Node::VisitMask;
     LogOutputPrevious = 0;
     CallbackCalled.store(false, std::memory_order_release);
-    ToCallCallback = false;
 
     SearchWorker::start();
+}
+
+void SearchWorkerMaster::await() {
+    SearchWorker::await();
+    // The loop can become idle while a stop callback is still pending or
+    // executing (e.g. after a direct stop for a book move). Finish it before
+    // the manager reopens the queue or starts any workers for the next search.
+    std::unique_lock<std::mutex> Lock(Mutex);
+    CallbackDoneCV.wait(Lock, [this]() { return !ToCallCallback; });
 }
 
 bool SearchWorkerMaster::doTask() {
@@ -713,7 +725,7 @@ bool SearchWorkerMaster::doTask() {
 
 void SearchWorkerMaster::issueStop() {
     std::lock_guard<std::mutex> Lock(Mutex);
-    if (isRunning()) {
+    if (!CallbackCalled.load(std::memory_order_relaxed) && isRunning()) {
         ToCallCallback = true;
         CallbackCalled.store(true, std::memory_order_release);
         StopCV.notify_one();
@@ -762,6 +774,11 @@ logger::PVLog SearchWorkerMaster::getPVLog() const {
                         : Config.WhiteDrawValue;
 
     while (N != nullptr) {
+        // A published child can still be expanding or awaiting evaluation.
+        // Its edge array is immutable only after the first completed visit.
+        if ((N->getVisitsAndVirtualLoss() & Node::VisitMask) == 0) {
+            break;
+        }
         Edge* E = N->mostPromisingEdge();
 
         if (E == nullptr) {
@@ -845,6 +862,10 @@ bool SearchWorkerMaster::hasMadeUpMind(uint64_t Elapsed) {
         return false;
     }
 
+    // The first root evaluation may still be pending even after 470 ms.
+    if ((RootNode->getVisitsAndVirtualLoss() & Node::VisitMask) == 0) {
+        return false;
+    }
     const uint16_t NumChildren = RootNode->getNumChildren();
 
     uint64_t SumVisits = 0;

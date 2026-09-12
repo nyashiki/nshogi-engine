@@ -12,6 +12,7 @@
 #include "../mcts/evalcache.h"
 
 #include <atomic>
+#include <barrier>
 #include <cstring>
 #include <random>
 #include <thread>
@@ -146,6 +147,45 @@ TEST(EvalCache, RestoreSameHash) {
     }
     ASSERT_TRUE(Cache.load(H, &EI));
     expectEntryMatches(H, EI);
+}
+
+TEST(EvalCache, ConcurrentReadersKeepHits) {
+    EvalCache Cache(1);
+    static constexpr uint16_t NumMoves = 43;
+    constexpr int NumReaders = 4;
+    float Policy[NumMoves];
+
+    // All four entries occupy the same bucket and fit without eviction.
+    for (uint64_t H = 1; H <= 4; ++H) {
+        for (uint16_t I = 0; I < NumMoves; ++I) {
+            Policy[I] = policyOf(H, I);
+        }
+        ASSERT_TRUE(Cache.store(H, NumMoves, Policy, 0.75f, 0.125f));
+    }
+
+    std::barrier Start(NumReaders + 1);
+    std::vector<std::thread> Threads;
+    for (int T = 0; T < NumReaders; ++T) {
+        Threads.emplace_back([&Cache, &Start, T]() {
+            EvalCache::EvalInfo EI;
+            Start.arrive_and_wait();
+            for (uint32_t I = 0; I < 20000; ++I) {
+                const uint64_t H = 1 + (I + (uint32_t)T) % 4;
+                // Read-only contention must neither evict nor reject a hit.
+                ASSERT_TRUE(Cache.load(H, &EI));
+                ASSERT_EQ(EI.NumMoves, NumMoves);
+                ASSERT_EQ(EI.WinRate, 0.75f);
+                ASSERT_EQ(EI.DrawRate, 0.125f);
+                for (uint16_t J = 0; J < NumMoves; ++J) {
+                    ASSERT_EQ(EI.Policy[J], policyOf(H, J));
+                }
+            }
+        });
+    }
+    Start.arrive_and_wait();
+    for (auto& Thread : Threads) {
+        Thread.join();
+    }
 }
 
 // Concurrent writers and readers on a small hash pool: loads may miss

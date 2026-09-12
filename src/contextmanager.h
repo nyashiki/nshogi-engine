@@ -43,6 +43,8 @@ class ContextManager {
 
     void setThinkingTimeMargin(uint32_t Margin);
 
+    void setLogMargin(uint32_t Margin);
+
     void setAvailableMemoryMB(std::size_t Memory);
 
     void setEvalCacheMemoryMB(std::size_t Memory);

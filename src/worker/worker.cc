@@ -47,7 +47,14 @@ void Worker::start() {
 }
 
 void Worker::stop() {
-    StopSource.request_stop();
+    // start() replaces StopSource. Copy it under the same lock, then request
+    // cancellation outside the lock since stop callbacks can run inline.
+    std::stop_source Source(std::nostopstate);
+    {
+        std::lock_guard<std::mutex> Lock(Mutex);
+        Source = StopSource;
+    }
+    Source.request_stop();
 }
 
 void Worker::await() {
@@ -87,12 +94,6 @@ void Worker::mainLoop() {
 
     while (true) {
         {
-            std::lock_guard<std::mutex> Lock(Mutex);
-            WState = WorkerState::Idle;
-            AwaitCV.notify_all();
-        }
-
-        {
             std::unique_lock<std::mutex> Lock(Mutex);
 
             TaskCV.wait(Lock, [this] {
@@ -131,6 +132,15 @@ void Worker::mainLoop() {
                 }
                 StreakRun = 0;
             }
+        }
+
+        {
+            std::lock_guard<std::mutex> Lock(Mutex);
+            // Return to Idle only after finishing a task. Resetting it at
+            // the first loop entry can erase start/exit requests received
+            // immediately after the initialization notification.
+            WState = WorkerState::Idle;
+            AwaitCV.notify_all();
         }
     }
 
