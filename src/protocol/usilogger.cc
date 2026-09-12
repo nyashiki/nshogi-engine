@@ -34,7 +34,9 @@ void USILogger::printPVLog(const logger::PVLog& Log) const {
               << Log.ElapsedMilliSeconds;
 
     if (Log.SolvedGameEndPly != 0) {
-        std::cout << " score mate " << Log.SolvedGameEndPly;
+        const int32_t Mate =
+            IsInverse ? -Log.SolvedGameEndPly : Log.SolvedGameEndPly;
+        std::cout << " score mate " << Mate;
     } else {
         int32_t Score = getScoreFromExpectedScore(Log.ExpectedScore,
                                                   Log.DrawRate, Log.DrawValue);
