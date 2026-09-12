@@ -346,6 +346,46 @@ TEST(Manager, NextLimitIsAppliedOnlyAfterPonderingStops) {
     }
 }
 
+TEST(Manager, TerminalRepliesDoNotAdvanceThePosition) {
+    ContextManager C;
+    configure(C, true);
+    core::StateConfig Config;
+    Config.Rule = core::ER_Declare27;
+    Limit Lim;
+    Lim.ByoyomiMilliSeconds = 10;
+
+    for (bool Declaration : {false, true}) {
+        auto State = nshogi::io::sfen::StateBuilder::newState(
+            Declaration ? "2BR4K/1GBG2+P+P+P/3GN4/9/9/9/9/9/6k2 b RG4S3N4L15P 1"
+                        : "Kbg4nl/3sk1gs1/2n4pp/1G1p5/1pP4P1/4S4/P2PPG2P/1L7/"
+                          "LNS4NL w 7P2Rpb 1");
+        if (Declaration) {
+            ASSERT_TRUE(State.canDeclare());
+        } else {
+            const auto Mate = solver::dfs::solve(&State, 1);
+            ASSERT_FALSE(Mate.isNone());
+            State.doMove(Mate);
+            ASSERT_EQ(core::MoveGenerator::generateLegalMoves(State).size(),
+                      0U);
+        }
+
+        Replies Completed;
+        mcts::Tree* FinalTree = nullptr;
+        mcts::Manager Manager(C.getContext(), std::make_shared<SilentLogger>());
+        Manager.thinkNextMove(
+            State, Config, Lim,
+            [&](core::Move32 Move) {
+                EXPECT_TRUE(Declaration ? Move.isWin() : Move.isNone());
+                EXPECT_EQ(FinalTree->getRootState()->getHash(),
+                          State.getHash());
+                EXPECT_EQ(FinalTree->getRootState()->getPly(), State.getPly());
+                Completed.add(0, Move);
+            },
+            [&](mcts::Tree* Tree) { FinalTree = Tree; });
+        EXPECT_TRUE(Completed.awaitSize(1));
+    }
+}
+
 } // namespace
 
 #endif
