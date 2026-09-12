@@ -10,219 +10,298 @@
 #include "evalcache.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstring>
+#include <limits>
+#include <mutex>
 #include <new>
+#include <shared_mutex>
 
 #if defined(__linux__)
-
 #include <sys/mman.h>
-
 #endif
 
 namespace nshogi {
 namespace engine {
 namespace mcts {
 
-namespace {
-
-std::size_t computeNumBuckets(std::size_t MemorySizeMB,
-                              std::size_t BucketBytes) {
-    const std::size_t N = std::max<std::size_t>(1, MemorySizeMB * 1024ULL *
-                                                       1024ULL / BucketBytes);
-    // bucketIndex() requires the bucket count to fit in 32 bits.
-    return std::min<std::size_t>(N, 0xFFFFFFFFULL);
+std::size_t EvalCache::allocationBytes(std::size_t NumFloats) {
+    if (NumFloats == 0) {
+        return 0;
+    }
+    constexpr std::size_t Alignment = alignof(std::max_align_t);
+    return ((NumFloats * sizeof(float) + Alignment - 1) & ~(Alignment - 1)) +
+           2 * sizeof(std::size_t);
 }
 
-void* allocateRegion(std::size_t Bytes) {
-#if defined(__linux__)
-    // Anonymous pages are zero-filled and are committed only when they
-    // are first touched, so constructing a large cache is cheap and
-    // memory is consumed on demand. Huge pages reduce TLB misses of
-    // the random probes into the table.
-    void* Ptr = ::mmap(nullptr, Bytes, PROT_READ | PROT_WRITE,
-                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (Ptr == MAP_FAILED) {
+std::size_t EvalCache::computeMemoryLimit(std::size_t MemoryMB) {
+    constexpr std::size_t MiB = 1024 * 1024;
+    if (MemoryMB > std::numeric_limits<std::size_t>::max() / MiB) {
         throw std::bad_alloc();
     }
-    ::madvise(Ptr, Bytes, MADV_HUGEPAGE);
-    return Ptr;
-#else
-    return ::operator new(Bytes, std::align_val_t{64});
-#endif
+    return std::max<std::size_t>(4096, MemoryMB * MiB);
 }
 
-void freeRegion(void* Ptr, [[maybe_unused]] std::size_t Bytes) {
-#if defined(__linux__)
-    ::munmap(Ptr, Bytes);
-#else
-    ::operator delete(Ptr, std::align_val_t{64});
-#endif
+std::size_t EvalCache::computeNumBuckets(std::size_t MemoryBytes) {
+    // Preserve the previous number of hash ways for a given memory setting.
+    // This is only an index-sizing estimate, not a per-entry allocation or
+    // size limit. Actual payload storage is lazy and budgeted independently.
+    constexpr std::size_t EstimatedBytesPerWay = 320;
+    constexpr std::size_t EstimatedBucketBytes =
+        NUM_WAYS * EstimatedBytesPerWay;
+    return std::clamp<std::size_t>(MemoryBytes / EstimatedBucketBytes, 1,
+                                   UINT32_MAX);
 }
-
-} // namespace
 
 EvalCache::EvalCache(std::size_t MemorySize)
-    : NumBuckets(computeNumBuckets(MemorySize, BUCKET_BYTES))
-    , RegionBytes(NumBuckets * BUCKET_BYTES)
-    , Region(allocateRegion(RegionBytes))
-    , Buckets(static_cast<Bucket*>(Region))
-    , Regions(static_cast<char*>(Region) + NumBuckets * sizeof(Bucket)) {
-    // Value-initialize the headers (all ways empty, no active users).
-    // Payload pages need no initialization: only occupied entries are read,
-    // and readers keep writers out until their copy is complete.
+    : MemoryLimit(computeMemoryLimit(MemorySize))
+    , NumBuckets(computeNumBuckets(MemoryLimit))
+    , HeaderBytes(NumBuckets * sizeof(Bucket))
+    , PayloadLimit(MemoryLimit - HeaderBytes)
+    , Buckets([this]() -> Bucket* {
+#if defined(__linux__)
+        void* Ptr = ::mmap(nullptr, HeaderBytes, PROT_READ | PROT_WRITE,
+                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (Ptr == MAP_FAILED) {
+            throw std::bad_alloc();
+        }
+        ::madvise(Ptr, HeaderBytes, MADV_HUGEPAGE);
+#else
+        void* Ptr =
+            ::operator new(HeaderBytes, std::align_val_t{alignof(Bucket)});
+#endif
+        return static_cast<Bucket*>(Ptr);
+    }()) {
     for (std::size_t I = 0; I < NumBuckets; ++I) {
         new (&Buckets[I]) Bucket{};
     }
 }
 
 EvalCache::~EvalCache() {
-    freeRegion(Region, RegionBytes);
+    for (std::size_t I = 0; I < NumBuckets; ++I) {
+        Buckets[I].~Bucket();
+    }
+#if defined(__linux__)
+    ::munmap(Buckets, HeaderBytes);
+#else
+    ::operator delete(Buckets, std::align_val_t{alignof(Bucket)});
+#endif
+}
+
+std::size_t EvalCache::getMemoryUsed() const {
+    return HeaderBytes + PayloadBytes.load(std::memory_order_relaxed);
+}
+
+std::size_t EvalCache::getMemoryLimit() const {
+    return MemoryLimit;
 }
 
 std::size_t EvalCache::bucketIndex(uint64_t Hash) const {
-    // Multiply-shift maps the hash's top 32 bits onto [0, NumBuckets).
     return (std::size_t)(((Hash >> 32) * (uint64_t)NumBuckets) >> 32);
+}
+
+std::size_t EvalCache::offsetOf(const Bucket* B, std::size_t Way) {
+    if (B->Offset[Way] != UINT16_MAX) {
+        return B->Offset[Way];
+    }
+    // Very large policies can exceed a compact offset. Falling back keeps
+    // the header small without imposing a limit on the number of moves.
+    std::size_t Offset = 0;
+    for (std::size_t I = 0; I < Way; ++I) {
+        Offset += entryFloats(B->NumMoves[I]);
+    }
+    return Offset;
+}
+
+void EvalCache::updateOffsets(Bucket* B) {
+    std::size_t Offset = 0;
+    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+        B->Offset[W] = (uint16_t)std::min<std::size_t>(Offset, UINT16_MAX);
+        Offset += entryFloats(B->NumMoves[W]);
+    }
+}
+
+std::size_t EvalCache::leastRecent(const Bucket* B, std::size_t ExcludedWay) {
+    std::size_t Victim = NUM_WAYS;
+    uint8_t MinRecency = 0;
+    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+        if (W == ExcludedWay || B->NumMoves[W] == 0) {
+            continue;
+        }
+        const uint8_t R = B->Recency[W].load(std::memory_order_relaxed);
+        if (Victim == NUM_WAYS || R < MinRecency) {
+            MinRecency = R;
+            Victim = W;
+        }
+    }
+    return Victim;
+}
+
+void EvalCache::erase(Bucket* B, std::size_t Way) {
+    const std::size_t Offset = offsetOf(B, Way);
+    const std::size_t Size = entryFloats(B->NumMoves[Way]);
+    std::memmove(B->Data.get() + Offset, B->Data.get() + Offset + Size,
+                 (B->Size - Offset - Size) * sizeof(float));
+    B->Size -= (uint32_t)Size;
+    B->NumMoves[Way] = 0;
+    updateOffsets(B);
+}
+
+bool EvalCache::reserve(std::size_t Bytes) {
+    std::size_t Previous = PayloadBytes.load(std::memory_order_relaxed);
+    while (Bytes <= PayloadLimit - Previous) {
+        if (PayloadBytes.compare_exchange_weak(Previous, Previous + Bytes,
+                                               std::memory_order_relaxed,
+                                               std::memory_order_relaxed)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool EvalCache::reclaimAndReserve(std::size_t Bytes,
+                                  std::size_t ExcludedBucket) {
+    if (reserve(Bytes)) {
+        return true;
+    }
+    // Used only when a new entry cannot fit even after local evictions.
+    // An oversized entry can borrow space from other buckets; there is no
+    // fixed per-bucket payload limit. Never wait on another bucket's readers.
+    for (std::size_t I = 0; I < NumBuckets; ++I) {
+        const std::size_t Idx =
+            EvictionCursor.fetch_add(1, std::memory_order_relaxed) % NumBuckets;
+        if (Idx == ExcludedBucket) {
+            continue;
+        }
+        Bucket* B = &Buckets[Idx];
+        std::unique_lock Guard(*B, std::try_to_lock);
+        if (!Guard.owns_lock() || B->Capacity == 0) {
+            continue;
+        }
+        const std::size_t ReleasedBytes = allocationBytes(B->Capacity);
+        B->Data.reset();
+        B->Capacity = B->Size = 0;
+        for (std::size_t W = 0; W < NUM_WAYS; ++W) {
+            B->NumMoves[W] = 0;
+            B->Offset[W] = 0;
+        }
+        PayloadBytes.fetch_sub(ReleasedBytes, std::memory_order_relaxed);
+        if (reserve(Bytes)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
                       float D) {
-    if (NumM == 0 || NumM > MAX_CACHE_MOVES_COUNT) {
-        // An entry with no moves carries no reusable information
-        // (loaders compare NumMoves against a nonzero legal-move
-        // count), and NumMoves == 0 marks an empty way internally.
+    if (NumM == 0) {
         return false;
     }
-
+    const std::size_t NewSize = entryFloats(NumM);
+    if (allocationBytes(NewSize) > PayloadLimit) {
+        return false;
+    }
     const std::size_t BIdx = bucketIndex(Hash);
     Bucket* B = &Buckets[BIdx];
-
-    if (!B->tryLock()) {
+    std::unique_lock Guard(*B, std::try_to_lock);
+    if (!Guard.owns_lock()) {
         return false;
     }
-
-    // The writer owns the header and payload until unlock(). Readers may
-    // still inspect the atomic keys, but cannot start copying an entry.
-    uint16_t NM[NUM_WAYS];
-    uint16_t Off[NUM_WAYS];
-    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        NM[W] = B->NumMoves[W];
-        Off[W] = B->Offset[W];
-
-        if (NM[W] != 0 && NM[W] == NumM &&
-            B->Key[W].load(std::memory_order_relaxed) == Hash) {
-            // The entry already exists; keep the stored values and only
-            // refresh its recency.
-            B->Recency[W].store(255, std::memory_order_relaxed);
-            B->unlock();
-            return true;
-        }
-    }
-
-    const std::size_t Need = entryBytes(NumM);
-
-    // Make room: the new entry needs a free way and Need bytes of
-    // region space. Evict the least recently used way first when all
-    // four are occupied, then keep evicting until the entry fits.
-    // The loop terminates because Need <= REGION_BYTES.
-    std::size_t LiveBytes = 0;
-    bool HasFreeWay = false;
-    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        if (NM[W] != 0) {
-            LiveBytes += entryBytes(NM[W]);
-        } else {
-            HasFreeWay = true;
-        }
-    }
-
-    const auto EvictLRU = [&]() {
-        std::size_t Victim = NUM_WAYS;
-        uint8_t MinRecency = 0;
-        for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-            if (NM[W] == 0) {
-                continue;
-            }
-            const uint8_t R = B->Recency[W].load(std::memory_order_relaxed);
-            if (Victim == NUM_WAYS || R < MinRecency) {
-                MinRecency = R;
-                Victim = W;
-            }
-        }
-        LiveBytes -= entryBytes(NM[Victim]);
-        NM[Victim] = 0;
-        B->NumMoves[Victim] = 0;
-    };
-
-    if (!HasFreeWay) {
-        EvictLRU();
-    }
-    while (REGION_BYTES - LiveBytes < Need) {
-        EvictLRU();
-    }
-
-    // Place the entry after the last live one if the tail is large
-    // enough, or failing that into the first eviction gap it fits in;
-    // only when neither works are the live entries compacted to the
-    // front of the region. Compaction moves at most REGION_BYTES bytes
-    // inside one bucket and happens at most once per insertion.
-    char* Rg = regionOf(BIdx);
-
-    std::size_t Order[NUM_WAYS];
-    std::size_t NumLive = 0;
-    std::size_t End = 0;
-    for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        if (NM[W] != 0) {
-            Order[NumLive++] = W;
-            End = std::max<std::size_t>(End, Off[W] + entryBytes(NM[W]));
-        }
-    }
-
-    std::size_t At = End;
-    if (REGION_BYTES - End < Need) {
-        std::sort(Order, Order + NumLive, [&](std::size_t A, std::size_t C) {
-            return Off[A] < Off[C];
-        });
-
-        // Gaps precede each live entry in offset order.
-        At = REGION_BYTES; // Sentinel: no gap found yet.
-        std::size_t Cursor = 0;
-        for (std::size_t I = 0; I < NumLive; ++I) {
-            const std::size_t W = Order[I];
-            if (Off[W] - Cursor >= Need) {
-                At = Cursor;
-                break;
-            }
-            Cursor = Off[W] + entryBytes(NM[W]);
-        }
-
-        if (At == REGION_BYTES) {
-            Cursor = 0;
-            for (std::size_t I = 0; I < NumLive; ++I) {
-                const std::size_t W = Order[I];
-                const std::size_t Sz = entryBytes(NM[W]);
-                if (Off[W] != Cursor) {
-                    std::memmove(Rg + Cursor, Rg + Off[W], Sz);
-                    B->Offset[W] = (uint16_t)Cursor;
-                }
-                Cursor += Sz;
-            }
-            At = Cursor;
-        }
-    }
-
-    std::memcpy(Rg + At, &WR, sizeof(float));
-    std::memcpy(Rg + At + sizeof(float), &D, sizeof(float));
-    std::memcpy(Rg + At + 2 * sizeof(float), P, sizeof(float) * NumM);
 
     std::size_t Slot = NUM_WAYS;
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
-        if (NM[W] == 0) {
+        if (B->NumMoves[W] == NumM &&
+            B->Key[W].load(std::memory_order_relaxed) == Hash) {
+            B->Recency[W].store(255, std::memory_order_relaxed);
+            return true;
+        }
+        if (B->NumMoves[W] == 0 && Slot == NUM_WAYS) {
             Slot = W;
-            break;
         }
     }
-    B->Key[Slot].store(Hash, std::memory_order_relaxed);
+    if (Slot == NUM_WAYS) {
+        Slot = leastRecent(B, NUM_WAYS);
+    }
+
+    const std::size_t OldBytes = allocationBytes(B->Capacity);
+    std::size_t Need;
+    std::size_t NewCapacity;
+    std::size_t NewBytes;
+    while (true) {
+        Need = B->Size - entryFloats(B->NumMoves[Slot]) + NewSize;
+        NewCapacity = B->Capacity;
+        if (Need > B->Capacity) {
+            // Amortize growth without doubling a bucket's retained memory.
+            NewCapacity = B->Capacity == 0 ? Need : Need + Need / 4;
+        } else if (Need < B->Capacity / 2) {
+            // A rare large policy must not permanently inflate the bucket.
+            NewCapacity = Need + Need / 4;
+        }
+        NewBytes = allocationBytes(NewCapacity);
+        if (NewBytes <= OldBytes || reserve(NewBytes - OldBytes)) {
+            break;
+        }
+        // Under pressure, try an exact fit before discarding entries.
+        NewCapacity = Need;
+        NewBytes = allocationBytes(NewCapacity);
+        if (NewBytes <= OldBytes || reserve(NewBytes - OldBytes)) {
+            break;
+        }
+        const std::size_t Victim = leastRecent(B, Slot);
+        if (Victim != NUM_WAYS) {
+            erase(B, Victim);
+            continue;
+        }
+        if (!reclaimAndReserve(NewBytes - OldBytes, BIdx)) {
+            return false;
+        }
+        break;
+    }
+
+    const std::size_t Offset = offsetOf(B, Slot);
+    const std::size_t OldSize = entryFloats(B->NumMoves[Slot]);
+    const std::size_t Tail = B->Size - Offset - OldSize;
+    std::unique_ptr<float[]> NewData;
+    float* Data = B->Data.get();
+    if (NewCapacity != B->Capacity) {
+        NewData.reset(new (std::nothrow) float[NewCapacity]);
+        if (NewData == nullptr) {
+            if (NewBytes > OldBytes) {
+                PayloadBytes.fetch_sub(NewBytes - OldBytes,
+                                       std::memory_order_relaxed);
+            }
+            return false;
+        }
+        Data = NewData.get();
+        if (Offset != 0) {
+            std::memcpy(Data, B->Data.get(), Offset * sizeof(float));
+        }
+        if (Tail != 0) {
+            std::memcpy(Data + Offset + NewSize,
+                        B->Data.get() + Offset + OldSize, Tail * sizeof(float));
+        }
+    } else if (Tail != 0 && NewSize != OldSize) {
+        std::memmove(Data + Offset + NewSize, Data + Offset + OldSize,
+                     Tail * sizeof(float));
+    }
+    Data[Offset] = WR;
+    Data[Offset + 1] = D;
+    std::memcpy(Data + Offset + 2, P, sizeof(float) * NumM);
+    if (NewData != nullptr) {
+        B->Data = std::move(NewData);
+        B->Capacity = (uint32_t)NewCapacity;
+        if (OldBytes > NewBytes) {
+            PayloadBytes.fetch_sub(OldBytes - NewBytes,
+                                   std::memory_order_relaxed);
+        }
+    }
+    B->Size = (uint32_t)Need;
     B->NumMoves[Slot] = NumM;
-    B->Offset[Slot] = (uint16_t)At;
+    if (NewSize != OldSize) {
+        updateOffsets(B);
+    }
+    B->Key[Slot].store(Hash, std::memory_order_relaxed);
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
         if (W == Slot) {
             B->Recency[W].store(255, std::memory_order_relaxed);
@@ -231,43 +310,39 @@ bool EvalCache::store(uint64_t Hash, uint16_t NumM, const float* P, float WR,
             B->Recency[W].store((uint8_t)(R >> 1), std::memory_order_relaxed);
         }
     }
-
-    B->unlock();
     return true;
 }
 
 bool EvalCache::load(uint64_t Hash, EvalInfo* EI) {
-    const std::size_t BIdx = bucketIndex(Hash);
-    Bucket* B = &Buckets[BIdx];
-
+    Bucket* B = &Buckets[bucketIndex(Hash)];
     if (B->isWriting()) {
         return false;
     }
-
     for (std::size_t W = 0; W < NUM_WAYS; ++W) {
         if (B->Key[W].load(std::memory_order_relaxed) != Hash) {
             continue;
         }
-        // Misses need no read lock. Recheck a matching key after acquiring
-        // it: a writer may have replaced this way during the initial scan.
-        if (!B->tryLockShared()) {
+        std::shared_lock Guard(*B, std::try_to_lock);
+        if (!Guard.owns_lock()) {
             return false;
         }
         const uint16_t NumM = B->NumMoves[W];
         if (NumM == 0 || B->Key[W].load(std::memory_order_relaxed) != Hash) {
-            B->unlockShared();
             continue;
         }
-        const uint16_t Off = B->Offset[W];
-        const char* Rg = regionOf(BIdx);
+        try {
+            if (EI->Policy.size() < NumM) {
+                EI->Policy.resize(NumM);
+            }
+        } catch (const std::bad_alloc&) {
+            return false;
+        }
+        const float* Data = B->Data.get() + offsetOf(B, W);
         EI->NumMoves = NumM;
-        std::memcpy(&EI->WinRate, Rg + Off, sizeof(float));
-        std::memcpy(&EI->DrawRate, Rg + Off + sizeof(float), sizeof(float));
-        std::memcpy(EI->Policy, Rg + Off + 2 * sizeof(float),
-                    sizeof(float) * NumM);
-        // Other readers may refresh the same stamp concurrently.
+        EI->WinRate = Data[0];
+        EI->DrawRate = Data[1];
+        std::memcpy(EI->Policy.data(), Data + 2, sizeof(float) * NumM);
         B->Recency[W].store(255, std::memory_order_relaxed);
-        B->unlockShared();
         return true;
     }
     return false;

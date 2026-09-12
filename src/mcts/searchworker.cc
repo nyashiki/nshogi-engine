@@ -559,7 +559,7 @@ bool SearchWorker::doTask() {
 
         if (CacheFound) {
             if (CacheEvalInfo.NumMoves == NumMoves) {
-                LeafNode->setEvaluation(CacheEvalInfo.Policy,
+                LeafNode->setEvaluation(CacheEvalInfo.Policy.data(),
                                         CacheEvalInfo.WinRate,
                                         CacheEvalInfo.DrawRate);
                 LeafNode->sort();
